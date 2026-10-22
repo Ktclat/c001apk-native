@@ -76,8 +76,8 @@ fun NotificationScreen(repository: SocialRepository, generation: Long,
             }, actions = { row, refresh ->
                 if (category == NoticeCategory.MESSAGES && row.conversationKey != null) {
                     ConversationActions(repository, generation, row, refresh)
-                } else if (category != NoticeCategory.MESSAGES) {
-                    SocialDeleteButton(repository, generation, DeleteTarget.NOTIFICATION, row.id, onConfirmed = refresh)
+                } else if (category != NoticeCategory.MESSAGES && canDeleteNotification(row) && row.notificationScope?.generation == generation) {
+                    SocialDeleteButton(repository, generation, DeleteTarget.NOTIFICATION, row.id, notificationRow = row, onConfirmed = refresh)
                 }
             }) }
         }
@@ -223,7 +223,7 @@ fun SocialFollowButton(repository: SocialRepository, generation: Long, target: F
 /** Always asks in-app immediately before deleting a remote item. No deletion on navigation. */
 @Composable
 fun SocialDeleteButton(repository: SocialRepository, generation: Long, target: DeleteTarget, id: String,
-    conversationKey: String? = null, onConfirmed: () -> Unit = {}) {
+    conversationKey: String? = null, notificationRow: SocialRow? = null, onConfirmed: () -> Unit = {}) {
     key(generation, target, id, conversationKey) {
         var confirm by remember { mutableStateOf(false) }
         val runner = remember { MutationRunner() }; val state by runner.state.collectAsState()
@@ -237,7 +237,11 @@ fun SocialDeleteButton(repository: SocialRepository, generation: Long, target: D
             dismissButton = { TextButton(onClick = { confirm = false }) { Text("取消") } },
             confirmButton = { TextButton(onClick = {
                 confirm = false
-                scope.launch { runner.submit { repository.delete(target, id, conversationKey) }
+                scope.launch { runner.submit {
+                    if (target == DeleteTarget.NOTIFICATION) notificationRow?.let { repository.deleteNotification(it) }
+                        ?: WriteOutcome.Rejected(FailureKind.INVALID_ARGUMENT, "通知来源未确认，请刷新后重试")
+                    else repository.delete(target, id, conversationKey)
+                }
                     if ((runner.state.value as? DeliveryState.Finished)?.outcome is WriteOutcome.Confirmed) onConfirmed()
                 }
             }) { Text("确认删除") } })

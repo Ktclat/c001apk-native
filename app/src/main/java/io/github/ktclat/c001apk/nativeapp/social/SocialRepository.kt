@@ -13,10 +13,15 @@ import kotlinx.serialization.json.*
 /** A transport is bound to one immutable account snapshot, never a mutable global cookie jar. */
 class SocialRepository(private val accounts: AccountStore,
     private val transportFor: (SessionSnapshot) -> CoolapkHttpTransport) {
-    private suspend fun <T> authenticated(block: suspend (CoolapkHttpTransport) -> T): T = withContext(Dispatchers.IO) {
+    private val notificationOwner = Any()
+    private suspend fun <T> authenticated(block: suspend (CoolapkHttpTransport) -> T): T =
+        authenticatedScoped { transport, _ -> block(transport) }
+    private suspend fun <T> authenticatedScoped(expectedGeneration: Long? = null,
+        block: suspend (CoolapkHttpTransport, SessionSnapshot) -> T): T = withContext(Dispatchers.IO) {
         val snapshot = accounts.snapshot()
         if (snapshot.accountId == null) throw LoginRequired()
-        val result = block(transportFor(snapshot))
+        if (expectedGeneration != null && snapshot.generation != expectedGeneration) throw StaleNotificationScope()
+        val result = block(transportFor(snapshot), snapshot)
         if (!accounts.isCurrent(snapshot)) throw CancellationException("Session changed")
         result
     }
@@ -30,18 +35,20 @@ class SocialRepository(private val accounts: AccountStore,
         val query = extra + buildMap {
             put("page", cursor.page.toString()); cursor.firstItem?.let { put("firstItem", it) }; cursor.lastItem?.let { put("lastItem", it) }
         }
-        return try { authenticated { transport -> when (val result = transport.get(path, query)) {
+        return try { authenticatedScoped { transport, snapshot -> when (val result = transport.get(path, query)) {
             is ApiResult.Failure -> result
             is ApiResult.Success -> {
-                val array = result.value as? JsonArray ?: return@authenticated invalid()
-                if (array.size > 500 || array.any { it !is JsonObject }) return@authenticated invalid()
+                val array = result.value as? JsonArray ?: return@authenticatedScoped invalid()
+                if (array.size > 500 || array.any { it !is JsonObject }) return@authenticatedScoped invalid()
                 val ended = array.filterIsInstance<JsonObject>().any { it.text("entityType") == "noMoreDataCard" }
                 val rows = array.filterIsInstance<JsonObject>().filter { it.text("entityType") != "noMoreDataCard" }.map { obj -> SocialRow(
                     obj.text("id").ifBlank { if (path == "v6/message/list") obj.text("ukey") else "" }, obj.text("message"),
                     obj.text("messageUsername").ifBlank { obj.text("username") }.ifBlank { obj.text("fromusername") }, obj.text("messageUid").ifBlank { obj.text("uid") }.ifBlank { obj.text("fromuid") },
                     obj.text("ukey").takeIf { it.isNotBlank() }, obj.text("is_top") == "1",
-                    safeMessageImage(obj.text("message_pic")), obj.text("message_pic").isNotBlank()) }
-                if (rows.any { it.id.isBlank() }) return@authenticated invalid()
+                    safeMessageImage(obj.text("message_pic")), obj.text("message_pic").isNotBlank(), obj.text("entityType"),
+                    if (NoticeCategory.entries.any { it != NoticeCategory.MESSAGES && it.path == path } && obj.text("entityType") == "notification" && validId(obj.text("id")))
+                        NotificationDeleteScope(notificationOwner, obj.text("id"), snapshot.generation) else null) }
+                if (rows.any { it.id.isBlank() }) return@authenticatedScoped invalid()
                 val last = rows.lastOrNull()?.id?.takeIf { it.isNotBlank() }
                 ApiResult.Success(Page(rows, if (ended || last == null || last == cursor.lastItem) null else
                     PageCursor(cursor.page + 1, cursor.firstItem ?: rows.first().id, last)))
@@ -140,22 +147,36 @@ class SocialRepository(private val accounts: AccountStore,
         if (key.isBlank() || key.length > 256) return badArgument()
         return write(messageMutation = true) { it.get("v6/message/${if (pinned) "addTop" else "removeTop"}", mapOf("ukey" to key), mutation = true) }
     }
+    suspend fun deleteNotification(row: SocialRow): WriteOutcome {
+        val scope = row.notificationScope ?: return badArgument()
+        if (!scope.belongsTo(notificationOwner, row)) return badArgument()
+        return write(expectedGeneration = scope.generation) {
+            it.post("v6/notification/delete", emptyMap(), query = mapOf("id" to row.id))
+        }
+    }
     suspend fun delete(target: DeleteTarget, id: String, conversationKey: String? = null): WriteOutcome {
+        // Notification deletion must carry exact response provenance and account generation.
+        if (target == DeleteTarget.NOTIFICATION) return badArgument()
         if (target != DeleteTarget.CONVERSATION && !validId(id)) return badArgument()
         if (target in setOf(DeleteTarget.MESSAGE, DeleteTarget.CONVERSATION) && conversationKey.isNullOrBlank()) return badArgument()
         return write(messageMutation = target in setOf(DeleteTarget.MESSAGE, DeleteTarget.CONVERSATION)) { transport -> when (target) {
             DeleteTarget.MESSAGE -> transport.get("v6/message/delete", mapOf("id" to id, "ukey" to conversationKey!!), mutation = true)
             DeleteTarget.CONVERSATION -> transport.get("v6/message/deleteChat", mapOf("ukey" to conversationKey!!), mutation = true)
-            else -> transport.post(when (target) { DeleteTarget.FEED -> "v6/feed/deleteFeed"; DeleteTarget.REPLY -> "v6/feed/deleteReply"; else -> "v6/notification/delete" }, emptyMap(), query = mapOf("id" to id))
+            DeleteTarget.FEED -> transport.post("v6/feed/deleteFeed", emptyMap(), query = mapOf("id" to id))
+            DeleteTarget.REPLY -> transport.post("v6/feed/deleteReply", emptyMap(), query = mapOf("id" to id))
+            DeleteTarget.NOTIFICATION -> invalid()
         } }
     }
     private suspend fun write(requireRecord: Boolean = false, messageRecord: Boolean = false, messageMutation: Boolean = false,
+        expectedGeneration: Long? = null,
         action: suspend (CoolapkHttpTransport) -> ApiResult<JsonElement>): WriteOutcome = try {
-        authenticated { transport -> when (val response = action(transport)) {
+        authenticatedScoped(expectedGeneration) { transport, _ -> when (val response = action(transport)) {
             is ApiResult.Failure -> response.writeOutcome()
             is ApiResult.Success -> confirmWrite(response.value, requireRecord, messageRecord, messageMutation)
         } }
     } catch (_: LoginRequired) { WriteOutcome.Rejected(FailureKind.AUTHENTICATION, "请先登录后操作") }
+    catch (_: StaleNotificationScope) { WriteOutcome.Rejected(FailureKind.AUTHENTICATION, "账号状态已变化，请刷新后重新选择通知") }
+    private class StaleNotificationScope : IllegalStateException()
     private class LoginRequired : IllegalStateException()
     private fun loginFailure() = ApiResult.Failure(FailureKind.AUTHENTICATION, "请先登录后查看")
     private fun invalid() = ApiResult.Failure(FailureKind.INVALID_RESPONSE, "响应格式异常")

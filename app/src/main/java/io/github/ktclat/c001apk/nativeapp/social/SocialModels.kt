@@ -11,7 +11,7 @@ enum class NoticeCategory(val title: String, val path: String) {
     MESSAGES("私信", "v6/message/list"), SYSTEM("系统通知", "v6/notification/list")
 }
 data class SocialRow(val id: String, val message: String, val userName: String, val uid: String,
-    val conversationKey: String? = null, val pinned: Boolean = false, val imageUrl: String? = null, val hasImage: Boolean = false)
+    val conversationKey: String? = null, val pinned: Boolean = false, val imageUrl: String? = null, val hasImage: Boolean = false, val entityType: String = "", val notificationScope: NotificationDeleteScope? = null)
 data class ComposerDraft(val text: String, val selfOnly: Boolean = false, val targetType: String? = null,
     val targetId: String? = null, val replyId: String? = null, val replyToReply: Boolean = false,
     val replyAndForward: Boolean = false)
@@ -45,3 +45,11 @@ fun feedShareUrl(idOrUrl: String): String? {
 /** A chat message's conversation key is not its identity. */
 internal fun mergeSocialRows(existing: List<SocialRow>, incoming: List<SocialRow>, conversationList: Boolean): List<SocialRow> =
     (existing + incoming).distinctBy { if (conversationList) it.conversationKey ?: it.id else it.id }
+
+/** Opaque provenance from one repository response, never inferred from the sender's uid. */
+class NotificationDeleteScope internal constructor(private val owner: Any, private val id: String, val generation: Long) {
+    internal fun matches(row: SocialRow): Boolean = row.entityType == "notification" && row.id == id && validId(id)
+    internal fun belongsTo(expected: Any, row: SocialRow): Boolean = owner === expected && matches(row)
+    override fun toString() = "NotificationDeleteScope(redacted)"
+}
+internal fun canDeleteNotification(row: SocialRow): Boolean = row.notificationScope?.matches(row) == true
