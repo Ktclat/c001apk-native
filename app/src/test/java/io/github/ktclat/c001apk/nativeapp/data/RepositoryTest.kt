@@ -105,9 +105,9 @@ class RepositoryTest {
         assertEquals("12", server.takeRequest().requestUrl!!.queryParameter("id"))
     }
     @Test fun cancellationCancelsCallRatherThanPublishingFailure() = runBlocking {
-        server.enqueue(MockResponse().setBody("{\"data\":[]}").setBodyDelay(5, TimeUnit.SECONDS))
+        server.enqueue(MockResponse().setSocketPolicy(okhttp3.mockwebserver.SocketPolicy.NO_RESPONSE))
         val job = async { repository.home() }
-        withContext(Dispatchers.IO) { server.takeRequest(3, TimeUnit.SECONDS) }
+        assertNotNull(withContext(Dispatchers.IO) { server.takeRequest(3, TimeUnit.SECONDS) })
         job.cancelAndJoin()
         assertTrue(job.isCancelled)
     }
