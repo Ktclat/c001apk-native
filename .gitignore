@@ -1,6 +1,8 @@
 .gradle/
 .kotlin/
 **/build/
+!buildSrc/src/main/java/io/github/ktclat/build/
+!buildSrc/src/test/java/io/github/ktclat/build/
 local.properties
 *.jks
 *.keystore

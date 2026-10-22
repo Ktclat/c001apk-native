@@ -172,6 +172,61 @@ class NativeAppRenderingTest {
                 .assertIsDisplayed().assertWidthIsAtLeast(48.dp).assertHeightIsAtLeast(48.dp)
         }
     }
+    @Test fun actualRootSwitchTravelsAndJelliesWithoutMovingTouchTargets() {
+        render(sourceReference = true)
+        awaitBodyLayout()
+        fun tab(label: String) = compose.onNode(hasText(label) and SemanticsMatcher.keyIsDefined(androidx.compose.ui.semantics.SemanticsProperties.Selected))
+        fun position() = compose.onNodeWithTag("selected-pill", useUnmergedTree = true).fetchSemanticsNode().config[DecorativeJellyPosition]
+        fun shape() = compose.onNodeWithTag("selected-pill", useUnmergedTree = true).fetchSemanticsNode().config[DecorativeJellyScale]
+        val labels = listOf("首页", "关注", "我的")
+        val targetsBefore = labels.map { tab(it).fetchSemanticsNode().boundsInRoot }
+        assertEquals(0f, position(), .001f)
+        assertEquals(1f, shape(), .001f)
+        capture("native-root-jelly-000-synthetic.png")
+        compose.mainClock.autoAdvance = false
+        tab("我的").performClick()
+        compose.mainClock.advanceTimeByFrame()
+        tab("我的").assertIsSelected()
+        compose.mainClock.advanceTimeBy(80)
+        assertTrue("Actual root selection must travel rather than teleport", position() > 0f && position() < 2f)
+        assertTrue("Actual root switch must have visible decorative stretch", shape() > 1f)
+        capture("native-root-jelly-080-synthetic.png")
+        compose.mainClock.advanceTimeBy(96)
+        capture("native-root-jelly-176-synthetic.png")
+        assertEquals(targetsBefore, labels.map { tab(it).fetchSemanticsNode().boundsInRoot })
+        compose.mainClock.advanceTimeBy(240)
+        assertEquals(2f, position(), .001f)
+        assertEquals(1f, shape(), .001f)
+        capture("native-root-jelly-settled-synthetic.png")
+        tab("我的").performClick(); compose.mainClock.advanceTimeBy(80)
+        assertEquals(2f, position(), .001f); assertEquals(1f, shape(), .001f)
+        tab("首页").performClick(); compose.mainClock.advanceTimeBy(64)
+        tab("关注").performClick(); compose.mainClock.advanceTimeBy(448)
+        tab("关注").assertIsSelected()
+        assertEquals(1f, position(), .001f); assertEquals(1f, shape(), .001f)
+        assertEquals(targetsBefore, labels.map { tab(it).fetchSemanticsNode().boundsInRoot })
+        compose.mainClock.autoAdvance = true
+    }
+
+    @Test fun actualRootHonorsAnimatorDurationOffWithoutUsingTouchExplorationAsProxy() {
+        render(sourceReference = true)
+        val resolver = compose.activity.contentResolver
+        val previous = Settings.Global.getFloat(resolver, Settings.Global.ANIMATOR_DURATION_SCALE, 1f)
+        try {
+            compose.runOnUiThread { Settings.Global.putFloat(resolver, Settings.Global.ANIMATOR_DURATION_SCALE, 0f) }
+            compose.waitForIdle()
+            compose.mainClock.autoAdvance = false
+            compose.onNode(hasText("我的") and SemanticsMatcher.keyIsDefined(androidx.compose.ui.semantics.SemanticsProperties.Selected)).performClick()
+            compose.mainClock.advanceTimeBy(32)
+            val pill = compose.onNodeWithTag("selected-pill", useUnmergedTree = true).fetchSemanticsNode().config
+            assertEquals(2f, pill[DecorativeJellyPosition], .001f)
+            assertEquals(1f, pill[DecorativeJellyScale], .001f)
+        } finally {
+            compose.mainClock.autoAdvance = true
+            compose.runOnUiThread { Settings.Global.putFloat(resolver, Settings.Global.ANIMATOR_DURATION_SCALE, previous) }
+        }
+    }
+
     @Test @Config(qualifiers = "w390dp-h850dp-320dpi")
     fun populatedHomeHasRealOfflineAvatarAndMediaPixels() {
         render(sourceReference = true, populated = true)
@@ -350,6 +405,52 @@ class NativeAppRenderingTest {
         val dock = compose.onNodeWithTag("floating-navigation").fetchSemanticsNode().boundsInRoot
         capture("native-home-tail-clearance-synthetic.png")
         org.junit.Assert.assertTrue("Last action $action must scroll clear of dock $dock", action.bottom <= dock.top)
+    }
+    @Test fun actualSettingsRootShowsCategoriesAndReturnsWithinEachSection() {
+        render(initialRoute = "settings")
+        val categories = listOf("外观与字体", "关注与内容", "浏览与隐私", "存储与更新", "协议与设备")
+        capture("native-settings-category-index-synthetic.png")
+        categories.forEachIndexed { index, label ->
+            compose.onNode(hasText(label) and hasClickAction()).performScrollTo().performClick()
+            compose.onNodeWithTag("floating-navigation").assertDoesNotExist()
+            capture("native-settings-category-$index-synthetic.png")
+            compose.onNodeWithContentDescription("返回").performClick()
+            categories.forEach { compose.onNode(hasText(it) and hasClickAction()).assertExists() }
+        }
+    }
+    @Test fun actualAppearanceLastChoiceRemainsReachableAtLargeFont() {
+        render(fontScale = 1.6f, initialRoute = "settings")
+        compose.onNode(hasText("外观与字体") and hasClickAction()).performClick()
+        val lastMatcher = hasText("悬浮导航栏") and hasClickAction()
+        val list = compose.onNode(hasScrollAction())
+        list.performScrollToNode(lastMatcher)
+        val last = compose.onNode(lastMatcher)
+        last.assertIsDisplayed()
+        val target = last.getUnclippedBoundsInRoot()
+        val viewport = list.getUnclippedBoundsInRoot()
+        assertTrue("The complete final choice must remain within the scrolling viewport", target.top >= viewport.top && target.bottom <= viewport.bottom)
+        assertTrue("Do not shrink the final action below 48dp", (target.bottom - target.top) >= 48.dp)
+        compose.onNodeWithTag("floating-navigation").assertDoesNotExist()
+        capture("native-settings-appearance-large-font-tail-synthetic.png")
+    }
+    @Test @Config(qualifiers = "w900dp-h600dp-160dpi")
+    fun actualWideSettingsKeepsCategoryAndDetailPanesReachable() {
+        render(initialRoute = "settings")
+        compose.onNode(hasText("浏览与隐私") and hasClickAction()).performClick()
+        compose.onNodeWithText("记录浏览历史").assertIsDisplayed()
+        compose.onNode(hasText("外观与字体") and hasClickAction()).assertIsDisplayed()
+        capture("native-settings-wide-two-pane-synthetic.png")
+    }
+    @Test fun actualMyRootUsesSourceShortcutGroupsAndToolbarSettings() {
+        render(sourceReference = true)
+        compose.onNode(hasText("我的") and SemanticsMatcher.keyIsDefined(androidx.compose.ui.semantics.SemanticsProperties.Selected)).performClick()
+        compose.onNodeWithText("点击登录").assertIsDisplayed()
+        compose.onNodeWithText("本地收藏").assertExists()
+        compose.onNodeWithText("我的收藏").assertExists()
+        capture("native-my-guest-source-layout-synthetic.png")
+        compose.onNodeWithContentDescription("设置").performClick()
+        compose.onNode(hasText("外观与字体") and hasClickAction()).assertIsDisplayed()
+        compose.onNodeWithTag("floating-navigation").assertDoesNotExist()
     }
     @Test fun settingsHasNoRootDock() {
         render(initialRoute = "settings")

@@ -17,7 +17,8 @@ class SettingsUiTest {
     @get:Rule val compose = createComposeRule()
     @Test fun switchesHaveReadableLabelAndWholeRowAction() {
         var result: AppSettings? = null
-        compose.setContent { MaterialTheme { SettingsScreen(AppSettings(), { result=it }, {}, {}, {}, {}) } }
+        compose.setContent { MaterialTheme { SettingsScreen(AppSettings(), { result=it }, {}, {}, {}, {}, onNavigate = {}) } }
+        compose.onNodeWithText("外观与字体").performClick()
         compose.onNode(hasScrollToIndexAction()).performScrollToNode(hasText("悬浮导航栏"))
         compose.onNodeWithText("悬浮导航栏").assertIsOff().performClick()
         compose.runOnIdle { assertEquals(true,result?.floatingNavigation) }

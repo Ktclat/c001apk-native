@@ -36,6 +36,7 @@ class FloatingNavigationMotionTest {
         compose.mainClock.advanceTimeBy(32)
     }
     private fun tab(label: String) = compose.onNode(hasText(label) and SemanticsMatcher.keyIsDefined(SemanticsProperties.Selected))
+    private fun position() = compose.onNodeWithTag("selected-pill", useUnmergedTree = true).fetchSemanticsNode().config[DecorativeJellyPosition]
     private fun scale() = compose.onNodeWithTag("selected-pill", useUnmergedTree = true).fetchSemanticsNode().config[DecorativeJellyScale]
     private fun frame(name: String) {
         val bitmap = compose.runOnUiThread { val view = compose.activity.findViewById<View>(android.R.id.content)
@@ -49,12 +50,14 @@ class FloatingNavigationMotionTest {
         tab("关注").performClick()
         compose.mainClock.advanceTimeBy(80)
         assertTrue("Switch must pulse only the decoration", scale() > 1f)
+        assertTrue("Pill must visibly travel, not teleport", position() > 0f && position() < 1f)
         frame("jelly-80ms-synthetic")
         compose.mainClock.advanceTimeBy(80)
         frame("jelly-160ms-synthetic")
         assertEquals(bounds, listOf("首页", "关注", "我的").map { tab(it).fetchSemanticsNode().boundsInRoot })
-        compose.mainClock.advanceTimeBy(160)
+        compose.mainClock.advanceTimeBy(240)
         assertEquals(1f, scale(), 0.001f)
+        assertEquals(1f, position(), 0.001f)
         frame("jelly-settled-synthetic")
         tab("关注").performClick()
         compose.mainClock.advanceTimeBy(80)
@@ -65,11 +68,14 @@ class FloatingNavigationMotionTest {
         tab("关注").performClick(); compose.mainClock.advanceTimeBy(80)
         tab("我的").performClick(); compose.mainClock.advanceTimeBy(400)
         tab("我的").assertIsSelected()
+        assertEquals(2f, position(), 0.001f)
         assertEquals(1f, scale(), 0.001f)
     }
     @Test fun reducedMotionNeverPulses() {
         render(reduced = true)
+        assertEquals(0f, position(), 0.001f)
         tab("关注").performClick(); compose.mainClock.advanceTimeBy(80)
         assertEquals(1f, scale(), 0.001f)
+        assertEquals(1f, position(), 0.001f)
     }
 }

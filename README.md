@@ -24,6 +24,14 @@ The APK still embeds exactly these three fonts for offline rendering. [The copyr
 
 Minimum Android API 26 (Android 8.0), following the updated user scope. Native package `io.github.ktclat.c001apk.nativeapp` coexists with the Flutter app; private account data is **not** automatically migrated. No production account, cookies, signing credentials, or release publishing is configured.
 
+## Current development snapshot
+
+The publication base is `0c1bec8211236aee248b233d33585b88f79e91ac`, whose CI #5 verified 310 tests. The newer review source adds source-contract corrections for the reported 403 (not yet proven live), including User-Agent/platform-profile injection and millisecond Home installation time; actual My-list destinations; categorized Settings; and a visibly traveling elastic dock selection pill. Default scroll hiding and local diagnostics support those changes; there is no separate dock-policy picker. All existing device codes remain unchanged, including account-bound codes; only new-installation codes gain actual platform metadata.
+
+**Build54 passed the coherent local gate:** 383 tests across 79 classes, zero failures/errors/skips, successful debug assembly, and lint with zero errors, 37 warnings and one hint. Frozen source hashes matched throughout. This includes actual-root default-hide/recovery, all 11 My destination paths and the corrected light/dark personal-list backgrounds. It is synthetic evidence, not real-account acceptance.
+
+Floating navigation hides on scrolling by default, without a separate policy picker; touch exploration no longer blanket-disables scroll hiding. Existing labeled toolbar/scroll nodes provide a guarded accessibility action to reveal the dock. **Independent review approved limited incremental publication of this exact source; remote CI remains a separate gate.** Actual TalkBack/device validation, live HTTP 403 resolution, generic personal-card/header fidelity, account avatar/statistics and several Settings editors remain open. See the verification record for the exact local APK identity and signing limits.
+
 ## Scope and verification
 
 See [current feature status](docs/FEATURE_STATUS.md), [verification evidence](docs/VERIFICATION.md), [migration stages](docs/MIGRATION.md), and [architecture decisions](docs/ARCHITECTURE.md). A compiled shell, synthetic API tests, and screenshots are not evidence of live endpoint access, account migration, hardware performance, or functional parity. Server access challenges must be displayed, never replaced with fake feed data.

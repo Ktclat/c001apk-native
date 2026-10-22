@@ -36,6 +36,10 @@ class CoolapkHttpTransport(
     private var replay: Replay? = null
     private var continuationSession = AtomicReference<RequestSession?>(null)
     private fun activeSession() = (if (operationScoped) continuationSession.get() else null) ?: requestSession?.invoke()
+    /** Read-only scoped adapter: use exactly the caller's captured session, never recapture another account. */
+    internal fun forRequestSession(session: RequestSession): CoolapkHttpTransport =
+        CoolapkHttpTransport(client, endpoints, protocol, { session }, monotonicMillis, true)
+
     /** Capture once for one social action/pipeline, not a shared browsing repository. */
     fun forSingleOperation(): CoolapkHttpTransport {
         val captured = activeSession()

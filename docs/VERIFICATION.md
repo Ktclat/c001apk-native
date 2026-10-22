@@ -1,64 +1,51 @@
 # Verification record: full parity NOT ACCEPTED
 
-This is a development implementation, not completed Flutter functional/UI parity, live-account acceptance, or measured Android device performance. Both working features and a recognizable Flutter UI are required; a passing build alone is insufficient.
+A working feature set and a recognizable Flutter UI are both required. Synthetic checks, source inspection and successful compilation do not establish live-account acceptance, device behavior or performance.
 
-## Published snapshot and historical APK warnings
+## Published baseline and current gate
 
-The publication base, `7efb97fbbf6281721379087b532a49a39961258b`, is the prior safety-only snapshot containing the baseline and two isolated safety backports. The review snapshot described below extends that base with broader UI work. Its UI and local test counts must **not** be attributed to the old base. PR #1 remains draft and unmerged; `main` is unchanged.
+The publication base is `0c1bec8211236aee248b233d33585b88f79e91ac`; CI #5 verified 310 tests on that published snapshot. Its prior exact-source gate and limited incremental-publication review do not automatically cover the newer local changes below. PR #1 remains draft/unmerged; `main` is unchanged.
 
-- Historical `76a8d57326cf14ebacd2b8eeda6d48b5c4fd661c` and its APK could expose notification deletion for a feed/reply entity in mixed lists. A logged-in user had to tap and confirm deletion; opening a list did not delete anything. No actual incident or server acceptance was observed. Do not use that old development APK for notification deletion/account operations.
-- `2166613e5c59ec7d84485f6722833dca95b2b3e7` corrected notification deletion using entity type, exact endpoint/ID, repository provenance and captured account generation, with generic notification deletion failing closed. Its [CI run](https://github.com/Ktclat/c001apk-native/actions/runs/39758048025) passed build, lint and 103 tests. A subsequent review found a separate pre-I/O account-generation race in that snapshot: a delayed operation could capture a newly selected account. That historical APK must not be treated as current account-operation acceptance either. No actual cross-account send was observed.
-- The current local source includes notification provenance, captured UI-generation checks before transport creation, and CAPTCHA callback ownership guards. All 15 generation-safety additions passed in Build46. These are deterministic synthetic checks, not real-account validation.
+- **Build54 coherent local gate: PASS in 14m21s.** **383 tests across 79 classes**, zero failures, errors or skips; `assembleDebug` and `lintDebug` passed. Lint reports **zero errors, 37 warnings and one hint**. All 271 frozen source hashes matched; the archive contains 189 fresh evidence artifacts.
+- Coverage includes **seven actual-root default-hide/accessibility-recovery tests**, **five My routing fixtures covering all 11 destination paths plus account-switch/guest guards**, and **two background tests covering light/dark themes across five states**. Four installation-time tests cover corrupt-value/idempotence handling. The prior focused background correction and fresh collection/light/dark frames were independently inspected; these are synthetic checks, not real-account or actual TalkBack acceptance.
+- **Separate prerequisites passed:** 31/31 offline font-preparer fixtures, offline verification of all three existing fonts, and 20/20 native-provenance self-checks. These are not added to the 383 Android/JUnit count. The APK's three font pins and bundled font/icon license bytes were also verified.
+- **Independent limited-publication review: PASS for the exact Build54 source.** This local result is not itself a remote CI result, merge approval, or full functional/UI parity acceptance.
 
-Publishing corrected source does not repair already installed historical APKs. All APKs are debug builds; local and CI certificates can differ. There is no release-signing or in-place-upgrade continuity claim. Do not uninstall to resolve a certificate conflict without preserving needed data.
+### Local debug APK identity
 
-## Latest local gate
+- Size: **17,811,587 bytes**.
+- SHA-256: `e3a6239c9942af5af0a72978536c91ec64e94becbdba7f007d887ddbba125a84`.
+- Local signer SHA-256: `f2840c7ab104085a0d42ca4773d0682db237b5eaea8b9b470d9ca792dc70a759`, distinct from the CI debug signer. This does not establish release signing or in-place upgrade continuity.
 
-**Build46: PASSED.** The exact-source full gate exited successfully in 12 minutes 48 seconds:
+## Changes under verification
 
-- **310/310 tests passed**, with zero failures, errors or skips. This includes 27 adaptive-root, 13 shortest-window, five short-header policy and five atomic Apps snapshot/Main-publication tests.
-- Debug assembly passed. Lint completed with **zero errors, 36 warnings and one hint**.
-- The source manifest was unchanged across the run; 168 fresh verification files were archived.
-- Debug APK: **18,452,277 bytes**, SHA-256 `65342775ebafdf5bd8f63abd251cf99275b8e98d44faf0416cc2df7ef1681372`.
+- **Source-contract corrections for the reported 403, unproven live:** a source-format User-Agent uses validated Android manufacturer/brand/model/build-display/version metadata. All existing device codes remain unchanged, including installation and account-bound codes; only new-installation codes gain actual platform metadata. This is a local client identifier, not hardware identity or vendor attestation. Home's stored installation time is normalized from seconds to milliseconds without rotating identity; the signature timestamp remains seconds. Source compatibility is not proof that a server will accept a request or that a reported 403 is fixed.
+- **Actual My destinations:** the source-structured My page now routes six typed destinations: following, fans, recent visits, server collections, likes and replies. Their five actual-root fixtures passed in Build54, including 11 destination paths and account-switch/guest guards. The themed personal-list background correction also passed. Their projections are read-only generic cards; card and account-header presentation are not complete source parity. Server avatar/statistics remain missing; local collections do not substitute for server collections, and absent account counts are not fabricated zeros.
+- **Categorized Settings:** category navigation, a wide two-pane layout and working appearance/font/privacy/data controls are implemented. Official device-code import, manual profile/protocol editors, image-cache clearing and emoji-art rendering remain explicit gaps rather than ineffective controls.
+- **Visible cross-tab jelly:** the selected dock background pill travels between destinations with elastic deformation; icons, labels and hit areas stay fixed. Deterministic root animation frames demonstrate this visible change, not real-device smoothness.
+- **Supporting default-scroll behavior/diagnostics:** floating navigation now hides on scrolling by default, with no separate policy picker; touch exploration no longer blanket-disables scroll hiding. A “显示底部导航” accessibility action is attached to existing labeled toolbar/scroll nodes; eligibility and scroll-owner identity are rechecked to reject stale callbacks. Root, keyboard and search visibility rules still apply. These source changes do not change Android accessibility settings, and actual TalkBack/device validation is pending. Diagnostics are allowlisted and local-only, with clipboard writing only on an explicit copy action; the source fingerprint is not an APK hash.
 
-Independent review granted a **limited incremental-publication PASS for this exact source snapshot**, after checking all310 test results, source hashes, APK identity, fresh renders and remaining lint warnings. This is not a merge or whole-app acceptance approval. These local results are not a verified remote broad-UI CI result and do not establish whole-app parity, runtime/device acceptance or performance. The prior safety-only publication base must not inherit these UI/test claims.
+Archived Compose output includes actual Home/root animation phases, categorized Settings and guest/synthetic signed-in My. Fresh collection/background frames accompany the Surface correction; final independent review also inspected fresh dock-recovery and large-font Settings-tail frames. Earlier policy-picker frames describe an older source, not the latest UI. The native mapping of the Flutter report uses 1200×2670 pixels, DPR3.25 and 369.230769×821.538462 logical dp with injected insets. That is a **synthetic mapping, not native-device measurement or reproduction**. The older 400×890 dp/DPR3 fixture is hypothetical, not the reported device viewport. Deterministic animation frames are not FPS or smoothness evidence.
 
-Earlier diagnostics observed mixed Apps snapshots and worker-thread publication; those observations did not establish the cause of the earlier persistent readiness timeouts. Build46 verifies the applied atomic snapshot/Main-publication change and existing matrices, without claiming that every earlier failure's cause is proven.
+## Historical safety and signing warnings
 
-## UI evidence and its scope
+- Historical `76a8d57326cf14ebacd2b8eeda6d48b5c4fd661c` and its APK could expose notification deletion for a feed/reply entity in mixed lists. Deletion required a logged-in user's tap and confirmation; simply opening lists did not delete anything. No actual incident or server acceptance was observed. Do not use that old development APK for notification deletion/account operations.
+- `2166613e5c59ec7d84485f6722833dca95b2b3e7` corrected notification deletion but preceded the separately identified pre-I/O account-generation fix. A delayed operation could capture a newly selected account. No actual cross-account send was observed. That historical APK is not current account-operation acceptance.
+- The later baseline/source includes exact notification provenance, captured UI-generation checks before transport creation and CAPTCHA callback ownership guards. Their deterministic tests do not amount to real-account validation. New source does not repair already installed historical APKs.
 
-Actual Compose renders include source-faithful Home chrome, 35 dp avatar/author/time/device metadata, compact feed actions, continuous detail/comments and reply-sort controls, exact Flutter Material glyph paths, original adaptive launcher resources, and populated synthetic avatar/media pixels. Original Flutter production-widget captures support comparison. This is recognizable progress, not a pixel-perfect or complete full-app parity claim.
+All APKs are debug builds. Local and CI signing certificates can differ; no stable release signing or in-place upgrade continuity is promised. Do not uninstall to resolve a certificate conflict without preserving needed data.
 
-The floating navigation stays a compact bottom overlay in portrait and landscape. Consumed content movement uses 28 dp hide/20 dp reveal hysteresis, user-fling continuation, page/account resets, stable trailing clearance and reselect behavior. Classic mode may use a rail; floating mode does not silently change into one. Root/header scrolling adapts when fixed chrome would leave insufficient usable space, including 480×240 dp at font scale 2.0.
+## Remaining evidence limits
 
-The Flutter device report identified an accessibility flag blocking forwarded scroll. Native currently guards auto-hiding using Android touch exploration; the same cause has not been established on a native device. A separate three-mode native scroll policy is staged only: 18 isolated tests passed, while two Compose tests remain unrun. That policy and its additional diagnostic support are not integrated into this review snapshot.
-
-The passing Build46 matrices exercise real Home/feed/apps, online/local Following and My roots across portrait/landscape, narrow widths, font scales up to 2.0, synthetic bottom/side insets and IME, empty/short/error states, reachable end actions, direction changes, flings, reselect, semantics and stable hit bounds. Robolectric SDK35/native-graphics output is real Compose rendering, not an HTML mockup. Its synthetic system conditions are not real keyboard, gesture-navigation or HyperOS evidence.
-
-The 400×890 dp/DPR3 case is a hypothetical aspect-ratio fixture, **not** validation of the reported device viewport of 369.23×821.54 dp at DPR3.25. It does not establish the user's actual display scaling, system insets or Xiaomi 15/HyperOS behavior. Runtime layout uses window size and insets, not model detection.
-
-A software-emulator boot attempt did not finish. No app was installed or run on it, and no emulator/device screenshots were obtained. Deterministic animation frames and stable hit bounds do not establish FPS, smoothness, memory use or device performance; physical-device and TalkBack checks remain open.
-
-## Text and asset evidence
-
-Build46's restoration check passed: before/after screenshots were byte-identical, body/card bounds and visible post IDs were unchanged, the actual list index/offset remained `(1, 456)`, and the no-reload assertion passed. The first body's clipped bounds were 0×0 even though its card footer remained visible. Its body was already complete in this run, so this is **not** a direct reproduction of the earlier pending-to-complete mismatch.
-
-The fixture compares all visible text, stable IDs and actual list state. Retained offscreen bodies stay in the evidence but are not compared as visible content. Any displayed pending body still fails. Bounds make this distinction reviewable. The implementation retains off-main parsing, immutable results, Main publication, parent-job cancellation and input-keyed state. Strict readiness/replacement/cancellation tests remain, without a completed-value cache or relaxed timeout to hide failures. Independent review accepted this bounded restoration contract and its exact evidence.
-
-Build33's clean offline debug assembly passed with the pinned fonts prepared. The three APK OTF resources and bundled license texts were byte-compared to their pinned inputs. `app/tools/fetch_fonts.py` has 31 passing offline fixtures, fails on missing/corrupt offline inputs and is not a silent fallback. Font binaries are generated build inputs, not committed repository files.
-
-## Remaining acceptance limits
-
-- One ordinary anonymous Home request returned HTTP 567 through the configured network path. It stopped without retries, alternate hosts, credentials or writes. This does not establish backend availability or a general service outage.
-- No real login, post, like, follow, message, upload, full device-inventory scan, installation or permission grant was performed.
-- Feed/reply image composing, actionable reply likes, complete nested/template-card behavior, faithful Settings/My presentation and original emoji-art rights/panel parity remain unresolved. Chat image-selection/send code exists; that does not complete the feed/reply image composer.
-- The decoder's explicit 12,000-character body preview remains a full-text gap. Separate full-body work is staged but not integrated; re-fetching the same bounded record is not full-body parity.
-- Launcher-visible app listing and explicit selected-app update checks exist. Full installed-app inventory, complete typed app-detail/download presentation, confirmed native APK transfer and browser-history restoration remain incomplete or staged outside the integrated source. An explicitly confirmed browser handoff does not establish integrated native download transfer/completion. The staged native transfer uses a bounded anonymous client and SAF; acceptance does not require a particular Android download API.
-- Local storage/SAF, WebView isolation, lifecycle/process-death, accessibility and performance still require device validation. Authorized live-service scenarios and independent whole-app functional/UI acceptance remain open.
+- The earlier anonymous Home probe returned HTTP 567 through the configured network path. The new profile/timestamp changes have not established a live 403 fix, general backend availability or a general outage. No real login, account write, upload, full inventory scan, installation or permission grant was performed for this verification.
+- The software-emulator boot attempt did not complete; the app was not installed or run there. There are no emulator/device screenshots or real Xiaomi 15/HyperOS, TalkBack, system-gesture, keyboard, lifecycle, FPS or memory acceptance results.
+- Feed/reply image composing, actionable reply likes, complete card/template presentation, original emoji-art rights/panel parity, full installed-app inventory, integrated native download transfer/completion and some Settings/My capabilities remain gaps. Staged work is not integrated acceptance.
+- The 12,000-character body preview remains a genuine full-text gap; separate full-body work is not integrated. The older accepted restoration test preserved screenshots, visible text/IDs, actual list position and no reload, but its clipped first body was already complete: it did not reproduce the earlier pending-to-complete transition or prove every prior failure's cause.
+- Font binaries remain generated, ignored build inputs, not repository uploads. The passing preparation and packaged-byte checks establish pinned asset integrity, not typography or device-performance parity.
 
 ## Reproduce from the repository root
 
-Use JDK 17 or 21 and Android SDK 36. Prepare pinned fonts, then run their fixtures and the full Android gate:
+Use JDK 17 or 21 and Android SDK 36:
 
 ```sh
 python3 app/tools/fetch_fonts.py
@@ -66,8 +53,10 @@ python3 -m unittest discover -s app/tools -p 'test_fetch_fonts.py' -v
 ./gradlew :app:testDebugUnitTest :app:assembleDebug :app:lintDebug
 ```
 
-For an already provisioned cache, `python3 app/tools/fetch_fonts.py --offline` verifies the font inputs without downloading; `./gradlew --offline :app:testDebugUnitTest :app:assembleDebug :app:lintDebug` also requires the Gradle distribution, SDK and dependencies to be cached. Gradle verifies font hashes and fails clearly if preparation is missing.
+Use `python3 app/tools/fetch_fonts.py --offline` to verify already prepared fonts. An offline Gradle gate additionally needs its distribution, SDK and dependencies cached. Missing or corrupt pinned inputs fail explicitly.
 
-JUnit XML is under `app/build/test-results`, test/lint reports under `app/build/reports`, and synthetic images under `app/build/verification`. Compare reports and images from the same completed source snapshot; stale outputs do not prove a new run passed. CI uses read-only repository permissions, with no release publishing or secrets.
+JUnit XML lives under `app/build/test-results`, test/lint reports under `app/build/reports`, and synthetic frames under `app/build/verification`. Match all evidence to one completed source snapshot; stale files or focused checks are not a full pass. CI uses read-only repository permissions, without release publishing or secrets.
 
-The exact-source full gate and independent limited incremental-publication review have passed. Keep the draft unmerged: this limited publication approval does not close the broader acceptance gates. Whole-app functional/UI review, authorized live-service validation and real-device accessibility/performance remain separate open gates. No full-parity completion or merge is claimed.
+The coherent local gate and independent limited-publication review passed. Remote CI remains a separate gate. Keep the draft unmerged. Whole-app functional/UI parity, authorized live-service validation and physical-device acceptance remain separate open gates.
+
+The results-only documentation update followed the frozen Build54 run; production and test sources are unchanged.

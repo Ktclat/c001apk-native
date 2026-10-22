@@ -15,9 +15,10 @@ class ClientProtocol(
     private val clockSeconds: () -> Long = { System.currentTimeMillis() / 1000 },
     private val appCode: Int = 2604201,
     private val sdkInt: Int = 21,
+    private val deviceProfile: ClientDeviceProfile? = null,
 ) {
     fun headers(deviceOverride: String? = null): Map<String, String> = mapOf(
-        "User-Agent" to "c001apk-native/0.1 (Android; independent client)",
+        "User-Agent" to (deviceProfile?.userAgent(appCode) ?: "c001apk-native/0.1 (Android; independent client)"),
         "X-Requested-With" to "XMLHttpRequest", "X-Sdk-Locale" to "zh-CN",
         "X-Sdk-Int" to sdkInt.toString(),
         "X-App-Id" to "com.coolapk.market", "X-App-Token" to token(deviceOverride ?: deviceCode, clockSeconds(), appCode),

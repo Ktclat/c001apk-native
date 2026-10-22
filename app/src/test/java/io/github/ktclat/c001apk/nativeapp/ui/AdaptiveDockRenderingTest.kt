@@ -507,7 +507,7 @@ class AdaptiveDockRenderingTest {
             capture("${testName.methodName}-${surface.name}-author-reachable")
         }
     }
-    private fun mySurface() = SurfaceCase("my", "my-root-list", null, hasText("原生客户端版本与更新") and hasClickAction(), mustScroll = false)
+    private fun mySurface() = SurfaceCase("my", "my-root-list", null, hasText("私信与信息") and hasClickAction(), mustScroll = false)
 
     private fun scrollEnd(surface: SurfaceCase) {
         val list = compose.onNodeWithTag(surface.listTag)

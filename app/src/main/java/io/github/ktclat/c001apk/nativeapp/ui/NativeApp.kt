@@ -56,6 +56,7 @@ import androidx.compose.material.icons.outlined.FavoriteBorder
 import androidx.compose.material.icons.outlined.Person
 import io.github.ktclat.c001apk.nativeapp.domain.ContentItem
 import io.github.ktclat.c001apk.nativeapp.platform.*
+import io.github.ktclat.c001apk.nativeapp.diagnostics.NativeDiagnosticsScreen
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
@@ -83,12 +84,12 @@ fun NativeApp(model: BrowseViewModel, container: AppContainer, settings: AppSett
     val accessibility = rememberSystemAccessibility()
     val reduceMotion = accessibility.reduceMotion
     var dockVisible by remember { mutableStateOf(true) }
-    val touchExploration = accessibility.touchExploration
     val keyboardOpen = WindowInsets.ime.getBottom(LocalDensity.current) > 0
     val configuration = androidx.compose.ui.platform.LocalConfiguration.current
     // Floating mode remains a bottom overlay in every window orientation, including phones in landscape.
     val useRail = route == null && !settings.floatingNavigation && (configuration.screenWidthDp >= 600 || configuration.screenWidthDp > configuration.screenHeightDp)
     val floatingRoot = route == null && settings.floatingNavigation
+    val observeDockScroll = shouldObserveFloatingDockScroll(floatingRoot, keyboardOpen, searchOpen)
     val density = LocalDensity.current
     val layoutDirection = androidx.compose.ui.platform.LocalLayoutDirection.current
     val drawingInsets = WindowInsets.safeDrawing
@@ -100,9 +101,20 @@ fun NativeApp(model: BrowseViewModel, container: AppContainer, settings: AppSett
     val floatingTail = if (floatingRoot && !keyboardOpen) floatingNavigationHeight() + dockBottomGap + 12.dp + dockExtraBottom else 0.dp
     val hideDistance = with(density) { 28.dp.toPx() }
     val showDistance = with(density) { 20.dp.toPx() }
-    val dockScroll = remember(root, homeTab, route, settings.followType, settings.secretFollow, accountState.generation, hideDistance, showDistance, keyboardOpen, searchOpen, touchExploration) {
+    val dockScroll = remember(root, homeTab, route, settings.followType, settings.secretFollow, accountState.generation, hideDistance, showDistance, keyboardOpen, searchOpen) {
         FloatingDockScrollState(hideDistance, showDistance)
     }
+    val recoveryEnabled = shouldOfferFloatingDockRecovery(floatingRoot, keyboardOpen, searchOpen, dockVisible)
+    val currentRecoveryEnabled by rememberUpdatedState(recoveryEnabled)
+    val currentDockScroll by rememberUpdatedState(dockScroll)
+    val revealDock: (() -> Boolean)? = if (recoveryEnabled) ({
+        // Recheck eligibility if an accessibility service invokes an action after the UI changed.
+        if (currentRecoveryEnabled && currentDockScroll === dockScroll) {
+            dockScroll.reset()
+            dockVisible = true
+            true
+        } else false
+    }) else null
     val reselectEvents = remember { kotlinx.coroutines.flow.MutableSharedFlow<Boolean>(extraBufferCapacity = 1) }
     val selectRoot: (Int) -> Unit = { index ->
         dockScroll.reset()
@@ -110,9 +122,9 @@ fun NativeApp(model: BrowseViewModel, container: AppContainer, settings: AppSett
         if (root == index && index in 0..1) reselectEvents.tryEmit(!reduceMotion)
         root = index
     }
-    val scrollObserver = remember(dockScroll, floatingRoot, touchExploration, keyboardOpen, searchOpen) {
+    val scrollObserver = remember(dockScroll, observeDockScroll) {
         object : NestedScrollConnection {
-            private val enabled get() = floatingRoot && !touchExploration && !keyboardOpen && !searchOpen
+            private val enabled get() = observeDockScroll
             override fun onPostScroll(consumed: Offset, available: Offset, source: NestedScrollSource): Offset {
                 if (enabled) dockVisible = dockScroll.consume(consumed.y, source == NestedScrollSource.UserInput)
                 return Offset.Zero
@@ -129,7 +141,7 @@ fun NativeApp(model: BrowseViewModel, container: AppContainer, settings: AppSett
     }
     LaunchedEffect(dockScroll) { dockScroll.reset(); dockVisible = true }
     val entrance = remember { Animatable(1f) }
-    LaunchedEffect(root, homeTab, route, reduceMotion, touchExploration, settings.floatingNavigation) {
+    LaunchedEffect(root, homeTab, route, reduceMotion, settings.floatingNavigation) {
         dockVisible = true
         if (reduceMotion) entrance.snapTo(1f)
         else { entrance.snapTo(0f); entrance.animateTo(1f, tween(160)) }
@@ -161,6 +173,34 @@ fun NativeApp(model: BrowseViewModel, container: AppContainer, settings: AppSett
             }
         }) }; return
     }
+    if (route?.startsWith("mylist:") == true || route?.startsWith("mycollection:") == true) {
+        val request = parsePersonalListRoute(route)
+        val authenticatedId = personalListAccountId(accountState)
+        val personalLists = remember(accounts.repository, authenticatedId, accountState.generation) {
+            val expectedId = authenticatedId
+            val expectedGeneration = accountState.generation
+            accounts.repository.personalLists {
+                val current = accounts.store.state.value
+                expectedId != null && personalListAccountId(current) == expectedId && current.generation == expectedGeneration
+            }
+        }
+        if (request == null) HostedScreen("我的内容", goBack) { Notice("我的内容", "此列表暂不支持") }
+        else PersonalListScreen(personalLists, request, authenticatedId, accountState.generation, goBack, navigate, openLink)
+        return
+    }
+    if (route?.startsWith("notifications:") == true) {
+        val initialCategory = NoticeCategory.entries.firstOrNull { it.name == route!!.substringAfter(':') }
+        HostedScreen("消息", goBack) {
+            if (initialCategory == null) Notice("消息分类", "此消息分类暂不支持")
+            else if (accountState.activeId == null) Column(Modifier.padding(24.dp)) {
+                Text("登录后查看消息")
+                Button(onClick = { navigate("login") }) { Text("登录") }
+            } else NotificationScreen(accounts.socialRepository, accountState.generation,
+                onConversation = { conversation, uid -> navigate("chat:${android.net.Uri.encode(conversation)}:$uid") },
+                initialCategory = initialCategory)
+        }
+        return
+    }
     replyDraftForRoute(route)?.let { draft ->
         HostedScreen("回复", goBack) {
             if (accountState.activeId == null) Column(Modifier.fillMaxSize().padding(24.dp)) {
@@ -175,7 +215,8 @@ fun NativeApp(model: BrowseViewModel, container: AppContainer, settings: AppSett
         }; return
     }
     when (route) {
-        "native-updates" -> { NativeUpdateScreen(goBack, container.nativeUpdates); return }
+        "native-updates" -> { NativeUpdateScreen(goBack, container.nativeUpdates, onOpenDiagnostics = { navigate("native-diagnostics") }); return }
+        "native-diagnostics" -> { NativeDiagnosticsScreen(settings.floatingNavigation, accessibility, goBack); return }
         "app-updates" -> { InstalledAppUpdatesScreen(container.appUpdates, goBack) { navigate("app:$it") }; return }
         "accounts" -> { HostedScreen("账号", goBack) { AccountManager(accounts.store, { navigate("login") }) }; return }
         "login" -> { HostedScreen("登录", goBack) { PasswordLogin(accounts.loginCoordinator, accounts.loginTransport, goBack) }; return }
@@ -183,7 +224,8 @@ fun NativeApp(model: BrowseViewModel, container: AppContainer, settings: AppSett
         "compose" -> { HostedScreen("发布动态", goBack) { SocialComposerScreen(accounts.socialRepository, accountState.generation, showTitle = false, onSent = { model.load("home", refresh = true); goBack() }) }; return }
 
         "settings" -> { SettingsScreen(settings, { updated -> scope.launch { try { container.settings.update { updated } } catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled } catch (_: Exception) { localError = "设置保存失败，请重试" } } }, goBack,
-            { navigate("library:${it.name}") }, { navigate("blacklist") }, { navigate("local-follows") }); return }
+            { navigate("library:${it.name}") }, { navigate("blacklist") }, { navigate("local-follows") }, onNavigate = navigate,
+            isLoggedIn = accountState.activeId != null, accountCount = accountState.accounts.size); return }
         "library:FAVORITES", "library:HISTORY" -> { LocalLibraryScreen(container.local, LibraryKind.valueOf(route!!.substringAfter(":")), goBack, { navigate("feed:$it") }); return }
         "local-follows" -> { LocalFollowsScreen(container.local, goBack, { navigate("user:$it") }); return }
         "blacklist" -> { BlacklistScreen(container.local, goBack); return }
@@ -207,7 +249,7 @@ fun NativeApp(model: BrowseViewModel, container: AppContainer, settings: AppSett
         mutableFloatStateOf(headerEstimate)
     }
     val actionLabel = when {
-        root == 2 -> "原生客户端版本与更新"
+        root == 2 -> "私信与信息"
         root == 1 && (accountState.activeId == null || settings.secretFollow) -> "管理本地关注（0）"
         else -> "重试"
     }
@@ -237,14 +279,17 @@ fun NativeApp(model: BrowseViewModel, container: AppContainer, settings: AppSett
                         HomeCategoryTabs(tabs, homeTab, { i ->
                             if (homeTab == i) reselectEvents.tryEmit(!reduceMotion) else homeTab = i
                         }, Modifier.weight(1f))
-                        IconButton(onClick = { searchOpen = !searchOpen }) { Icon(FlutterMaterialIcons.Search, "搜索") }
+                        IconButton(onClick = { searchOpen = !searchOpen }, modifier = Modifier.floatingDockRecovery(revealDock)) { Icon(FlutterMaterialIcons.Search, "搜索") }
                     }
                 }
             } else {
             TopAppBar(title = { Text(if (route != null) "浏览" else listOf("c001apk Native", "关注", "我的")[root]) },
                 navigationIcon = { if (route != null) IconButton(onClick = goBack) { Icon(FlutterMaterialIcons.ArrowBack, "返回") } },
                 actions = {
-                    IconButton(onClick = { searchOpen = !searchOpen }) { Icon(FlutterMaterialIcons.Search, "搜索") }
+                    if (root == 2 && route == null) {
+                        IconButton(onClick = { navigate("accounts") }) { Icon(ProfileIcons.SwitchAccountOutlined, "账号管理") }
+                        IconButton(onClick = { navigate("settings") }, modifier = Modifier.floatingDockRecovery(revealDock)) { Icon(ProfileIcons.SettingsOutlined, "设置") }
+                    } else IconButton(onClick = { searchOpen = !searchOpen }, modifier = Modifier.floatingDockRecovery(revealDock)) { Icon(FlutterMaterialIcons.Search, "搜索") }
                     if (root == 0 || route != null) IconButton(onClick = { model.load(key, refresh = true) }) { Icon(FlutterMaterialIcons.Refresh, "刷新") }
                 })
             }
@@ -263,7 +308,7 @@ fun NativeApp(model: BrowseViewModel, container: AppContainer, settings: AppSett
             listOf("首页", "关注", "我的").forEachIndexed { index, label -> NavigationBarItem(root == index, { selectRoot(index) }, icon = { Icon(icons[index], null) }, label = { Text(label) }) }
         }
     }) { padding ->
-        CompositionLocalProvider(LocalRootReselect provides reselectEvents, LocalFloatingBottomSpace provides floatingTail,
+        CompositionLocalProvider(LocalRootReselect provides reselectEvents, LocalFloatingBottomSpace provides floatingTail, LocalFloatingDockReveal provides revealDock,
             LocalScrollableRootHeader provides if (scrollRootHeader) rootHeader else null) {
         Row(Modifier.fillMaxSize().padding(padding).consumeWindowInsets(padding).imePadding()) {
         if (useRail && !keyboardOpen) NavigationRail(Modifier.width(if (LocalDensity.current.fontScale > 1.3f) 96.dp else 80.dp).verticalScroll(rememberScrollState()).testTag("navigation-rail")) {
@@ -291,26 +336,13 @@ fun NativeApp(model: BrowseViewModel, container: AppContainer, settings: AppSett
                 }
                 root == 0 && homeTab == 0 -> holder.SaveableStateProvider("apps") { InstalledAppsScreen(listState = browseListStates["apps"] ?: rememberLazyListState()) { navigate("app:$it") } }
                 root == 1 -> holder.SaveableStateProvider("root-local-follow") { LocalFollowFeedScreen(container.local, accounts.repository, { navigate("feed:$it") }, { navigate("user:$it") }, { navigate("local-follows") }, listState = browseListStates["root-local-follow"] ?: rememberLazyListState()) }
-                else -> holder.SaveableStateProvider("root-my") { Column(Modifier.fillMaxSize().testTag("my-root-list").verticalScroll(myScrollState).padding(start = 24.dp, top = 24.dp, end = 24.dp, bottom = 24.dp + floatingTail), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    LocalScrollableRootHeader.current?.invoke()
-                    Text("我的", style = MaterialTheme.typography.headlineMedium)
-                    Text(accountState.accounts.firstOrNull { it.id == accountState.activeId }?.name ?: "未登录")
-                    Button(onClick = { navigate("accounts") }) { Text("账号管理与登录") }
-                    if (accountState.activeId != null) {
-                        TextButton(onClick = { navigate("notifications") }) { Text("消息与私信") }
-                        TextButton(onClick = { navigate("compose") }) { Text("发布动态") }
-                    }
-                    Button(onClick = { navigate("settings") }) { Text("设置与阅读偏好") }
-                    TextButton(onClick = { navigate("library:FAVORITES") }) { Text("本地收藏") }
-                    TextButton(onClick = { navigate("library:HISTORY") }) { Text("浏览历史") }
-                    TextButton(onClick = { navigate("local-follows") }) { Text("本地关注") }
-                    TextButton(onClick = { navigate("blacklist") }) { Text("黑名单") }
-                    TextButton(onClick = { navigate("app-updates") }) { Text("检查所选应用更新") }
-                    TextButton(onClick = { navigate("native-updates") }) { Text("原生客户端版本与更新") }
-                } }
+                else -> holder.SaveableStateProvider("root-my") {
+                    MyDashboard(accountState, myScrollState, floatingTail, onNavigate = navigate,
+                        onPersonalList = { navigate(personalListRoute(it)) })
+                }
             }
         }
-        if (floatingRoot && !keyboardOpen && (dockVisible || touchExploration || searchOpen)) {
+        if (shouldShowFloatingDock(floatingRoot, keyboardOpen, searchOpen, dockVisible)) {
             BoxWithConstraints(Modifier.align(Alignment.BottomCenter).fillMaxWidth().absolutePadding(left = dockExtraLeft, right = dockExtraRight, top = 12.dp, bottom = dockBottomGap + dockExtraBottom), contentAlignment = Alignment.Center) {
                 val sideGap = if (maxWidth >= 186.dp) 16.dp else 8.dp
                 FloatingNavigation(root, reduceMotion, onSelect = selectRoot, modifier = Modifier.padding(horizontal = sideGap))
@@ -335,7 +367,7 @@ private fun ContentList(state: BrowseState, key: String, accounts: AccountRuntim
     ObserveRootReselect(listState)
     val rootHeader = LocalScrollableRootHeader.current
     val displayItems = remember(state.items) { state.items.distinctBy { "${it.kind}:${it.id}:${it.title}" } }
-    LazyColumn(modifier = Modifier.fillMaxSize().testTag("content-list"), state = listState, contentPadding = PaddingValues(start = 10.dp, top = 10.dp, end = 10.dp, bottom = 10.dp + LocalFloatingBottomSpace.current), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+    LazyColumn(modifier = Modifier.fillMaxSize().testTag("content-list").floatingDockRecovery(LocalFloatingDockReveal.current), state = listState, contentPadding = PaddingValues(start = 10.dp, top = 10.dp, end = 10.dp, bottom = 10.dp + LocalFloatingBottomSpace.current), verticalArrangement = Arrangement.spacedBy(10.dp)) {
         rootHeader?.let { header -> item(key = "root-header") { header() } }
         if (key.startsWith("replies:")) item { TextButton(onClick = { navigate("compose-reply:feed:${key.removePrefix("replies:")}") }) { Text("回复动态") } }
         if (state.error != null) item {

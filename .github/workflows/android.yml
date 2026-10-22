@@ -36,6 +36,14 @@ jobs:
           python3 -m unittest discover -s app/tools -p 'test_fetch_fonts.py' -v
           python3 app/tools/fetch_fonts.py
           python3 app/tools/fetch_fonts.py --offline
+      - name: Verify local source provenance privacy and determinism
+        shell: bash
+        run: |
+          set -euo pipefail
+          out="$(mktemp -d)"
+          trap 'rm -rf "$out"' EXIT
+          javac -d "$out" buildSrc/src/main/java/io/github/ktclat/build/NativeBuildProvenance.java buildSrc/src/test/java/io/github/ktclat/build/NativeBuildProvenanceSelfTest.java
+          java -cp "$out" io.github.ktclat.build.NativeBuildProvenanceSelfTest
       - name: Build debug, synthetic tests, and lint
         run: ./gradlew --no-daemon :app:assembleDebug :app:testDebugUnitTest :app:lintDebug
       - name: Preserve debug APK and explicitly synthetic verification artifacts

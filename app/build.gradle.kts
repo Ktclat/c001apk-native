@@ -1,5 +1,6 @@
 import java.nio.file.Files
 import java.security.MessageDigest
+import io.github.ktclat.build.NativeBuildProvenance
 
 plugins {
     id("com.android.application")
@@ -7,7 +8,25 @@ plugins {
     id("org.jetbrains.kotlin.plugin.compose")
     id("org.jetbrains.kotlin.plugin.serialization")
 }
+// Generated on every build, after configuration: Git/source changes must never reuse stale metadata.
+// No network, Python, timestamps, environment values or absolute paths enter the generated constants.
+val nativeProvenanceRoot = rootProject.layout.projectDirectory.asFile.toPath()
+val nativeProvenanceDirectory = layout.buildDirectory.dir("generated/source/nativeProvenance/main")
+val generateNativeBuildProvenance by tasks.registering {
+    group = "build"
+    description = "Generate local, non-sensitive native source provenance."
+    outputs.dir(nativeProvenanceDirectory)
+    outputs.upToDateWhen { false }
+    notCompatibleWithConfigurationCache("Provenance must re-read the live Git worktree and whitelist on every build")
+    doLast {
+        val report = NativeBuildProvenance.capture(nativeProvenanceRoot)
+        val output = nativeProvenanceDirectory.get().file("io/github/ktclat/c001apk/nativeapp/diagnostics/NativeBuildInfo.kt").asFile
+        output.parentFile.mkdirs()
+        output.writeText(report.kotlinSource(), Charsets.UTF_8)
+    }
+}
 android {
+    sourceSets.getByName("main").java.srcDir(nativeProvenanceDirectory)
     namespace = "io.github.ktclat.c001apk.nativeapp"
     compileSdk = 36
     buildToolsVersion = "36.0.0"
@@ -130,4 +149,4 @@ val verifyBundledFonts by tasks.registering {
         }
     }
 }
-tasks.named("preBuild") { dependsOn(verifyBundledFonts) }
+tasks.named("preBuild") { dependsOn(verifyBundledFonts, generateNativeBuildProvenance) }

@@ -73,9 +73,10 @@ fun SocialComposerScreen(repository: SocialRepository, generation: Long, initial
 
 @Composable
 fun NotificationScreen(repository: SocialRepository, generation: Long,
-    onConversation: (conversationKey: String, uid: String) -> Unit = { _, _ -> }) {
-    key(generation) {
-        var category by remember { mutableStateOf(NoticeCategory.MENTIONS) }
+    onConversation: (conversationKey: String, uid: String) -> Unit = { _, _ -> },
+    initialCategory: NoticeCategory = NoticeCategory.MENTIONS) {
+    key(generation, initialCategory) {
+        var category by remember { mutableStateOf(initialCategory) }
         var menu by remember { mutableStateOf(false) }
         Column(Modifier.fillMaxSize()) {
             Box { TextButton(onClick = { menu = true }) { Text(category.title) }

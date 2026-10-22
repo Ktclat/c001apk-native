@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 package io.github.ktclat.c001apk.nativeapp.platform
 
+import io.github.ktclat.c001apk.nativeapp.ui.floatingDockRecovery
+import io.github.ktclat.c001apk.nativeapp.ui.LocalFloatingDockReveal
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -39,7 +41,7 @@ fun InstalledAppsScreen(listState: androidx.compose.foundation.lazy.LazyListStat
     // The overlay tail already includes its safe visual gap. Adding the ordinary16dp again
     // pushed a tall final app row above the viewport at the absolute end.
     val bottomPadding = if (floatingTail > 0.dp) floatingTail else 16.dp
-    LazyColumn(state = listState, modifier = Modifier.testTag("installed-apps-list"), contentPadding = PaddingValues(bottom = bottomPadding)) {
+    LazyColumn(state = listState, modifier = Modifier.testTag("installed-apps-list").floatingDockRecovery(LocalFloatingDockReveal.current), contentPadding = PaddingValues(bottom = bottomPadding)) {
         rootHeader?.let { header -> item(key = "root-header") { header() } }
         item { Text("仅显示系统允许查询的非系统可启动应用，不申请全量应用列表权限。此范围与 Flutter 全量枚举不同。", Modifier.padding(16.dp), style = MaterialTheme.typography.bodySmall) }
         item { FlowRow {

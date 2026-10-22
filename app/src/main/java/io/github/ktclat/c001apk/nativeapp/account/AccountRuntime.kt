@@ -10,13 +10,14 @@ import kotlinx.coroutines.withContext
 class AccountRuntime private constructor(val store: AccountStore, val loginTransport: HttpLoginTransport,
     val loginCoordinator: LoginCoordinator, val repository: HttpCoolapkRepository, val socialRepository: SocialRepository) {
     companion object {
-        suspend fun initialize(context: Context, stableDeviceCode: String, sdkInt: Int): AccountRuntime = withContext(Dispatchers.IO) {
+        suspend fun initialize(context: Context, stableDeviceCode: String, sdkInt: Int, deviceProfile: ClientDeviceProfile? = null,
+            installTimeMillis: Long = System.currentTimeMillis()): AccountRuntime = withContext(Dispatchers.IO) {
             require(stableDeviceCode.isNotBlank())
             val store = AccountStore(EncryptedCredentialPersistence(context.applicationContext))
-            val protocol = ClientProtocol(deviceCode = stableDeviceCode, sdkInt = sdkInt)
+            val protocol = ClientProtocol(deviceCode = stableDeviceCode, sdkInt = sdkInt, deviceProfile = deviceProfile)
             val loginTransport = HttpLoginTransport()
             val loginCoordinator = LoginCoordinator(store, loginTransport, stableDeviceCode)
-            val repository = HttpCoolapkRepository(protocol = protocol, requestSession = { store.captureRequestSession() })
+            val repository = HttpCoolapkRepository(protocol = protocol, installTimeMillis = installTimeMillis, requestSession = { store.captureRequestSession() })
             val social = SocialRepository(store) { snapshot ->
                 CoolapkHttpTransport(protocol = protocol, requestSession = { store.requestSessionFor(snapshot) })
             }

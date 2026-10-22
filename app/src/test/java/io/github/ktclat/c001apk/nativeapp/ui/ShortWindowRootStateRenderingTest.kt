@@ -112,7 +112,7 @@ class ShortWindowRootStateRenderingTest {
         compose.runOnIdle { runBlocking { myScroll.scrollTo(myScroll.maxValue) } }
         compose.waitForIdle()
         assertEquals("Must really be at My end", myScroll.maxValue, myScroll.value)
-        assertAboveVisibleDock(compose.onNode(hasText("原生客户端版本与更新") and hasClickAction()), "my-root-list", clickable = true)
+        assertAboveVisibleDock(compose.onNode(hasText("私信与信息") and hasClickAction()), "my-root-list", clickable = true)
     }
     @Test fun homeEmptyMessageMustFitAboveVisibleDockAt480x240Font2() {
         render(Root.HOME, State.EMPTY)
@@ -167,7 +167,7 @@ class ShortWindowRootStateRenderingTest {
         compose.runOnIdle { runBlocking { myScroll.scrollTo(myScroll.maxValue) } }
         compose.waitForIdle()
         assertEquals(myScroll.maxValue, myScroll.value)
-        assertAboveVisibleDock(compose.onNode(hasText("原生客户端版本与更新") and hasClickAction()), "my-root-list", clickable = true)
+        assertAboveVisibleDock(compose.onNode(hasText("私信与信息") and hasClickAction()), "my-root-list", clickable = true)
     }
     @Test fun onlineFollowDockCanReappearAtAbsoluteEndWithoutCoveringRetry() {
         render(Root.ONLINE_FOLLOW, State.ERROR, sideCutout = true)
@@ -196,7 +196,7 @@ class ShortWindowRootStateRenderingTest {
         dragForward("my-root-list")
         compose.waitForIdle()
         dock.assertDoesNotExist()
-        val action = compose.onNode(hasText("原生客户端版本与更新") and hasClickAction())
+        val action = compose.onNode(hasText("私信与信息") and hasClickAction())
         action.performScrollTo()
         compose.waitForIdle()
         dock.assertDoesNotExist()

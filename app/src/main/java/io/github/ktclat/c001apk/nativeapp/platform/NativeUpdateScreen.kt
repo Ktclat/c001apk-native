@@ -16,7 +16,7 @@ import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun NativeUpdateScreen(onBack: () -> Unit, service: NativeUpdateService? = null) {
+fun NativeUpdateScreen(onBack: () -> Unit, service: NativeUpdateService? = null, onOpenDiagnostics: (() -> Unit)? = null) {
     val context = LocalContext.current
     val updater = service ?: remember(context) { NativeUpdateService(context.applicationContext) }
     var enabled by remember { mutableStateOf(updater.enabled) }
@@ -27,6 +27,7 @@ fun NativeUpdateScreen(onBack: () -> Unit, service: NativeUpdateService? = null)
     Scaffold(topBar = { TopAppBar(title = { Text("原生客户端更新") }, navigationIcon = { TextButton(onClick = onBack) { Text("返回") } }) }) { padding ->
         Column(Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Text("当前版本 ${BuildConfig.VERSION_NAME}")
+            onOpenDiagnostics?.let { openDiagnostics -> TextButton(onClick = openDiagnostics) { Text("关于构建与窗口（本地诊断）") } }
             Text("仅检查 Ktclat/c001apk-native 正式发布，不会下载 Flutter 版或自动安装。")
             Row { Text("启动时检查原生版本", Modifier.weight(1f)); Switch(enabled, { enabled = it; updater.enabled = it }) }
             Button(enabled = result != NativeUpdateResult.Busy, onClick = { scope.launch { result = NativeUpdateResult.Busy; result = updater.check(BuildConfig.VERSION_NAME) } }) { Text("检查更新") }

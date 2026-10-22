@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 package io.github.ktclat.c001apk.nativeapp.local
 
+import io.github.ktclat.c001apk.nativeapp.ui.floatingDockRecovery
+import io.github.ktclat.c001apk.nativeapp.ui.LocalFloatingDockReveal
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -33,7 +35,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
     io.github.ktclat.c001apk.nativeapp.ui.ObserveRootReselect(listState)
     val load by remember(localRepository) { localRepository.loadStates() }.collectAsState(initial = LocalLoadState.Loading)
     if (load !is LocalLoadState.Ready) {
-        LazyColumn(state = listState, modifier = Modifier.fillMaxSize().testTag("local-follow-list"), contentPadding = PaddingValues(bottom = bottomSpace)) {
+        LazyColumn(state = listState, modifier = Modifier.fillMaxSize().testTag("local-follow-list").floatingDockRecovery(LocalFloatingDockReveal.current), contentPadding = PaddingValues(bottom = bottomSpace)) {
             rootHeader?.let { header -> item(key = "root-header") { header() } }
             item { LocalStorageStatus(load, onManageFollows) }
         }
@@ -50,7 +52,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
     LaunchedEffect(model, uids, local.blacklist) { model.configure(uids, local.blacklist) }
     // Header actions must share the real scroll owner even at ordinary landscape heights.
     // A fixed FlowRow previously left only38dp of the last card exposed at font1.6.
-    LazyColumn(state = listState, modifier = Modifier.fillMaxSize().testTag("local-follow-list"),
+    LazyColumn(state = listState, modifier = Modifier.fillMaxSize().testTag("local-follow-list").floatingDockRecovery(LocalFloatingDockReveal.current),
         contentPadding = PaddingValues(bottom = bottomSpace)) {
         rootHeader?.let { header -> item(key = "root-header") { header() } }
         if (uids.isEmpty()) item { Text("尚未关注用户。添加用户后，将合并他们的公开动态。", Modifier.padding(16.dp)) }

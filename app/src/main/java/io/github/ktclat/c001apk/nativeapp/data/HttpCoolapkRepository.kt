@@ -32,13 +32,30 @@ class HttpCoolapkRepository(
     client: OkHttpClient = OkHttpClient(),
     private val endpoints: ApiEndpoints = ApiEndpoints(),
     private val protocol: ClientProtocol = ClientProtocol(),
-    private val installTimeSeconds: Long = System.currentTimeMillis() / 1000,
+    private val installTimeMillis: Long = System.currentTimeMillis(),
     private val requestSession: (() -> RequestSession)? = null,
 ) : CoolapkRepository {
     private val transport = CoolapkHttpTransport(client, endpoints, protocol, requestSession)
 
+    /** Root must bind isCurrentAccount to immutable expected activeId + generation. */
+    fun personalLists(isCurrentAccount: () -> Boolean): PersonalListRepository = PersonalListRepository { request, uid, cursor ->
+      withContext(Dispatchers.IO) io@{
+        if (!isCurrentAccount()) throw CancellationException("Account changed")
+        val captured = requestSession?.invoke()
+        if (captured == null) return@io failure(FailureKind.AUTHENTICATION)
+        if (!isCurrentAccount() || !captured.isCurrent()) throw CancellationException("Session changed")
+        val operation = transport.forRequestSession(captured)
+        if (!isCurrentAccount()) throw CancellationException("Account changed")
+        val result = withContext(Dispatchers.Default) {
+            HttpPersonalListRepository { path, params -> operation.get(path, params) }.load(request, uid, cursor)
+        }
+        if (!isCurrentAccount() || !captured.isCurrent() || !operation.isRequestScopeCurrent()) throw CancellationException("Session changed")
+        result
+      }
+    }
+
     override suspend fun following(type: FollowType, cursor: PageCursor) = page(type.route, type.title, cursor)
-    override suspend fun home(cursor: PageCursor) = list("v6/main/indexV8", cursor, mapOf("firstLaunch" to "1", "installTime" to "$installTimeSeconds", "ids" to ""), api2 = true)
+    override suspend fun home(cursor: PageCursor) = list("v6/main/indexV8", cursor, mapOf("firstLaunch" to "1", "installTime" to "$installTimeMillis", "ids" to ""), api2 = true)
     override suspend fun feedDetail(id: String) = objectRequest("v6/feed/detail", "id", id, numericOnly = true)
     override suspend fun replies(id: String, cursor: PageCursor) = orderedReplies(id, ReplyOrder.RECENT_REPLY, false, cursor)
     override suspend fun orderedReplies(id: String, order: ReplyOrder, authorOnly: Boolean, cursor: PageCursor): ApiResult<Page<ContentItem>> {

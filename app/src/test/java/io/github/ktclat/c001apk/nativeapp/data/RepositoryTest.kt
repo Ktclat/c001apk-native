@@ -17,7 +17,7 @@ class RepositoryTest {
     private lateinit var repository: HttpCoolapkRepository
     @Before fun setup() {
         server = MockWebServer().apply { start() }
-        repository = HttpCoolapkRepository(endpoints = ApiEndpoints(server.url("/"), server.url("/")), protocol = ClientProtocol("synthetic-test-device", { 1770000000 }), installTimeSeconds = 100)
+        repository = HttpCoolapkRepository(endpoints = ApiEndpoints(server.url("/"), server.url("/")), protocol = ClientProtocol("synthetic-test-device", { 1770000000 }), installTimeMillis = 1770000000123)
     }
     @After fun teardown() { server.shutdown() }
     private fun enqueue(body: String, status: Int = 200) { server.enqueue(MockResponse().setResponseCode(status).setBody(body)) }
@@ -31,8 +31,8 @@ class RepositoryTest {
         assertEquals(PageCursor(2, "1", "2"), page.nextCursor)
         val request = server.takeRequest()
         assertEquals("/v6/main/indexV8", request.requestUrl!!.encodedPath)
-        assertEquals("100", request.requestUrl!!.queryParameter("installTime"))
-        assertTrue(request.getHeader("X-App-Token")!!.startsWith("v3"))
+        assertEquals("1770000000123", request.requestUrl!!.queryParameter("installTime"))
+        assertEquals(ClientProtocol.token("synthetic-test-device", 1770000000), request.getHeader("X-App-Token"))
         assertNull(request.getHeader("Cookie"))
     }
     @Test fun paginationPreservesCursorAndStopsEmpty() = runBlocking {
