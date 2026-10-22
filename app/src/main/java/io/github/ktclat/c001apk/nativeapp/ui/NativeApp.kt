@@ -392,7 +392,7 @@ private fun ContentCard(item: ContentItem, navigate: (String) -> Unit, openLink:
         InteractiveFeedCard(item, accounts, accountState, navigate, openLink, favorite, onChanged, detail = isDetail)
         return
     }
-    if (item.kind == "feed_reply") { FeedReplyRow(item, navigate, openLink); return }
+    if (item.kind == "feed_reply") { InteractiveFeedReplyRow(item, accounts, accountState, navigate, openLink, onChanged); return }
     Card(Modifier.fillMaxWidth()) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             if (item.userName.isNotBlank()) Text(item.userName, style = MaterialTheme.typography.labelLarge,

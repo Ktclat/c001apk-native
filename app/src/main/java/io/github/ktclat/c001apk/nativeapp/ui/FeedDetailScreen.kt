@@ -64,7 +64,7 @@ import kotlinx.coroutines.launch
         }
         replies.error?.let { error -> item { Column(Modifier.padding(16.dp)) { Text(error); TextButton(onClick = { model.load(replyKey, refresh = true) }) { Text("重新加载评论") } } } }
         items(visibleReplies.distinctBy { "${it.kind}:${it.id}" }, key = { "reply:${it.kind}:${it.id}" }) { reply ->
-            FeedReplyRow(reply, navigate, openLink)
+            InteractiveFeedReplyRow(reply, accounts, accountState, navigate, openLink, onChanged = { model.load(replyKey, refresh = true) })
         }
         if (replies.loading) item { Box(Modifier.fillMaxWidth().padding(24.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator() } }
         else if (replies.loaded && visibleReplies.isEmpty() && replies.error == null) item { Text("暂无评论", Modifier.padding(16.dp), color = MaterialTheme.colorScheme.onSurfaceVariant) }

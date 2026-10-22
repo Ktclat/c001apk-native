@@ -7,6 +7,10 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.stateDescription
+import androidx.compose.ui.platform.testTag
+import io.github.ktclat.c001apk.nativeapp.feature.feed.FeedLikeState
+import io.github.ktclat.c001apk.nativeapp.feature.feed.canToggle
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -23,7 +27,8 @@ import io.github.ktclat.c001apk.nativeapp.feature.media.MediaGrid
 import io.github.ktclat.c001apk.nativeapp.settings.LocalReadingStyles
 
 @OptIn(ExperimentalLayoutApi::class)
-@Composable internal fun FeedReplyRow(reply: ContentItem, navigate: (String) -> Unit, openLink: (String) -> Unit) {
+@Composable internal fun FeedReplyRow(reply: ContentItem, navigate: (String) -> Unit, openLink: (String) -> Unit,
+    likeState: FeedLikeState = FeedLikeState.UNKNOWN, onLike: (() -> Unit)? = null) {
     Row(Modifier.fillMaxWidth().padding(start = 10.dp, end = 16.dp, top = 8.dp, bottom = 8.dp)) {
         Box(Modifier.size(48.dp).semantics { contentDescription = "查看${reply.userName.ifBlank { "作者" }}主页" }.clickable(enabled = reply.userId.isNotBlank()) { navigate("user:${reply.userId}") }, contentAlignment = Alignment.TopCenter) {
             if (reply.avatarUrl.isNullOrBlank()) Surface(Modifier.padding(top = 8.dp).size(32.dp), shape = CircleShape, color = MaterialTheme.colorScheme.onSurface.copy(alpha = .12f)) { Box(contentAlignment = Alignment.Center) { Icon(FlutterMaterialIcons.Person, null, Modifier.size(22.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant) } }
@@ -46,7 +51,18 @@ import io.github.ktclat.c001apk.nativeapp.settings.LocalReadingStyles
                 Text(feedRelativeTime(reply.publishedAtSeconds, System.currentTimeMillis() / 1000), Modifier.align(Alignment.CenterVertically), fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 if (reply.replyCount > 0 || reply.replies.isNotEmpty()) TextButton(onClick = { navigate("thread:${reply.id}") }) { Text("${io.github.ktclat.c001apk.nativeapp.feature.feed.feedCount(reply.replyCount)}条回复") }
                 TextButton(onClick = { navigate("compose-reply:reply:${reply.id}") }) { Text("回复") }
-                Text("赞 ${io.github.ktclat.c001apk.nativeapp.feature.feed.feedCount(reply.likeCount)}", Modifier.align(Alignment.CenterVertically).semantics { contentDescription = "${reply.likeCount}赞，暂仅展示数量" }, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                TextButton(onClick = { onLike?.invoke() }, enabled = onLike != null && (likeState.canToggle() || likeState == FeedLikeState.LOGIN_REQUIRED),
+                    modifier = Modifier.heightIn(min = 48.dp).testTag("reply-like:${reply.id}").semantics {
+                        contentDescription = "赞 ${reply.replyInteraction?.likeCount ?: "数量未知"}"
+                        stateDescription = when (likeState) {
+                            FeedLikeState.UNKNOWN -> "当前点赞状态未知"; FeedLikeState.LOGIN_REQUIRED -> "登录后点赞"
+                            FeedLikeState.PENDING -> "正在提交"; FeedLikeState.LIKED -> "已点赞"; FeedLikeState.NOT_LIKED -> "未点赞"
+                        }
+                    }, colors = ButtonDefaults.textButtonColors(contentColor = if (likeState == FeedLikeState.LIKED) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)) {
+                    Icon(if (likeState == FeedLikeState.LIKED) FlutterMaterialIcons.ThumbUp else FlutterMaterialIcons.ThumbUpAltOutlined, null, Modifier.size(16.dp))
+                    Spacer(Modifier.width(4.dp))
+                    Text(io.github.ktclat.c001apk.nativeapp.feature.feed.feedCount(reply.replyInteraction?.likeCount), fontSize = 12.sp)
+                }
             }
             HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
         }

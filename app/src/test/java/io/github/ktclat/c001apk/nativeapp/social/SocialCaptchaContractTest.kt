@@ -80,4 +80,32 @@ class SocialCaptchaContractTest {
         assertTrue(pending.retryOnce() is WriteOutcome.Rejected)
         assertEquals(1, server.requestCount)
     }
+
+    @Test fun replyChallengeKeepsUnlikeIntentAndCapturedGeneration() = runBlocking {
+        val generation = accounts.state.value.generation
+        server.enqueue(MockResponse().setBody("""{"messageStatus":"err_request_captcha_v2","messageExtra":{"captchaId":"414e5c9b866a03db03f860a1a9101672","field":"_v2_post_token"}}"""))
+        val pending = requireNotNull((repository.like("42", reply = true, targetLiked = false,
+            expectedGeneration = generation) as WriteOutcome.Rejected).continuation)
+        assertTrue(pending.acceptHumanProof("NEC:414e5c9b:synthetic-human-proof"))
+        assertEquals(1, server.requestCount)
+        server.enqueue(MockResponse().setBody("""{"data":{"likenum":0}}"""))
+        assertTrue(pending.retryOnce() is WriteOutcome.Confirmed)
+        val original = server.takeRequest(); val replay = server.takeRequest()
+        assertEquals("POST", original.method); assertEquals("POST", replay.method)
+        assertEquals("/v6/feed/unLikeReply?id=42&detail=0", original.path)
+        assertEquals(original.path, replay.path)
+        assertTrue(replay.body.readUtf8().contains("_v2_post_token="))
+        assertEquals(generation, accounts.state.value.generation)
+        assertTrue(pending.retryOnce() is WriteOutcome.Rejected); assertEquals(2, server.requestCount)
+    }
+    @Test fun replyChallengeCannotReplayAfterSameAccountGenerationChanges() = runBlocking {
+        val generation = accounts.state.value.generation
+        server.enqueue(MockResponse().setBody("""{"messageStatus":"err_request_captcha_v2","messageExtra":{"captchaId":"414e5c9b866a03db03f860a1a9101672","field":"_v2_post_token"}}"""))
+        val pending = requireNotNull((repository.like("42", reply = true, targetLiked = true,
+            expectedGeneration = generation) as WriteOutcome.Rejected).continuation)
+        assertTrue(pending.acceptHumanProof("NEC:414e5c9b:synthetic-human-proof"))
+        accounts.useGuest(); accounts.switchTo("1")
+        assertTrue(pending.retryOnce() is WriteOutcome.Rejected)
+        assertEquals(1, server.requestCount)
+    }
 }

@@ -92,6 +92,11 @@ internal object ApiDecoder {
             entityTemplate = obj.optionalText("entityTemplate"),
             replies = replies,
             feed = if (kind == "feed") feedMetadata(obj, id, replies.firstOrNull()) else null,
+            replyInteraction = if (kind == "feed_reply") ReplyInteractionMetadata(
+                likeState = when ((obj["userAction"] as? JsonObject)?.text("like")) {
+                    "1" -> ExplicitLikeState.LIKED; "0" -> ExplicitLikeState.NOT_LIKED; else -> ExplicitLikeState.UNKNOWN
+                }, likeCount = obj.count("likenum"), replyCount = obj.count("replynum"),
+            ) else null,
             firstRelationTitle = ((obj["relationRows"] as? JsonArray)?.firstOrNull() as? JsonObject)?.text("title").orEmpty(),
         )
     }

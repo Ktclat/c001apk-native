@@ -26,7 +26,14 @@ data class ContentItem(
     val replies: List<ContentItem> = emptyList(),
     val feed: FeedMetadata? = null,
     val bodyTruncated: Boolean = false,
+    val replyInteraction: ReplyInteractionMetadata? = null,
 
+)
+/** Reply-specific server state. Missing action/counts remain unknown rather than false/zero. */
+data class ReplyInteractionMetadata(
+    val likeState: ExplicitLikeState = ExplicitLikeState.UNKNOWN,
+    val likeCount: Int? = null,
+    val replyCount: Int? = null,
 )
 enum class ExplicitLikeState { UNKNOWN, NOT_LIKED, LIKED }
 /** Values absent from the response remain unknown, including zero versus missing counts. */
