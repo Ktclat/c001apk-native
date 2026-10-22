@@ -14,13 +14,15 @@ import kotlinx.serialization.json.*
 class SocialRepository(private val accounts: AccountStore,
     private val transportFor: (SessionSnapshot) -> CoolapkHttpTransport) {
     private val notificationOwner = Any()
+    /** UI intent check; write entry independently verifies generation before constructing transport. */
+    internal fun isCurrentGeneration(generation: Long) = accounts.state.value.generation == generation
     private suspend fun <T> authenticated(block: suspend (CoolapkHttpTransport) -> T): T =
         authenticatedScoped { transport, _ -> block(transport) }
     private suspend fun <T> authenticatedScoped(expectedGeneration: Long? = null,
         block: suspend (CoolapkHttpTransport, SessionSnapshot) -> T): T = withContext(Dispatchers.IO) {
         val snapshot = accounts.snapshot()
         if (snapshot.accountId == null) throw LoginRequired()
-        if (expectedGeneration != null && snapshot.generation != expectedGeneration) throw StaleNotificationScope()
+        if (expectedGeneration != null && snapshot.generation != expectedGeneration) throw StaleOperationScope()
         val result = block(transportFor(snapshot), snapshot)
         if (!accounts.isCurrent(snapshot)) throw CancellationException("Session changed")
         result
@@ -55,21 +57,21 @@ class SocialRepository(private val accounts: AccountStore,
             }
         } } } catch (_: LoginRequired) { loginFailure() }
     }
-    suspend fun like(id: String, reply: Boolean, liked: Boolean): WriteOutcome {
+    suspend fun like(id: String, reply: Boolean, liked: Boolean, expectedGeneration: Long? = null): WriteOutcome {
         if (!validId(id)) return badArgument()
         val action = if (reply) { if (liked) "likeReply" else "unLikeReply" } else if (liked) "like" else "unlike"
-        return write { it.post("v6/feed/$action", mapOf("trace" to ""), query = mapOf("id" to id, "detail" to "0")) }
+        return write(expectedGeneration = expectedGeneration) { it.post("v6/feed/$action", mapOf("trace" to ""), query = mapOf("id" to id, "detail" to "0")) }
     }
-    suspend fun follow(target: FollowTarget, id: String, followed: Boolean): WriteOutcome {
+    suspend fun follow(target: FollowTarget, id: String, followed: Boolean, expectedGeneration: Long? = null): WriteOutcome {
         if (id.isBlank() || (target != FollowTarget.TOPIC && !validId(id))) return badArgument()
-        return write { transport -> when (target) {
+        return write(expectedGeneration = expectedGeneration) { transport -> when (target) {
             FollowTarget.USER -> transport.post("v6/user/${if (followed) "follow" else "unfollow"}", emptyMap(), query = mapOf("uid" to id))
             FollowTarget.APP -> transport.get("v6/apk/${if (followed) "follow" else "unFollow"}", mapOf("id" to id), mutation = true)
             FollowTarget.TOPIC -> transport.get("v6/feed/${if (followed) "followTag" else "unFollowTag"}", mapOf("tag" to id), mutation = true)
             FollowTarget.PRODUCT -> transport.post("v6/product/changeFollowStatus", mapOf("id" to id, "status" to if (followed) "1" else "0"), multipart = true)
         } }
     }
-    suspend fun publish(draft: ComposerDraft): WriteOutcome {
+    suspend fun publish(draft: ComposerDraft, expectedGeneration: Long? = null): WriteOutcome {
         if (draft.text.isBlank() || (draft.replyId != null && !validId(draft.replyId))) return badArgument()
         if (draft.targetType != null && draft.targetType !in setOf("apk", "product", "topic")) return badArgument()
         if (draft.targetType != null && draft.targetId.isNullOrBlank()) return badArgument()
@@ -81,12 +83,12 @@ class SocialRepository(private val accounts: AccountStore,
                 draft.targetType?.let { put("targetType", it) }; draft.targetId?.let { put("targetId", it) }
             } else put("replyAndForward", if (draft.replyAndForward) "1" else "0")
         }
-        return write(requireRecord = true) { if (draft.replyId == null) it.post("v6/feed/createFeed", form)
+        return write(requireRecord = true, expectedGeneration = expectedGeneration) { if (draft.replyId == null) it.post("v6/feed/createFeed", form)
             else it.post("v6/feed/reply", form, query = mapOf("id" to draft.replyId, "type" to if (draft.replyToReply) "reply" else "feed")) }
     }
-    suspend fun sendText(uid: String, text: String): WriteOutcome {
+    suspend fun sendText(uid: String, text: String, expectedGeneration: Long? = null): WriteOutcome {
         if (!validId(uid) || text.isBlank()) return badArgument()
-        return write(requireRecord = true, messageRecord = true) {
+        return write(requireRecord = true, messageRecord = true, expectedGeneration = expectedGeneration) {
             it.post("v6/message/send", mapOf("message" to text, "message_pic" to ""), query = mapOf("uid" to uid), multipart = true)
         }
     }
@@ -116,10 +118,12 @@ class SocialRepository(private val accounts: AccountStore,
         if (!validId(messageId)) return ApiResult.Failure(FailureKind.INVALID_ARGUMENT, "消息编号无效")
         return try { authenticated { it.getImageLocation(messageId) } } catch (_: LoginRequired) { loginFailure() }
     }
-    suspend fun sendImage(uid: String, image: SelectedImage, uploader: OssImageUploader = OssImageUploader()): WriteOutcome = withContext(Dispatchers.IO) {
+    suspend fun sendImage(uid: String, image: SelectedImage, uploader: OssImageUploader = OssImageUploader(), expectedGeneration: Long? = null): WriteOutcome = withContext(Dispatchers.IO) {
         if (!validId(uid) || image.sizeBytes !in 1..MAX_IMAGE_BYTES) return@withContext badArgument()
         val snapshot = accounts.snapshot()
         if (snapshot.accountId == null) return@withContext WriteOutcome.Rejected(FailureKind.AUTHENTICATION, "请先登录")
+        if (expectedGeneration != null && snapshot.generation != expectedGeneration)
+            return@withContext WriteOutcome.Rejected(FailureKind.AUTHENTICATION, "账号状态已变化，图片尚未上传或发送")
         val transport = transportFor(snapshot)
         val fileList = buildJsonArray { add(buildJsonObject {
             put("name", image.name); put("resolution", "${image.width}x${image.height}"); put("md5", image.md5Hex)
@@ -141,11 +145,11 @@ class SocialRepository(private val accounts: AccountStore,
             is ApiResult.Success -> confirmWrite(result.value, requireRecord = true, messageRecord = true)
         }
     }
-    suspend fun sendFeed(uid: String, idOrUrl: String): WriteOutcome =
-        feedShareUrl(idOrUrl)?.let { sendText(uid, it) } ?: badArgument()
-    suspend fun conversationPinned(key: String, pinned: Boolean): WriteOutcome {
+    suspend fun sendFeed(uid: String, idOrUrl: String, expectedGeneration: Long? = null): WriteOutcome =
+        feedShareUrl(idOrUrl)?.let { sendText(uid, it, expectedGeneration = expectedGeneration) } ?: badArgument()
+    suspend fun conversationPinned(key: String, pinned: Boolean, expectedGeneration: Long? = null): WriteOutcome {
         if (key.isBlank() || key.length > 256) return badArgument()
-        return write(messageMutation = true) { it.get("v6/message/${if (pinned) "addTop" else "removeTop"}", mapOf("ukey" to key), mutation = true) }
+        return write(messageMutation = true, expectedGeneration = expectedGeneration) { it.get("v6/message/${if (pinned) "addTop" else "removeTop"}", mapOf("ukey" to key), mutation = true) }
     }
     suspend fun deleteNotification(row: SocialRow): WriteOutcome {
         val scope = row.notificationScope ?: return badArgument()
@@ -154,12 +158,12 @@ class SocialRepository(private val accounts: AccountStore,
             it.post("v6/notification/delete", emptyMap(), query = mapOf("id" to row.id))
         }
     }
-    suspend fun delete(target: DeleteTarget, id: String, conversationKey: String? = null): WriteOutcome {
+    suspend fun delete(target: DeleteTarget, id: String, conversationKey: String? = null, expectedGeneration: Long? = null): WriteOutcome {
         // Notification deletion must carry exact response provenance and account generation.
         if (target == DeleteTarget.NOTIFICATION) return badArgument()
         if (target != DeleteTarget.CONVERSATION && !validId(id)) return badArgument()
         if (target in setOf(DeleteTarget.MESSAGE, DeleteTarget.CONVERSATION) && conversationKey.isNullOrBlank()) return badArgument()
-        return write(messageMutation = target in setOf(DeleteTarget.MESSAGE, DeleteTarget.CONVERSATION)) { transport -> when (target) {
+        return write(messageMutation = target in setOf(DeleteTarget.MESSAGE, DeleteTarget.CONVERSATION), expectedGeneration = expectedGeneration) { transport -> when (target) {
             DeleteTarget.MESSAGE -> transport.get("v6/message/delete", mapOf("id" to id, "ukey" to conversationKey!!), mutation = true)
             DeleteTarget.CONVERSATION -> transport.get("v6/message/deleteChat", mapOf("ukey" to conversationKey!!), mutation = true)
             DeleteTarget.FEED -> transport.post("v6/feed/deleteFeed", emptyMap(), query = mapOf("id" to id))
@@ -175,8 +179,8 @@ class SocialRepository(private val accounts: AccountStore,
             is ApiResult.Success -> confirmWrite(response.value, requireRecord, messageRecord, messageMutation)
         } }
     } catch (_: LoginRequired) { WriteOutcome.Rejected(FailureKind.AUTHENTICATION, "请先登录后操作") }
-    catch (_: StaleNotificationScope) { WriteOutcome.Rejected(FailureKind.AUTHENTICATION, "账号状态已变化，请刷新后重新选择通知") }
-    private class StaleNotificationScope : IllegalStateException()
+    catch (_: StaleOperationScope) { WriteOutcome.Rejected(FailureKind.AUTHENTICATION, "账号状态已变化，请刷新后重新操作") }
+    private class StaleOperationScope : IllegalStateException()
     private class LoginRequired : IllegalStateException()
     private fun loginFailure() = ApiResult.Failure(FailureKind.AUTHENTICATION, "请先登录后查看")
     private fun invalid() = ApiResult.Failure(FailureKind.INVALID_RESPONSE, "响应格式异常")

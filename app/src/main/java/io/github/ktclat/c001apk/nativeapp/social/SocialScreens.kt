@@ -53,7 +53,7 @@ fun SocialComposerScreen(repository: SocialRepository, generation: Long, initial
             Text("图片上传尚未接入；当前支持文字和系统键盘表情", style = MaterialTheme.typography.bodySmall)
             MutationStatus(state) { runner.allowCorrection() }
             Button(enabled = text.isNotBlank() && state == DeliveryState.Ready, onClick = {
-                scope.launch { runner.submit { repository.publish(initial.copy(text = text, selfOnly = option, replyAndForward = option)) } }
+                scope.launch { runner.submit(isCurrent = { repository.isCurrentGeneration(generation) }) { repository.publish(initial.copy(text = text, selfOnly = option, replyAndForward = option), expectedGeneration = generation) } }
             }, modifier = Modifier.fillMaxWidth()) { Text("确认发送") }
         }
     }
@@ -174,10 +174,10 @@ fun ChatScreen(repository: SocialRepository, generation: Long, conversationKey: 
                 enabled = selectedImage == null && state == DeliveryState.Ready, label = { Text(if (shareFeed) "动态编号或酷安动态链接" else "消息") })
             Text("图片发送包含上传和投递两步；结果未确认时请先刷新核实", style = MaterialTheme.typography.bodySmall)
             Button(enabled = validId(recipientUid) && (selectedImage != null || text.isNotBlank()) && !staging && state == DeliveryState.Ready,
-                onClick = { scope.launch { runner.submit {
+                onClick = { scope.launch { runner.submit(isCurrent = { repository.isCurrentGeneration(generation) }) {
                     val image = selectedImage
-                    if (image != null) repository.sendImage(recipientUid, image)
-                    else if (shareFeed) repository.sendFeed(recipientUid, text) else repository.sendText(recipientUid, text)
+                    if (image != null) repository.sendImage(recipientUid, image, expectedGeneration = generation)
+                    else if (shareFeed) repository.sendFeed(recipientUid, text, expectedGeneration = generation) else repository.sendText(recipientUid, text, expectedGeneration = generation)
                 } } }, modifier = Modifier.fillMaxWidth()) { Text("确认发送") }
         }
     }
@@ -193,7 +193,7 @@ fun SocialActionBar(repository: SocialRepository, generation: Long, id: String, 
         Column {
             Row {
                 TextButton(enabled = state == DeliveryState.Ready && liked != null, onClick = { scope.launch {
-                    runner.submit { repository.like(id, reply, liked != true) }
+                    runner.submit(isCurrent = { repository.isCurrentGeneration(generation) }) { repository.like(id, reply, liked != true, expectedGeneration = generation) }
                     if ((runner.state.value as? DeliveryState.Finished)?.outcome is WriteOutcome.Confirmed) onConfirmed()
                 } }) { Text(if (liked == true) "取消赞" else "点赞") }
                 TextButton(onClick = onReply) { Text("回复") }
@@ -212,7 +212,7 @@ fun SocialFollowButton(repository: SocialRepository, generation: Long, target: F
         val scope = rememberCoroutineScope()
         Column {
             TextButton(enabled = state == DeliveryState.Ready, onClick = { scope.launch {
-                runner.submit { repository.follow(target, id, !followed) }
+                runner.submit(isCurrent = { repository.isCurrentGeneration(generation) }) { repository.follow(target, id, !followed, expectedGeneration = generation) }
                 if ((runner.state.value as? DeliveryState.Finished)?.outcome is WriteOutcome.Confirmed) onConfirmed()
             } }) { Text(if (followed) "取消关注" else "关注") }
             MutationStatus(state) { runner.allowCorrection() }
@@ -237,10 +237,10 @@ fun SocialDeleteButton(repository: SocialRepository, generation: Long, target: D
             dismissButton = { TextButton(onClick = { confirm = false }) { Text("取消") } },
             confirmButton = { TextButton(onClick = {
                 confirm = false
-                scope.launch { runner.submit {
+                scope.launch { runner.submit(isCurrent = { repository.isCurrentGeneration(generation) }) {
                     if (target == DeleteTarget.NOTIFICATION) notificationRow?.let { repository.deleteNotification(it) }
                         ?: WriteOutcome.Rejected(FailureKind.INVALID_ARGUMENT, "通知来源未确认，请刷新后重试")
-                    else repository.delete(target, id, conversationKey)
+                    else repository.delete(target, id, conversationKey, expectedGeneration = generation)
                 }
                     if ((runner.state.value as? DeliveryState.Finished)?.outcome is WriteOutcome.Confirmed) onConfirmed()
                 }
@@ -256,7 +256,7 @@ private fun ConversationActions(repository: SocialRepository, generation: Long, 
         var confirmDelete by remember { mutableStateOf(false) }
         Column {
             TextButton(enabled = state == DeliveryState.Ready, onClick = { scope.launch {
-                runner.submit { repository.conversationPinned(row.conversationKey!!, !row.pinned) }
+                runner.submit(isCurrent = { repository.isCurrentGeneration(generation) }) { repository.conversationPinned(row.conversationKey!!, !row.pinned, expectedGeneration = generation) }
                 if ((runner.state.value as? DeliveryState.Finished)?.outcome is WriteOutcome.Confirmed) refresh()
             } }) { Text(if (row.pinned) "取消置顶" else "置顶") }
             MutationStatus(state) { runner.allowCorrection() }
@@ -267,7 +267,7 @@ private fun ConversationActions(repository: SocialRepository, generation: Long, 
             dismissButton = { TextButton(onClick = { confirmDelete = false }) { Text("取消") } },
             confirmButton = { TextButton(onClick = {
                 confirmDelete = false
-                scope.launch { runner.submit { repository.delete(DeleteTarget.CONVERSATION, row.id, row.conversationKey) }
+                scope.launch { runner.submit(isCurrent = { repository.isCurrentGeneration(generation) }) { repository.delete(DeleteTarget.CONVERSATION, row.id, row.conversationKey, expectedGeneration = generation) }
                     if ((runner.state.value as? DeliveryState.Finished)?.outcome is WriteOutcome.Confirmed) refresh()
                 }
             }) { Text("确认删除") } })
