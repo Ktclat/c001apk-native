@@ -74,6 +74,10 @@ fun NativeApp(model: BrowseViewModel, container: AppContainer, settings: AppSett
     val states by model.states.collectAsStateWithLifecycle()
     val localLoad by remember(container) { container.local.loadStates() }.collectAsStateWithLifecycle(LocalLoadState.Loading)
     val holder = rememberSaveableStateHolder()
+    SideEffect {
+        model.readerPositions.retainRoutes(ReaderOwner(accountState.activeId, accountState.generation),
+            routeHistory + listOfNotNull(route))
+    }
     val context = LocalContext.current
     val openLink: (String) -> Unit = { raw -> when (val link = parseAppLink(raw)) {
         is AppLink.Internal -> navigate(link.route)

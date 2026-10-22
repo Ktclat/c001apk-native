@@ -14,6 +14,7 @@ data class BrowseState(val items: List<ContentItem> = emptyList(), val loading: 
     val error: String? = null, val next: PageCursor? = null, val loaded: Boolean = false)
 
 class BrowseViewModel(private val repository: CoolapkRepository = HttpCoolapkRepository()) : ViewModel() {
+    internal val readerPositions = ReaderPositionStore()
     private val mutable = MutableStateFlow<Map<String, BrowseState>>(emptyMap())
     val states = mutable.asStateFlow()
     private var activeKey: String? = null
@@ -76,9 +77,11 @@ class BrowseViewModel(private val repository: CoolapkRepository = HttpCoolapkRep
                     is ApiResult.Failure -> old.copy(loading = false, error = result.message, loaded = true)
                 }), setOfNotNull(activeKey, key, activeKey?.takeIf { it.startsWith("ordered:") }?.split(':')?.getOrNull(1)?.let { "feed:$it" }))
             }
+            readerPositions.retainCachedFeeds(mutable.value.keys)
             requests.remove(key)
         }
     }
+    override fun onCleared() { readerPositions.clear(); super.onCleared() }
 }
 private fun ApiResult<ContentItem>.asPage(): ApiResult<Page<ContentItem>> = when (this) {
     is ApiResult.Success -> ApiResult.Success(Page(listOf(value), null))

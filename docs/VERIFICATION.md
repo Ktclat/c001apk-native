@@ -4,7 +4,7 @@ A working feature set and a recognizable Flutter UI are both required. Synthetic
 
 ## Published baseline evidence
 
-The publication base is `1b313e4537dd7c6521c99f2c1c629eed18af14da`; its reply-like implementation passed Build63 and scoped independent publication review recorded below. Earlier Build54/Build59 and CI #6 results are historical evidence, not acceptance of the bounded full-body increment. PR #1 remains draft/unmerged; `main` is unchanged.
+The publication base is `ad9ddf7a26afceb6682e9deb4ff82a66a86eed38`; its bounded ordinary-message reader passed Build66 and scoped independent publication review recorded below. Earlier gates and CI #6 are historical evidence, not acceptance of the new reader child-return increment. PR #1 remains draft/unmerged; `main` is unchanged.
 
 - **Build54 coherent local gate: PASS in 14m21s.** **383 tests across 79 classes**, zero failures, errors or skips; `assembleDebug` and `lintDebug` passed. Lint reports **zero errors, 37 warnings and one hint**. All 271 frozen source hashes matched; the archive contains 189 fresh evidence artifacts.
 - Coverage includes **seven actual-root default-hide/accessibility-recovery tests**, **five My routing fixtures covering all 11 destination paths plus account-switch/guest guards**, and **two background tests covering light/dark themes across five states**. Four installation-time tests cover corrupt-value/idempotence handling. The prior focused background correction and fresh collection/light/dark frames were independently inspected; these are synthetic checks, not real-account or actual TalkBack acceptance.
@@ -13,7 +13,7 @@ The publication base is `1b313e4537dd7c6521c99f2c1c629eed18af14da`; its reply-li
 
 ### Historical Build54 local debug APK identity
 
-This is an earlier baseline APK, not an APK for the bounded full-body increment.
+This is an earlier baseline APK, not an APK for the reader child-return increment.
 
 - Size: **17,811,587 bytes**.
 - SHA-256: `e3a6239c9942af5af0a72978536c91ec64e94becbdba7f007d887ddbba125a84`.
@@ -53,23 +53,42 @@ The published guest/header source stores an encrypted guest `SESSID` separately 
 - SHA-256: `47adc8dd8ccfb2eaa642c757fa5c540ad2fb10977362fbb2b61b87bcebc185a7`.
 - **APK Signature Scheme v2 verified**; local signer SHA-256: `f2840c7ab104085a0d42ca4773d0682db237b5eaea8b9b470d9ca792dc70a759`, distinct from CI. All three packaged font pins and four font/icon license pins matched unchanged. This remains a debug APK, not stable release signing or promised upgrade/downgrade continuity.
 
-## Bounded full-body increment: current gate
+## Published bounded full-body evidence
 
 - **Ordinary-message scope:** the actual `/v6/feed/detail` response `message` is retained before preview truncation, separately from the existing 12,000 UTF-16-unit list/history/favorites projection. Both raw and decoded detail text are bounded at **262,144 UTF-16 units**, not bytes, code points or grapheme clusters. Missing/invalid messages and nonempty structured-article output are not promoted into a supposedly complete ordinary body.
 - **Reader and resource bounds:** parsing, normalization, links and page preparation run off Main; guarded publication occurs on Main. At most one **4,000-unit segment** is laid out at a time, without splitting surrogate pairs. User page changes reveal the new page's start. Shared JSON preflight limits depth to **64** and lexical nodes, including keys, to **20,000**, within the existing **4 MiB actual-response-byte cap**. Unsupported/error/limit states are visible, with an explicit browser-original action. These are bounded synthetic checks, not a global memory cap or device-performance result.
 - **Captured ordinary read:** the request session is captured once and used by a fixed-supplier read clone. AccountStore is unchanged; generation/current-owner checks and guarded publication reject stale account results. Successful guest/authenticated Set-Cookie responses remain allowed under existing ordinary-browse semantics. Same-generation cookie revision changes do not by themselves invalidate the body; stale cookie writes still face the existing independent revision check. This is not a new revision-current read contract or permission to adopt another account's session.
 - **Build64 focused result:** 275 tests, **273 passed and two failed**, zero errors/skips. The failures concerned a supplemental root-dialog renderer and lifecycle raw-counter fixture synchronization. Their corrections were test-only, not production changes.
 - **Build65 focused PASS:** **11/11 tests across two classes**, zero failures/errors/skips; **294 source hashes matched**, with **four fresh actual-root PNGs** covering first page, final tail, unsupported article and browser error. Independent review agrees with this scoped corrected result. Neither focused run included assembly/lint; overlapping counts are not aggregated.
-- **Restoration boundary:** parent list → detail → Back is tested, including unchanged parent items/visible positions/scroll without reload. **Detail → child → Back reader page/scroll retention remains missing and is queued separately.** No complete reader restoration or process-reloaded body/page identity validation is claimed. Structured article blocks, inline media and continuous full-text selection also remain gaps.
+- **Build66 restoration boundary:** parent list → detail → Back is tested, including unchanged parent items/visible positions/scroll without reload. Detail → child → Back reader retention was still missing in that baseline; the later bounded increment below addresses it separately. No durable process-restoration acceptance is claimed. Structured article blocks, inline media and continuous full-text selection remain gaps.
 - **Build66 coherent local gate: PASS in 9m29s.** **484 tests across 94 classes**, zero failures/errors/skips; `assembleDebug` and `lintDebug` passed. All **294 frozen source hashes matched**, with **201 fresh artifacts** archived. These are the coherent suite totals; overlapping focused counts are not added.
 - **Lint: zero errors, 37 warnings and one hint.** Fresh app, unit-test and Android-test analyses completed; `lintReportDebug` legitimately reused UP-TO-DATE outputs. Their timestamps and reuse provenance are archived, rather than described as newly generated reports.
-- **Independent limited-publication review: PASS for exact Build66.** Review verified all 94 XML files/484 tests, 294 matching source hashes, the APK, unchanged fonts/licenses and lint categories. Four fresh reader frames are byte-identical to the reviewed Build65 frames. **Remote publication/CI remain PENDING.** No live provider/account/device or HTTP 403 acceptance, complete restoration or full Flutter parity is claimed.
+- **Independent limited-publication review: PASS for exact Build66.** Review verified all 94 XML files/484 tests, 294 matching source hashes, the APK, unchanged fonts/licenses and lint categories. Four fresh reader frames are byte-identical to the reviewed Build65 frames. This is published-baseline evidence, not child-return increment acceptance. No live provider/account/device or HTTP 403 acceptance, complete restoration or full Flutter parity is claimed.
 
-### Build66 local debug APK identity
+### Historical Build66 local debug APK identity
 
 - Size: **18,000,783 bytes**.
 - SHA-256: `7283f76e46c098c84509a25a95a52d5b3c33209471e6e584f9b16a1022fef172`.
 - **APK Signature Scheme v2 verified**; local signer SHA-256: `f2840c7ab104085a0d42ca4773d0682db237b5eaea8b9b470d9ca792dc70a759`, distinct from CI. The three font pins and four font/icon license pins match Build59; all three fonts and all seven bundled license files are also byte-identical to Build63. This is a debug artifact, not stable release signing or promised upgrade/downgrade continuity.
+
+## Reader child-return retention: current gate
+
+- **Bounded contract:** at most **13 memory-only, latest-per-feed bookmarks**, scoped by account/generation, feed and a digest of the exact raw UTF-16 body. Parsed readiness and identity validation precede the first restored measurement, rather than measuring a short pending placeholder that clamps scroll. Stable reply anchors and reply-filter checks guard row restoration. Repeated routes use the latest position for each feed; navigation/history is not rewritten. Restore/commit validation rechecks the current owner, cached body and route, rejecting stale, abandoned or departed work rather than reinserting an obsolete bookmark.
+- **Retained versus reset:** actual-root child → Back tests retain the selected segment, positive scroll and page/footer geometry without corrective scrolling after Back. Equal-body metadata refresh preserves position. Changed/unsupported body or ownership loss resets; an evicted body loses its bookmark and refetches genuinely on return. A fresh owner/process begins again after loading, even when its saved route returns to the feed. Synthetic saved-composition/fresh-owner tests are not device process-death validation.
+- **Storage/geometry limits:** no body, response, ParsedPost or bitmap is stored in Android saved state or the small bookmark records. Valid feed IDs longer than **256 UTF-16 units** remain readable with an explicit no-retention fallback. Font, viewport and reply hierarchy/content changes have no exact pixel-geometry guarantee; missing/mismatching reply anchors reset to a safe verified-segment start. The strict 13-bookmark limit is not a hard global browse-cache or application-memory cap. Existing body, JSON, HTML/link and transport bounds are unchanged.
+- **Build67 focused result:** 182 tests, **176 passed and six failed**, zero errors/skips. One failure exposed a real equal-value helper-key defect. Others involved fixture observation, lazy-list departure, cancellation-copy and history-error-root cases; these are not all classified as harmless flakiness.
+- **Build68 focused PASS:** **48/48 tests across three classes**, zero failures/errors/skips; **299 source hashes matched**, with **13 fresh actual-root PNGs**. No assembly/lint ran, and overlapping focused counts are not aggregated. Independent review confirmed the focused XML and guest-return frame. The 13 fresh captures are not 13 visually accepted screens: only the oversized-feed-ID capture has an unexplained blank toolbar area; the unsupported-body-reset frame does show its toolbar. The long-ID topbar is unproven visual evidence, not an established production or renderer defect.
+- **Build69 controlled interruption:** the coordinator stopped the run after about 14m36s without artifact progress for roughly ten minutes; terminal exit was 130. All 299 source hashes matched. Preserved XML/artifacts were explicitly stale or partial, not a fresh pass/failure verdict. The stall's cause remains unknown.
+- **Build70 diagnostic PASS:** 27/27 adaptive-root tests on unchanged source, zero failures/errors/skips; no assembly/lint. External per-test logging aided observation, not a production correction. The later unsuccessful diagnostic attach supplied no thread dump or proven explanation and is not a fix. Focused counts are not added to the coherent suite.
+- **Build71 coherent local gate: PASS in 11m46s.** **532 tests across 97 classes**, zero failures/errors/skips; `assembleDebug` and `lintDebug` passed. All **299 frozen source hashes matched**, with **214 fresh artifacts** archived. The full gate used external per-test logging, with no source change from the diagnostic run; success does not establish why Build69 stalled.
+- **Lint: zero errors, 37 warnings and one hint.** Fresh app, unit-test and Android-test analyses completed. `lintReportDebug` legitimately reused UP-TO-DATE reports; archived timestamps and reuse provenance distinguish them from freshly generated reports.
+- **Independent limited-publication review: PASS for exact Build71.** Review verified 97 XML files/532 tests, all 299 source hashes, APK/hash and included ReaderPositionStore, the signature/local certificate, three fonts/seven bundled licenses, lint and fresh frames. The long-ID toolbar visual limitation above remains. **Remote publication/CI are PENDING.** This does not establish live provider/account/device or HTTP 403 acceptance, durable process restoration or full Flutter parity.
+
+### Build71 local debug APK identity
+
+- Size: **18,000,783 bytes**.
+- SHA-256: `a909a36eb9d16190052619b0c3c1c128edbca5bb1461e24ae09496b8b824cff8`.
+- **APK Signature Scheme v2 verified**; local signer SHA-256: `f2840c7ab104085a0d42ca4773d0682db237b5eaea8b9b470d9ca792dc70a759`, distinct from CI. All three font pins and four font/icon license pins matched. This is a debug artifact, not stable release signing or promised upgrade/downgrade continuity.
 
 ## Changes under verification
 
@@ -94,7 +113,7 @@ All APKs are debug builds. Local and CI signing certificates can differ; no stab
 - The earlier anonymous Home probe returned HTTP 567 through the configured network path. Neither the profile/timestamp changes nor the guest-session implementation establish a live 403 fix, general backend availability or a general outage. No real login, account write, upload, full inventory scan, installation or permission grant was performed for this verification.
 - The software-emulator boot attempt did not complete; the app was not installed or run there. There are no emulator/device screenshots or real Xiaomi 15/HyperOS, TalkBack, system-gesture, keyboard, lifecycle, FPS or memory acceptance results.
 - Feed/reply image composing, complete card/template presentation, original emoji-art rights/panel parity, full installed-app inventory, integrated native download transfer/completion and some Settings/My capabilities remain gaps. Staged work is not integrated acceptance.
-- Ordinary-message full-body reading passed its coherent local gate and exact-source limited-publication review. Structured article/inline-media rendering, continuous full selection and detail → child → Back reader retention remain gaps. The new parent-list return test does not close those restoration gaps. The older accepted restoration test also did not reproduce its earlier pending-to-complete body transition or prove every prior failure’s cause.
+- Ordinary-message reading passed its baseline gate. Bounded child-return retention passed Build71 and scoped independent review; remote publication/CI remain pending, while durable process restoration and exact geometry after font/viewport/reply changes remain outside the promise. Structured article/inline-media rendering and continuous full selection remain gaps. Older parent-list restoration evidence did not prove all later reader behaviors or every prior failure’s cause.
 - Font binaries remain generated, ignored build inputs, not repository uploads. The passing preparation and packaged-byte checks establish pinned asset integrity, not typography or device-performance parity.
 
 ## Reproduce from the repository root
@@ -111,6 +130,6 @@ Use `python3 app/tools/fetch_fonts.py --offline` to verify already prepared font
 
 JUnit XML lives under `app/build/test-results`, test/lint reports under `app/build/reports`, and synthetic frames under `app/build/verification`. Match all evidence to one completed source snapshot; stale files or focused checks are not a full pass. CI uses read-only repository permissions, without release publishing or secrets.
 
-The published reply-like source passed Build63 and scoped independent review. Build66 passed the bounded full-body increment’s coherent local gate; its exact-source limited-publication review also passed; remote publication/CI remain pending. Keep the draft unmerged. Whole-app functional/UI parity, authorized live-service validation and physical-device acceptance remain separate open gates.
+The published ordinary-message reader passed Build66. The child-return retention increment passed Build71 and exact-source limited-publication review; remote publication/CI remain pending. Keep the draft unmerged. Whole-app functional/UI parity, authorized live-service validation and physical-device acceptance remain separate open gates.
 
-Build54, Build59 and Build63 hashes/APKs describe historical source snapshots, not the bounded full-body increment. This results-only documentation delta does not change the frozen runtime source.
+Build54, Build59, Build63 and Build66 hashes/APKs describe historical source snapshots, not the child-return retention increment. This results-only documentation delta does not change the frozen runtime source.

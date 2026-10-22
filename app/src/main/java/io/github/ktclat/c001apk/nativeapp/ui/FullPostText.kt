@@ -43,9 +43,11 @@ internal fun fullPostLimitMessage(limit: FullPostBodyLimit, receivedUnits: Int? 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable internal fun FullPostText(body: FullPostBody, preview: String, openLink: (String) -> Unit, openOriginal: (() -> Unit)?,
     parser: (FullPostBody, () -> Unit) -> PreparedFullPost = ::prepareFullPost) {
+    val retained = LocalDetailReaderBinding.current?.takeIf { it.body === body }
     var attempt by remember(body) { mutableIntStateOf(0) }
-    val prepared by rememberFullPost(body, parser, attempt)
-    var page by rememberSaveable(body) { mutableIntStateOf(0) }
+    val prepared = if (retained != null) retained.prepared else rememberFullPost(body, parser, attempt).value
+    val pageState = retained?.page ?: rememberSaveable(body) { mutableIntStateOf(0) }
+    var page by pageState
     var linksOpen by remember(body) { mutableStateOf(false) }
     val pageStart = remember(body) { BringIntoViewRequester() }
     var pageNavigation by remember(body) { mutableIntStateOf(0) }
@@ -59,7 +61,7 @@ internal fun fullPostLimitMessage(limit: FullPostBodyLimit, receivedUnits: Int? 
             is PreparedFullPost.Unavailable -> {
                 Text(fullPostLimitMessage(value.limit, value.receivedUnits), Modifier.testTag("full-post-limit"), style = MaterialTheme.typography.bodySmall)
                 if (preview.isNotBlank()) PagedPostText(preview, true, openLink)
-                if (value.limit == FullPostBodyLimit.PARSING_ERROR) TextButton(onClick = { attempt++ }) { Text("重新排版正文") }
+                if (value.limit == FullPostBodyLimit.PARSING_ERROR) TextButton(onClick = { if (retained != null) retained.retry() else attempt++ }) { Text("重新排版正文") }
                 openOriginal?.let { TextButton(onClick = it) { Text("浏览器打开原文") } }
             }
             is PreparedFullPost.Ready -> {
