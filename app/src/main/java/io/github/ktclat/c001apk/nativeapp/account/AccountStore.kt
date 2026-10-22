@@ -19,7 +19,10 @@ internal class AccountRecord(val id: String, val name: String, val deviceId: Str
 @Serializable
 internal class AcceptedValidation(val proof: String, val sessionHash: String, val expiresAt: Long)
 @Serializable
-internal class Vault(val version: Int = 1, val accounts: List<AccountRecord> = emptyList(), val activeId: String? = null)
+internal class GuestRecord(val deviceId: String, val cookies: List<String>)
+@Serializable
+internal class Vault(val version: Int = 2, val accounts: List<AccountRecord> = emptyList(), val activeId: String? = null,
+    val guest: GuestRecord? = null)
 
 /** Implementations must encrypt before writing. A failure must not replace the existing vault. */
 interface CredentialPersistence { fun read(): ByteArray?; fun write(bytes: ByteArray); fun reset() }
@@ -29,7 +32,7 @@ class CredentialRecoveryRequired : IllegalStateException("Credential storage una
 class SessionSnapshot internal constructor(val accountId: String?, val generation: Long,
     val deviceId: String?, internal val cookies: List<Cookie>, internal val owner: Any, internal val revision: Long, private val validation: AcceptedValidation?) {
     fun cookieHeader(url: HttpUrl, now: Long = System.currentTimeMillis()): String =
-        if (!CookieScope.allows(url)) "" else cookies.filter { it.name != "validate" && it.expiresAt > now && it.matches(url) }
+        if (!CookieScope.allows(url) || (accountId == null && !CookieScope.allowsGuest(url))) "" else cookies.filter { it.name != "validate" && it.expiresAt > now && it.matches(url) }
             .sortedByDescending { it.path.length }.joinToString("; ") { "${it.name}=${it.value}" }.let { header ->
                 val accepted = validation?.takeIf { url.host in setOf("api.coolapk.com", "api2.coolapk.com") && it.expiresAt > now && it.sessionHash == sessionHash() && cookies.any { c -> c.name == "SESSID" && c.expiresAt > now && c.matches(url) } }
                 if (accepted == null) header else "$header; validate=${accepted.proof}"
@@ -47,6 +50,7 @@ class SessionSnapshot internal constructor(val accountId: String?, val generatio
 object CookieScope {
     private val hosts = setOf("api.coolapk.com", "api2.coolapk.com", "account.coolapk.com")
     fun allows(url: HttpUrl) = url.isHttps && url.port == 443 && url.host in hosts
+    fun allowsGuest(url: HttpUrl) = allows(url) && url.host in setOf("api.coolapk.com", "api2.coolapk.com")
     fun parse(url: HttpUrl, header: String, now: Long): Cookie? {
         if (!allows(url) || header.length > 8192) return null
         val cookie = Cookie.parse(url, header) ?: return null
@@ -66,24 +70,27 @@ object CookieScope {
 }
 
 /** Serialize all mutations and disk commits under one monitor. Call on an IO dispatcher. */
-class AccountStore(private val persistence: CredentialPersistence, private val clock: () -> Long = System::currentTimeMillis) {
+class AccountStore(private val persistence: CredentialPersistence, private val guestDeviceId: String? = null, private val clock: () -> Long = System::currentTimeMillis) {
     private val owner = Any()
     private var vault = Vault()
     private var revision = 0L
     private val mutableState = MutableStateFlow(AccountState())
     val state: StateFlow<AccountState> = mutableState.asStateFlow()
-    private val json = Json { ignoreUnknownKeys = false }
+    private val json = Json { ignoreUnknownKeys = false; encodeDefaults = true }
 
     init {
         try {
             persistence.read()?.let { bytes ->
                 try {
                     val restored = json.decodeFromString<Vault>(bytes.decodeToString())
-                    require(restored.version == 1 && restored.accounts.size <= 100)
+                    require(restored.version in 1..2 && restored.accounts.size <= 100)
                     require(restored.accounts.map { it.id }.distinct().size == restored.accounts.size)
                     restored.accounts.forEach { validate(it) }
+                    restored.guest?.let(::validateGuest)
+                    require(restored.activeId == null || restored.guest == null)
                     require(restored.activeId == null || restored.accounts.any { it.id == restored.activeId && !it.needsLogin })
-                    vault = restored
+                    // A device change cannot reuse an earlier anonymous session. Never rotate account devices.
+                    vault = if (restored.guest?.deviceId != guestDeviceId) Vault(accounts = restored.accounts, activeId = restored.activeId) else restored
                 } finally { bytes.fill(0) }
             }
             publish()
@@ -93,8 +100,9 @@ class AccountStore(private val persistence: CredentialPersistence, private val c
     @Synchronized fun snapshot(): SessionSnapshot {
         if (!state.value.recoveryRequired) expireTokens()
         val record = if (state.value.recoveryRequired) null else vault.accounts.firstOrNull { it.id == vault.activeId }
-        return SessionSnapshot(record?.id, state.value.generation, record?.deviceId,
-            record?.cookies?.mapNotNull { restoreCookie(it) } ?: emptyList(), owner, revision, record?.validation)
+        val guest = vault.guest?.takeIf { record == null && !state.value.recoveryRequired && it.deviceId == guestDeviceId }
+        return SessionSnapshot(record?.id, state.value.generation, record?.deviceId ?: guestDeviceId?.takeUnless { state.value.recoveryRequired },
+            (record?.cookies ?: guest?.cookies)?.mapNotNull { restoreCookie(it) } ?: emptyList(), owner, revision, record?.validation)
     }
     @Synchronized fun isCurrent(snapshot: SessionSnapshot): Boolean {
         if (!state.value.recoveryRequired) expireTokens()
@@ -120,7 +128,7 @@ class AccountStore(private val persistence: CredentialPersistence, private val c
     }
     @Synchronized fun useGuest() { commit(Vault(accounts = vault.accounts), true) }
     @Synchronized fun remove(id: String) { commit(Vault(accounts = vault.accounts.filterNot { it.id == id },
-        activeId = vault.activeId.takeUnless { it == id }), vault.activeId == id) }
+        activeId = vault.activeId.takeUnless { it == id }, guest = vault.guest), vault.activeId == id) }
     /** Local logout forgets this account's credentials, retaining a re-login entry. No network call. */
     @Synchronized fun logout(expected: SessionSnapshot): Boolean {
         if (!isCurrent(expected)) return false
@@ -129,7 +137,8 @@ class AccountStore(private val persistence: CredentialPersistence, private val c
         return true
     }
     @Synchronized fun acceptCookies(expected: SessionSnapshot, url: HttpUrl, headers: List<String>): Boolean {
-        if (!isCurrent(expected) || expected.accountId == null || expected.revision != revision || !CookieScope.allows(url)) return false
+        if (!isCurrent(expected) || expected.revision != revision || !CookieScope.allows(url)) return false
+        if (expected.accountId == null) return acceptGuestCookies(url, headers)
         val current = vault.accounts.first { it.id == expected.accountId }
         val cookies = current.cookies.mapNotNull { restoreCookie(it) }.toMutableList()
         headers.forEach { header -> CookieScope.parse(url, header, clock())?.let { incoming ->
@@ -140,6 +149,26 @@ class AccountStore(private val persistence: CredentialPersistence, private val c
             cookies.filter { it.expiresAt > clock() }.map { encodeCookie(it) }, current.needsLogin, current.validation?.takeIf { it.sessionHash == sessionFingerprint(cookies) })
         if (updated.cookies == current.cookies) return true
         commit(Vault(accounts = vault.accounts.map { if (it.id == current.id) updated else it }, activeId = vault.activeId), false)
+        return true
+    }
+    /** Anonymous API sessions are a separate jar, never promoted to authenticated credentials. */
+    private fun acceptGuestCookies(url: HttpUrl, headers: List<String>): Boolean {
+        val device = guestDeviceId?.takeIf { it.isNotBlank() && it.length <= 8192 } ?: return false
+        if (!CookieScope.allowsGuest(url)) return false
+        val now = clock()
+        val current = vault.guest?.takeIf { it.deviceId == device }?.cookies.orEmpty()
+        val cookies = current.mapNotNull(::restoreCookie).filter { it.expiresAt > now }.toMutableList()
+        headers.forEach { header -> CookieScope.parse(url, header, now)?.takeIf {
+            it.name == "SESSID" && (it.value.isEmpty() || it.expiresAt <= now || guestValue.matches(it.value))
+        }?.let { incoming ->
+            cookies.removeAll { it.name == incoming.name && it.domain == incoming.domain && it.path == incoming.path }
+            if (incoming.expiresAt > now && incoming.value.isNotEmpty()) cookies.add(incoming)
+        } }
+        if (cookies.size > 100) return false
+        val encoded = cookies.map(::encodeCookie)
+        if (encoded == current) return true
+        commit(Vault(accounts = vault.accounts, activeId = vault.activeId,
+            guest = encoded.takeIf { it.isNotEmpty() }?.let { GuestRecord(device, it) }), false)
         return true
     }
     /** Only the transport's source-known challenge/image/validation response may use this handoff.
@@ -179,7 +208,16 @@ class AccountStore(private val persistence: CredentialPersistence, private val c
         }
         if (changed == vault.accounts) return
         val active = vault.activeId.takeIf { id -> changed.any { it.id == id && !it.needsLogin } }
-        commit(Vault(accounts = changed, activeId = active), active != vault.activeId)
+        commit(Vault(accounts = changed, activeId = active, guest = vault.guest), active != vault.activeId)
+    }
+    private fun validateGuest(record: GuestRecord) {
+        require(record.deviceId.isNotBlank() && record.deviceId.length <= 8192 && record.cookies.size <= 100)
+        record.cookies.forEach { serialized ->
+            val cookie = restoreCookie(serialized) ?: error("Malformed guest session")
+            require(cookie.name == "SESSID" && guestValue.matches(cookie.value))
+            require(cookie.domain in setOf("coolapk.com", "api.coolapk.com", "api2.coolapk.com"))
+            require(cookie.secure && cookie.path.length <= 256)
+        }
     }
     private fun validate(record: AccountRecord) {
         require(record.id.matches(Regex("[0-9]{1,30}")) && record.name.length <= 1024)
@@ -198,6 +236,8 @@ class AccountStore(private val persistence: CredentialPersistence, private val c
         if (state.value.recoveryRequired) throw CredentialRecoveryRequired()
         require(next.accounts.size <= 100)
         next.accounts.forEach(::validate)
+        next.guest?.let(::validateGuest)
+        require(next.activeId == null || next.guest == null)
         val bytes = json.encodeToString(Vault.serializer(), next).encodeToByteArray()
         try { require(bytes.size <= 1024 * 1024); persistence.write(bytes) } finally { bytes.fill(0) }
         vault = next; revision++; publish(if (invalidate) 1 else 0)
@@ -205,6 +245,7 @@ class AccountStore(private val persistence: CredentialPersistence, private val c
     private fun publish(increment: Long = 0) { mutableState.value = AccountState(
         vault.accounts.map { AccountSummary(it.id, it.name, it.needsLogin) }, vault.activeId, state.value.generation + increment) }
     companion object {
+        private val guestValue = Regex("^[A-Za-z0-9,._~%+/-]{1,512}$")
         private val apiAuthUrls = listOf("api.coolapk.com", "api2.coolapk.com").map {
             okhttp3.HttpUrl.Builder().scheme("https").host(it).addPathSegment("v6").addPathSegment("").build()
         }

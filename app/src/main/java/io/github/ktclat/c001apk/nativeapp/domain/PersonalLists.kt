@@ -2,6 +2,7 @@
 package io.github.ktclat.c001apk.nativeapp.domain
 
 enum class PersonalListKind(val title: String, val path: String) {
+ FEED("我的动态", "v6/user/feedList"),
  FOLLOW("我的关注", "v6/user/followList"), FAN("关注我的人", "v6/user/fansList"),
  RECENT("我的常去", "v6/user/recentHistoryList"), COLLECTION("我的收藏", "v6/collection/list"),
  LIKE("我的赞", "v6/user/likeList"), REPLY("我的回复", "v6/user/replyList"),

@@ -26,6 +26,8 @@ data class RequestSession(
     val deviceCode: String? = null,
     val isSessionCurrent: (() -> Boolean)? = null,
     val acceptChallengeCookies: ((HttpUrl, List<String>) -> RequestSession?)? = null,
+    /** Explicit anonymous identity marker; never infer identity from the presence of SESSID. */
+    val isGuest: Boolean = false,
 )
 
 class HttpCoolapkRepository(
@@ -52,6 +54,28 @@ class HttpCoolapkRepository(
         if (!isCurrentAccount() || !captured.isCurrent() || !operation.isRequestScopeCurrent()) throw CancellationException("Session changed")
         result
       }
+    }
+
+    /** Bind both the UID and root account generation before entering this read-only operation. */
+    fun ownProfile(uid: String, isCurrentAccount: () -> Boolean): OwnProfileRepository = OwnProfileRepository {
+        withContext(Dispatchers.IO) io@{
+            if (!isCurrentAccount()) throw CancellationException("Account changed")
+            if (!numeric(uid)) return@io failure(FailureKind.INVALID_ARGUMENT)
+            val captured = requestSession?.invoke() ?: return@io failure(FailureKind.AUTHENTICATION)
+            if (!isCurrentAccount() || !captured.isCurrent()) throw CancellationException("Session changed")
+            val operation = transport.forRequestSession(captured)
+            if (!isCurrentAccount()) throw CancellationException("Account changed")
+            val result = when (val response = operation.get("v6/user/profile", mapOf("uid" to uid))) {
+                is ApiResult.Failure -> response
+                is ApiResult.Success -> withContext(Dispatchers.Default) {
+                    try { ApiResult.Success(decodeOwnProfile(response.value, uid)) }
+                    catch (e: ApiProblem) { e.failure }
+                }
+            }
+            if (!isCurrentAccount() || !captured.isCurrent() || !operation.isRequestScopeCurrent())
+                throw CancellationException("Session changed")
+            result
+        }
     }
 
     override suspend fun following(type: FollowType, cursor: PageCursor) = page(type.route, type.title, cursor)

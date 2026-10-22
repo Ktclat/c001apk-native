@@ -214,7 +214,7 @@ class CoolapkHttpTransport(
                     if (challenge != null && replay == null && path !in setOf("v6/account/requestValidate", "v6/account/captchaImage")) {
                         if (session?.isCurrent?.invoke() == false || (operationScoped && session?.isSessionCurrent?.invoke() == false)) throw CancellationException("Session changed")
                         // Guest or adapter without continuation support still receives a visible CAPTCHA failure.
-                        if (session != null && (session.isSessionCurrent == null || session.deviceCode.isNullOrBlank() || session.cookieFor(url).isNullOrBlank())) throw problem
+                        if (session != null && (session.isGuest || session.isSessionCurrent == null || session.deviceCode.isNullOrBlank() || session.cookieFor(url).isNullOrBlank())) throw problem
                         val successor = acceptChallengeResponse(session, url, response.headers.values("Set-Cookie"), null)
                         val operationId = UUID.randomUUID().toString()
                         val bound = when (challenge) {

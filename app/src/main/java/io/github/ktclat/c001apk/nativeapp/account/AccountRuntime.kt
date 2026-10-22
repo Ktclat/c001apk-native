@@ -13,7 +13,7 @@ class AccountRuntime private constructor(val store: AccountStore, val loginTrans
         suspend fun initialize(context: Context, stableDeviceCode: String, sdkInt: Int, deviceProfile: ClientDeviceProfile? = null,
             installTimeMillis: Long = System.currentTimeMillis()): AccountRuntime = withContext(Dispatchers.IO) {
             require(stableDeviceCode.isNotBlank())
-            val store = AccountStore(EncryptedCredentialPersistence(context.applicationContext))
+            val store = AccountStore(EncryptedCredentialPersistence(context.applicationContext), guestDeviceId = stableDeviceCode)
             val protocol = ClientProtocol(deviceCode = stableDeviceCode, sdkInt = sdkInt, deviceProfile = deviceProfile)
             val loginTransport = HttpLoginTransport()
             val loginCoordinator = LoginCoordinator(store, loginTransport, stableDeviceCode)

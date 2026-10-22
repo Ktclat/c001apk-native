@@ -20,7 +20,7 @@ fun personalListRoute(list: MyPersonalList) = "mylist:${list.name}"
 fun parsePersonalListRoute(route: String?): PersonalListRequest? {
  if(route?.startsWith("mycollection:") == true) return route.substringAfter(':').takeIf { it.matches(Regex("[0-9]+")) }?.let { PersonalListRequest(PersonalListKind.COLLECTION_ITEMS, it) }
  if(route?.startsWith("mylist:") != true) return null
- val kind = PersonalListKind.entries.firstOrNull { it.name == route.substringAfter(':') && it in setOf(PersonalListKind.FOLLOW, PersonalListKind.FAN, PersonalListKind.RECENT, PersonalListKind.COLLECTION, PersonalListKind.LIKE, PersonalListKind.REPLY) } ?: return null
+ val kind = PersonalListKind.entries.firstOrNull { it.name == route.substringAfter(':') && it in setOf(PersonalListKind.FEED, PersonalListKind.FOLLOW, PersonalListKind.FAN, PersonalListKind.RECENT, PersonalListKind.COLLECTION, PersonalListKind.LIKE, PersonalListKind.REPLY) } ?: return null
  return PersonalListRequest(kind)
 }
 /** Key every owned UI state and coroutine scope to account identity + generation. */

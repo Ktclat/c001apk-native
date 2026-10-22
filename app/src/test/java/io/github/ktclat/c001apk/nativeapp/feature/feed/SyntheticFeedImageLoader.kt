@@ -23,6 +23,7 @@ import java.util.concurrent.ConcurrentHashMap
  */
 class SyntheticFeedImageLoader(context: Context) : AutoCloseable {
     companion object {
+        const val PROFILE_AVATAR = "https://avatar.coolapk.com/synthetic-own-profile@128x128.png"
         const val AVATAR = "https://synthetic.invalid/avatar@128x128.png"
         const val LANDSCAPE = "https://synthetic.invalid/landscape@800x400.png"
         const val LANDSCAPE_ALTERNATE = "https://synthetic.invalid/landscape-alternate@800x400.png"
@@ -35,7 +36,7 @@ class SyntheticFeedImageLoader(context: Context) : AutoCloseable {
             override suspend fun intercept(chain: Interceptor.Chain): ImageResult {
                 val url = chain.request.data.toString()
                 val bitmap = when (url) {
-                    AVATAR -> avatar()
+                    AVATAR, PROFILE_AVATAR -> avatar()
                     LANDSCAPE -> landscape(false)
                     LANDSCAPE_ALTERNATE -> landscape(true)
                     else -> {

@@ -12,6 +12,7 @@ class HttpPersonalListRepository(private val fetch: suspend (String, Map<String,
   if (kind == PersonalListKind.COLLECTION_ITEMS && request.collectionId?.matches(Regex("[0-9]+")) != true) return failure(FailureKind.INVALID_ARGUMENT)
   val params = mutableMapOf("page" to cursor.page.toString())
   if (kind !in setOf(PersonalListKind.COLLECTION, PersonalListKind.TOPICS, PersonalListKind.PRODUCTS)) params["uid"] = uid
+  if (kind == PersonalListKind.FEED) { params["showAnonymous"] = "0"; params["isIncludeTop"] = "1" }
   if (kind == PersonalListKind.COLLECTION) params["showDefault"] = "0"
   if (kind == PersonalListKind.COLLECTION_ITEMS) params["id"] = request.collectionId!!
   if (kind in setOf(PersonalListKind.TOPICS, PersonalListKind.PRODUCTS)) {

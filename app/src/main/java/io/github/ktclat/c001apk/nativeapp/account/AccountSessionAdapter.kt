@@ -10,7 +10,7 @@ fun AccountStore.captureRequestSession(): RequestSession {
 
 /** Pin all stages of a social operation to its original identity. */
 fun AccountStore.requestSessionFor(captured: SessionSnapshot): RequestSession {
-    return RequestSession(cookieFor = { url -> captured.cookieHeader(url).takeIf { it.isNotEmpty() } },
+    return RequestSession(isGuest = captured.accountId == null, cookieFor = { url -> captured.cookieHeader(url).takeIf { it.isNotEmpty() } },
         isCurrent = { isCurrent(captured) }, acceptCookies = { url, headers -> acceptCookies(captured, url, headers); Unit }, deviceCode = captured.deviceId,
         isSessionCurrent = { val current = snapshot(); captured.revision == current.revision && captured.sameIdentityAndSession(current) },
         acceptChallengeCookies = { url, headers -> acceptChallengeCookies(captured, url, headers)?.let(::requestSessionFor) })

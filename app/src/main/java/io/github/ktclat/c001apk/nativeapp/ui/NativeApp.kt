@@ -337,7 +337,7 @@ fun NativeApp(model: BrowseViewModel, container: AppContainer, settings: AppSett
                 root == 0 && homeTab == 0 -> holder.SaveableStateProvider("apps") { InstalledAppsScreen(listState = browseListStates["apps"] ?: rememberLazyListState()) { navigate("app:$it") } }
                 root == 1 -> holder.SaveableStateProvider("root-local-follow") { LocalFollowFeedScreen(container.local, accounts.repository, { navigate("feed:$it") }, { navigate("user:$it") }, { navigate("local-follows") }, listState = browseListStates["root-local-follow"] ?: rememberLazyListState()) }
                 else -> holder.SaveableStateProvider("root-my") {
-                    MyDashboard(accountState, myScrollState, floatingTail, onNavigate = navigate,
+                    OwnProfileDashboard(accounts, accountState, myScrollState, floatingTail, onNavigate = navigate,
                         onPersonalList = { navigate(personalListRoute(it)) })
                 }
             }
