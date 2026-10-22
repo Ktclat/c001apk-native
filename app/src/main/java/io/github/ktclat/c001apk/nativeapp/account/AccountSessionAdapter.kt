@@ -1,0 +1,15 @@
+package io.github.ktclat.c001apk.nativeapp.account
+
+import io.github.ktclat.c001apk.nativeapp.data.RequestSession
+
+/** Opt-in; public fallback and third-party clients must never install this adapter. */
+fun AccountStore.captureRequestSession(): RequestSession {
+    val captured = snapshot()
+    return requestSessionFor(captured)
+}
+
+/** Pin all stages of a social operation to its original identity. */
+fun AccountStore.requestSessionFor(captured: SessionSnapshot): RequestSession {
+    return RequestSession(cookieFor = { url -> captured.cookieHeader(url).takeIf { it.isNotEmpty() } },
+        isCurrent = { isCurrent(captured) }, acceptCookies = { url, headers -> acceptCookies(captured, url, headers); Unit }, deviceCode = captured.deviceId)
+}

@@ -1,0 +1,68 @@
+package io.github.ktclat.c001apk.nativeapp.ui
+
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import io.github.ktclat.c001apk.nativeapp.data.HttpCoolapkRepository
+import io.github.ktclat.c001apk.nativeapp.domain.*
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.launch
+
+data class BrowseState(val items: List<ContentItem> = emptyList(), val loading: Boolean = false,
+    val error: String? = null, val next: PageCursor? = null, val loaded: Boolean = false)
+
+class BrowseViewModel(private val repository: CoolapkRepository = HttpCoolapkRepository()) : ViewModel() {
+    private val mutable = MutableStateFlow<Map<String, BrowseState>>(emptyMap())
+    val states = mutable.asStateFlow()
+    private var activeKey: String? = null
+    fun load(key: String, refresh: Boolean = false, more: Boolean = false) {
+        activeKey = key
+        val old = mutable.value[key] ?: BrowseState()
+        if (key in mutable.value) mutable.update { (it - key) + (key to old) }
+        if (old.loading || (!refresh && !more && old.loaded) || (more && old.next == null)) return
+        mutable.update { it + (key to old.copy(loading = true, error = null)) }
+        viewModelScope.launch {
+            val cursor = if (more) old.next!! else PageCursor()
+            val result = try { when {
+                key.startsWith("following:") -> repository.following(FollowType.entries.getOrElse(key.substringAfter(":").toIntOrNull() ?: 0) { FollowType.ALL }, cursor)
+                key == "home" -> repository.home(cursor)
+                key == "hot" -> repository.page("/page?url=V9_HOME_TAB_RANKING", "热榜", cursor)
+                key == "pictures" -> repository.page("/page?url=V11_FIND_COOLPIC", "酷图", cursor)
+                key == "products" -> repository.productCategories()
+                key.startsWith("product:") -> repository.productDetail(key.removePrefix("product:")).asPage()
+                key == "topics" -> repository.page("V11_VERTICAL_TOPIC", "话题", cursor)
+                key.startsWith("search:") -> repository.search(key.removePrefix("search:"), cursor)
+                key.startsWith("replies:") -> repository.replies(key.removePrefix("replies:"), cursor)
+                key.startsWith("feed:") -> repository.feedDetail(key.removePrefix("feed:")).asPage()
+                key.startsWith("app:") -> repository.appDetail(key.removePrefix("app:")).asPage()
+                key.startsWith("user:") -> repository.userFeed(key.removePrefix("user:"), cursor)
+                key.startsWith("topic:") -> repository.topicDetail(key.removePrefix("topic:")).asPage()
+                key.startsWith("page:") -> repository.page(key.removePrefix("page:"), cursor = cursor)
+                else -> ApiResult.Failure(FailureKind.INVALID_ARGUMENT, "此入口尚未迁移，不展示模拟数据")
+            }
+            } catch (cancelled: CancellationException) {
+                mutable.update { current -> current + (key to (current[key] ?: old).copy(loading = false)) }; throw cancelled
+            } catch (_: Exception) { ApiResult.Failure(FailureKind.NETWORK, "加载失败，请重试") }
+            mutable.update { current ->
+                bounded((current - key) + (key to when (result) {
+                    is ApiResult.Success -> BrowseState(
+                        items = if (more) (old.items + result.value.items).distinctBy { "${it.kind}:${it.id}:${it.title}" } else result.value.items,
+                        next = result.value.nextCursor, loaded = true)
+                    is ApiResult.Failure -> old.copy(loading = false, error = result.message, loaded = true)
+                }), setOfNotNull(activeKey, key))
+            }
+        }
+    }
+}
+private fun ApiResult<ContentItem>.asPage(): ApiResult<Page<ContentItem>> = when (this) {
+    is ApiResult.Success -> ApiResult.Success(Page(listOf(value), null))
+    is ApiResult.Failure -> this
+}
+
+internal fun bounded(states: Map<String, BrowseState>, protectedKeys: Set<String> = emptySet()): Map<String, BrowseState> {
+    val roots = setOf("home", "hot", "topics", "products", "pictures")
+    val remove = states.keys.filterNot { it in roots || it in protectedKeys || states[it]?.loading == true }.take((states.size - 24).coerceAtLeast(0)).toSet()
+    return states.filterKeys { it !in remove }
+}
