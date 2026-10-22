@@ -60,7 +60,10 @@ class BrowseViewModel(private val repository: CoolapkRepository = HttpCoolapkRep
             } catch (cancelled: CancellationException) {
                 if (requests[key] === request) {
                     requests.remove(key)
-                    mutable.update { current -> current + (key to (current[key] ?: old).copy(loading = false)) }
+                    mutable.update { current ->
+                        val cleared = (current[key] ?: old).copy(loading = false)
+                        current + (key to if (key.startsWith("feed:")) cleared.copy(error = "正文加载已取消，请重试") else cleared)
+                    }
                 }
                 throw cancelled
             } catch (_: Exception) { ApiResult.Failure(FailureKind.NETWORK, "加载失败，请重试") }

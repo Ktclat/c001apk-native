@@ -38,13 +38,13 @@ import io.github.ktclat.c001apk.nativeapp.settings.LocalReadingStyles
             Text(reply.userName.ifBlank { "作者信息未提供" }, fontSize = 15.sp, lineHeight = 20.sp, color = MaterialTheme.colorScheme.primary)
             val reading = LocalReadingStyles.current
             CompositionLocalProvider(LocalReadingStyles provides reading.copy(body = reading.reply)) {
-                PagedPostText(reply.message, openLink)
+                PagedPostText(reply.message, reply.bodyTruncated, openLink)
             }
             if (reply.imageUrls.isNotEmpty()) MediaGrid(reply.imageUrls)
             reply.replies.take(3).forEach { nested -> Surface(Modifier.fillMaxWidth().padding(top = 5.dp), color = MaterialTheme.colorScheme.surfaceContainerLow) {
                 Column(Modifier.clickable { navigate("thread:${reply.id}") }.padding(8.dp)) {
                     Text("${nested.userName}：", fontSize = 13.sp, color = MaterialTheme.colorScheme.primary)
-                    PagedPostText(nested.message.take(1200), openLink)
+                    PagedPostText(nested.message.take(1200), nested.bodyTruncated || nested.message.length > 1200, openLink)
                 }
             } }
             FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(0.dp)) {

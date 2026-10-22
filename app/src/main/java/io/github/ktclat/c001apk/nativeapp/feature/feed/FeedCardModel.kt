@@ -32,6 +32,8 @@ data class FeedCardModel(
     val relations: List<FeedRelation> = emptyList(),
     /** Undispatched entities remain nested and explicitly unsupported, never peer posts. */
     val unsupportedChildren: Int = 0,
+    val bodyTruncated: Boolean = false,
+    val fullPostBody: io.github.ktclat.c001apk.nativeapp.domain.FullPostBody? = null,
 )
 
 /** Exact typed projection. Missing metadata counts stay null, not the legacy default zero.
@@ -42,6 +44,7 @@ fun ContentItem.toFeedCardModel(nowSeconds: Long, detail: Boolean = false): Feed
     return FeedCardModel(
         id = id, author = userName, authorId = userId, avatar = avatarUrl,
         title = title, body = message, images = imageUrls,
+        bodyTruncated = bodyTruncated, fullPostBody = if (detail) fullPostBody else null,
         device = metadata?.deviceTitle.orEmpty(), info = metadata?.infoHtml.orEmpty(),
         pinned = metadata?.pinned == true,
         replies = if (metadata != null) metadata.replyCount else replyCount,

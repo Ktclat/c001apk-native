@@ -398,7 +398,7 @@ private fun ContentCard(item: ContentItem, navigate: (String) -> Unit, openLink:
             if (item.userName.isNotBlank()) Text(item.userName, style = MaterialTheme.typography.labelLarge,
                 modifier = Modifier.clickable(enabled = item.userId.isNotBlank()) { navigate("user:${item.userId}") })
             if (item.title.isNotBlank()) Text(item.title, style = LocalReadingStyles.current.title)
-            if (item.message.isNotBlank()) PagedPostText(item.message, openLink)
+            if (item.message.isNotBlank()) PagedPostText(item.message, item.bodyTruncated, openLink)
             if (item.imageUrls.isNotEmpty()) MediaGrid(item.imageUrls)
             item.targetUrl?.takeIf { it.isNotBlank() }?.let { url -> TextButton(onClick = { openLink(url) }) { Text("打开内容链接") } }
             if (item.kind == "feed" && item.id.isNotBlank()) FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {

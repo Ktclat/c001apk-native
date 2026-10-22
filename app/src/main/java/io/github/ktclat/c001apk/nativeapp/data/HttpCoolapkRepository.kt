@@ -80,7 +80,23 @@ class HttpCoolapkRepository(
 
     override suspend fun following(type: FollowType, cursor: PageCursor) = page(type.route, type.title, cursor)
     override suspend fun home(cursor: PageCursor) = list("v6/main/indexV8", cursor, mapOf("firstLaunch" to "1", "installTime" to "$installTimeMillis", "ids" to ""), api2 = true)
-    override suspend fun feedDetail(id: String) = objectRequest("v6/feed/detail", "id", id, numericOnly = true)
+    override suspend fun feedDetail(id: String): ApiResult<ContentItem> = withContext(Dispatchers.IO) {
+        if (!numeric(id)) return@withContext failure(FailureKind.INVALID_ARGUMENT)
+        val captured = requestSession?.invoke()
+        if (captured?.isCurrent?.invoke() == false) throw CancellationException("Session changed")
+        // Capture exactly once. Guest/account reads keep existing browsing-generation semantics.
+        val operation = captured?.let(transport::forCapturedReadSession) ?: transport
+        val result = when (val response = operation.get("v6/feed/detail", mapOf("id" to id))) {
+            is ApiResult.Failure -> response
+            is ApiResult.Success -> withContext(Dispatchers.Default) {
+                try { ApiResult.Success(ApiDecoder.feedDetail(response.value)) }
+                catch (e: ApiProblem) { e.failure }
+            }
+        }
+        // Normal Set-Cookie may advance revision; identity/generation changes must still cancel.
+        if (captured?.isCurrent?.invoke() == false) throw CancellationException("Session changed")
+        result
+    }
     override suspend fun replies(id: String, cursor: PageCursor) = orderedReplies(id, ReplyOrder.RECENT_REPLY, false, cursor)
     override suspend fun orderedReplies(id: String, order: ReplyOrder, authorOnly: Boolean, cursor: PageCursor): ApiResult<Page<ContentItem>> {
         if (!numeric(id)) return failure(FailureKind.INVALID_ARGUMENT)

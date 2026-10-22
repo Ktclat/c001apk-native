@@ -44,7 +44,7 @@ import kotlinx.coroutines.launch
             visiblePosts.firstOrNull()?.let { item -> InteractiveFeedCard(item, accounts, accountState, navigate,
                 openLink, favorite, onChanged = { model.load(postKey, refresh = true) }, detail = true,
                 onComments = { scope.launch { list.animateScrollToItem(1) } }) }
-            if (post.loading) LinearProgressIndicator(Modifier.fillMaxWidth())
+            if (post.loading) LinearProgressIndicator(Modifier.fillMaxWidth().testTag("feed-detail-loading"))
             post.error?.let { error -> Column(Modifier.padding(16.dp)) { Text(error); TextButton(onClick = { model.load(postKey, refresh = true) }) { Text("重新加载动态") } } }
         }
         item(key = "comment-controls") {

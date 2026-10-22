@@ -4,7 +4,7 @@ A working feature set and a recognizable Flutter UI are both required. Synthetic
 
 ## Published baseline evidence
 
-The publication base is `335953bb0b78a76fc7cad35b11a55f04fc02e044`; its guest/header implementation passed the Build59 local gate and scoped independent publication review recorded below. Earlier CI #6 verified the preceding 383-test snapshot. These historical results do not cover the new reply-like increment. PR #1 remains draft/unmerged; `main` is unchanged.
+The publication base is `1b313e4537dd7c6521c99f2c1c629eed18af14da`; its reply-like implementation passed Build63 and scoped independent publication review recorded below. Earlier Build54/Build59 and CI #6 results are historical evidence, not acceptance of the bounded full-body increment. PR #1 remains draft/unmerged; `main` is unchanged.
 
 - **Build54 coherent local gate: PASS in 14m21s.** **383 tests across 79 classes**, zero failures, errors or skips; `assembleDebug` and `lintDebug` passed. Lint reports **zero errors, 37 warnings and one hint**. All 271 frozen source hashes matched; the archive contains 189 fresh evidence artifacts.
 - Coverage includes **seven actual-root default-hide/accessibility-recovery tests**, **five My routing fixtures covering all 11 destination paths plus account-switch/guest guards**, and **two background tests covering light/dark themes across five states**. Four installation-time tests cover corrupt-value/idempotence handling. The prior focused background correction and fresh collection/light/dark frames were independently inspected; these are synthetic checks, not real-account or actual TalkBack acceptance.
@@ -13,7 +13,7 @@ The publication base is `335953bb0b78a76fc7cad35b11a55f04fc02e044`; its guest/he
 
 ### Historical Build54 local debug APK identity
 
-This is an earlier baseline APK, not an APK for the reply-like increment.
+This is an earlier baseline APK, not an APK for the bounded full-body increment.
 
 - Size: **17,811,587 bytes**.
 - SHA-256: `e3a6239c9942af5af0a72978536c91ec64e94becbdba7f007d887ddbba125a84`.
@@ -26,7 +26,7 @@ This is an earlier baseline APK, not an APK for the reply-like increment.
 - **Build58 focused PASS:** 66/66 tests, zero failures/errors/skips; all 279 source hashes matched and 29 fresh artifacts were captured. No assembly or lint was run. Independent comparison resolved the scoped density blocker: at matching 393 dp width, the first notice starts near 338 dp versus Flutter’s 325 dp (previously 496 dp); statistics/grid spans are about 60.6/109.7 dp versus Flutter’s 59/108 dp. Dark and unknown-data states and the final action above the dock were checked.
 - The reported-viewport frame is **1200×2670 pixels at DPR3.25**, yielding **369.23077×821.53845 logical dp**. The compact frame is **320×480 dp at font scale 1.6 and DPR1**: comparison with Flutter at DPR3.25 is logical-size only, not pixel-identical rendering. Both use synthetic insets and are not native-device measurements. The mixed interaction check combines a real swipe, programmatic absolute-end positioning, guarded dock reveal and an actual request through the synthetic destination fixture. It is not an all-gesture flow, a live request or physical-device proof.
 - **Build59 coherent local gate: PASS in 13m27s.** **418 tests across 84 classes**, zero failures/errors/skips; `assembleDebug` and `lintDebug` passed. Lint reports **zero errors, 37 warnings and one hint**. All **279 frozen source hashes matched**, with **197 fresh artifacts** archived. All three packaged font pins and four font/icon license files matched. Focused runs overlap; their counts are not added to this total.
-- **Independent limited-publication review: PASS for exact Build59.** The reviewer verified the 418-test XML, APK/signature/local certificate, matching source hashes, font/license bytes and lint findings. Seven fresh Build59 frames were byte-identical to the reviewed Build58 frames. The reply-like increment requires its own remote CI. This scoped approval does not establish merge approval, full parity, live 403 resolution or real-account/device acceptance.
+- **Independent limited-publication review: PASS for exact Build59.** The reviewer verified the 418-test XML, APK/signature/local certificate, matching source hashes, font/license bytes and lint findings. Seven fresh Build59 frames were byte-identical to the reviewed Build58 frames. New increments require their own remote CI. This scoped approval does not establish merge approval, full parity, live 403 resolution or real-account/device acceptance.
 
 ### Historical Build59 local debug APK identity
 
@@ -38,20 +38,38 @@ The published guest/header source stores an encrypted guest `SESSID` separately 
 
 **Vault compatibility warning:** the published guest vault writes schema v2 and reads v1/v2, including older omitted-default v1 records. An older strict v1 reader rejects v2 and fails closed. A v2 vault requires a compatible newer client; do not promise loss-free rollback to an old reader or advise a silent reset. This is synthetic compatibility evidence, not an actual user-vault migration. Certificate compatibility is a separate restriction.
 
-## Reply-like increment: current gate
+## Published reply-like evidence
 
 - **Implemented scope:** explicit like/unlike in detail comments, reply lists and reply threads. Unknown like state disables mutation; guest taps open login without writing. Pending submissions reject duplicate taps, and captured account-generation plus mutation/CAPTCHA ownership checks remain. Only an acknowledged mutation triggers the reply refresh; unconfirmed/failed outcomes are not displayed as successful writes.
 - **Earlier focused failures:** Build60 ran 90 tests with six root-fixture wait failures. Build61 diagnostics observed the correct POST and a queued UI refresh before semantics synchronization; this was not a passing gate. Build62 changes the wait to require the visible flipped state while retaining all original request/read counters and method/path/query/form assertions, rather than accepting counters alone or weakening assertions.
 - **Build62 focused PASS:** all **10 `NativeReplyRouteRequestTest` fixtures**, zero failures/errors/skips, with **283 matching source hashes**. They exercise both like/unlike directions on all three actual NativeApp routes plus unknown-state, pending-duplicate, stale-account and guest-login guards. Requests are intercepted without sockets; visible acknowledged refresh is verified. No assembly/lint or fresh screenshots were produced by this focused gate.
 - **Build63 coherent local gate: PASS in 14m53s.** **444 tests across 87 classes**, zero failures/errors/skips; `assembleDebug` and `lintDebug` passed. All **283 frozen source files matched**, with **197 fresh artifacts** archived. Overlapping focused counts are not added to this total.
 - **Lint: zero errors, 37 warnings and one hint.** Fresh debug, unit-test and Android-test lint analysis completed. `lintReportDebug` was legitimately UP-TO-DATE; the archived report timestamps and reuse provenance are recorded rather than described as newly generated reports.
-- **Independent limited-publication review: PASS for exact Build63. Remote publication and candidate CI: PENDING.** No real provider/account/device acceptance, full-parity approval or live 403 resolution is claimed.
+- **Independent limited-publication review: PASS for exact Build63.** This is published-baseline evidence, not acceptance of the newer full-body source. No real provider/account/device acceptance, full-parity approval or live 403 resolution is claimed.
 
-### Build63 local debug APK identity
+### Historical Build63 local debug APK identity
 
 - Size: **18,000,783 bytes**.
 - SHA-256: `47adc8dd8ccfb2eaa642c757fa5c540ad2fb10977362fbb2b61b87bcebc185a7`.
 - **APK Signature Scheme v2 verified**; local signer SHA-256: `f2840c7ab104085a0d42ca4773d0682db237b5eaea8b9b470d9ca792dc70a759`, distinct from CI. All three packaged font pins and four font/icon license pins matched unchanged. This remains a debug APK, not stable release signing or promised upgrade/downgrade continuity.
+
+## Bounded full-body increment: current gate
+
+- **Ordinary-message scope:** the actual `/v6/feed/detail` response `message` is retained before preview truncation, separately from the existing 12,000 UTF-16-unit list/history/favorites projection. Both raw and decoded detail text are bounded at **262,144 UTF-16 units**, not bytes, code points or grapheme clusters. Missing/invalid messages and nonempty structured-article output are not promoted into a supposedly complete ordinary body.
+- **Reader and resource bounds:** parsing, normalization, links and page preparation run off Main; guarded publication occurs on Main. At most one **4,000-unit segment** is laid out at a time, without splitting surrogate pairs. User page changes reveal the new page's start. Shared JSON preflight limits depth to **64** and lexical nodes, including keys, to **20,000**, within the existing **4 MiB actual-response-byte cap**. Unsupported/error/limit states are visible, with an explicit browser-original action. These are bounded synthetic checks, not a global memory cap or device-performance result.
+- **Captured ordinary read:** the request session is captured once and used by a fixed-supplier read clone. AccountStore is unchanged; generation/current-owner checks and guarded publication reject stale account results. Successful guest/authenticated Set-Cookie responses remain allowed under existing ordinary-browse semantics. Same-generation cookie revision changes do not by themselves invalidate the body; stale cookie writes still face the existing independent revision check. This is not a new revision-current read contract or permission to adopt another account's session.
+- **Build64 focused result:** 275 tests, **273 passed and two failed**, zero errors/skips. The failures concerned a supplemental root-dialog renderer and lifecycle raw-counter fixture synchronization. Their corrections were test-only, not production changes.
+- **Build65 focused PASS:** **11/11 tests across two classes**, zero failures/errors/skips; **294 source hashes matched**, with **four fresh actual-root PNGs** covering first page, final tail, unsupported article and browser error. Independent review agrees with this scoped corrected result. Neither focused run included assembly/lint; overlapping counts are not aggregated.
+- **Restoration boundary:** parent list → detail → Back is tested, including unchanged parent items/visible positions/scroll without reload. **Detail → child → Back reader page/scroll retention remains missing and is queued separately.** No complete reader restoration or process-reloaded body/page identity validation is claimed. Structured article blocks, inline media and continuous full-text selection also remain gaps.
+- **Build66 coherent local gate: PASS in 9m29s.** **484 tests across 94 classes**, zero failures/errors/skips; `assembleDebug` and `lintDebug` passed. All **294 frozen source hashes matched**, with **201 fresh artifacts** archived. These are the coherent suite totals; overlapping focused counts are not added.
+- **Lint: zero errors, 37 warnings and one hint.** Fresh app, unit-test and Android-test analyses completed; `lintReportDebug` legitimately reused UP-TO-DATE outputs. Their timestamps and reuse provenance are archived, rather than described as newly generated reports.
+- **Independent limited-publication review: PASS for exact Build66.** Review verified all 94 XML files/484 tests, 294 matching source hashes, the APK, unchanged fonts/licenses and lint categories. Four fresh reader frames are byte-identical to the reviewed Build65 frames. **Remote publication/CI remain PENDING.** No live provider/account/device or HTTP 403 acceptance, complete restoration or full Flutter parity is claimed.
+
+### Build66 local debug APK identity
+
+- Size: **18,000,783 bytes**.
+- SHA-256: `7283f76e46c098c84509a25a95a52d5b3c33209471e6e584f9b16a1022fef172`.
+- **APK Signature Scheme v2 verified**; local signer SHA-256: `f2840c7ab104085a0d42ca4773d0682db237b5eaea8b9b470d9ca792dc70a759`, distinct from CI. The three font pins and four font/icon license pins match Build59; all three fonts and all seven bundled license files are also byte-identical to Build63. This is a debug artifact, not stable release signing or promised upgrade/downgrade continuity.
 
 ## Changes under verification
 
@@ -76,7 +94,7 @@ All APKs are debug builds. Local and CI signing certificates can differ; no stab
 - The earlier anonymous Home probe returned HTTP 567 through the configured network path. Neither the profile/timestamp changes nor the guest-session implementation establish a live 403 fix, general backend availability or a general outage. No real login, account write, upload, full inventory scan, installation or permission grant was performed for this verification.
 - The software-emulator boot attempt did not complete; the app was not installed or run there. There are no emulator/device screenshots or real Xiaomi 15/HyperOS, TalkBack, system-gesture, keyboard, lifecycle, FPS or memory acceptance results.
 - Feed/reply image composing, complete card/template presentation, original emoji-art rights/panel parity, full installed-app inventory, integrated native download transfer/completion and some Settings/My capabilities remain gaps. Staged work is not integrated acceptance.
-- The 12,000-character body preview remains a genuine full-text gap; separate full-body work is not integrated. The older accepted restoration test preserved screenshots, visible text/IDs, actual list position and no reload, but its clipped first body was already complete: it did not reproduce the earlier pending-to-complete transition or prove every prior failure's cause.
+- Ordinary-message full-body reading passed its coherent local gate and exact-source limited-publication review. Structured article/inline-media rendering, continuous full selection and detail → child → Back reader retention remain gaps. The new parent-list return test does not close those restoration gaps. The older accepted restoration test also did not reproduce its earlier pending-to-complete body transition or prove every prior failure’s cause.
 - Font binaries remain generated, ignored build inputs, not repository uploads. The passing preparation and packaged-byte checks establish pinned asset integrity, not typography or device-performance parity.
 
 ## Reproduce from the repository root
@@ -93,6 +111,6 @@ Use `python3 app/tools/fetch_fonts.py --offline` to verify already prepared font
 
 JUnit XML lives under `app/build/test-results`, test/lint reports under `app/build/reports`, and synthetic frames under `app/build/verification`. Match all evidence to one completed source snapshot; stale files or focused checks are not a full pass. CI uses read-only repository permissions, without release publishing or secrets.
 
-The published guest/header source passed Build59 and scoped independent review. Build63 passed the reply-like increment’s coherent local gate; exact-source independent limited-publication review also passed; remote publication and candidate CI remain pending. Keep the draft unmerged. Whole-app functional/UI parity, authorized live-service validation and physical-device acceptance remain separate open gates.
+The published reply-like source passed Build63 and scoped independent review. Build66 passed the bounded full-body increment’s coherent local gate; its exact-source limited-publication review also passed; remote publication/CI remain pending. Keep the draft unmerged. Whole-app functional/UI parity, authorized live-service validation and physical-device acceptance remain separate open gates.
 
-Build54 and Build59 hashes/APKs describe historical source snapshots, not the reply-like increment. This results-only documentation delta does not change the frozen runtime source.
+Build54, Build59 and Build63 hashes/APKs describe historical source snapshots, not the bounded full-body increment. This results-only documentation delta does not change the frozen runtime source.

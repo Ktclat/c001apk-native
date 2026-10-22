@@ -9,6 +9,9 @@ internal class ApiProblem(val failure: ApiResult.Failure) : Exception()
 internal object ApiDecoder {
     private val json = Json { ignoreUnknownKeys = true }
     fun envelope(body: String): JsonElement {
+        // Reject extreme nesting/node counts before the recursive JSON parser allocates a tree.
+        if (!boundedJsonEnvelope(body)) throw ApiProblem(failure(FailureKind.INVALID_RESPONSE).copy(
+            message = "响应结构超过安全读取上限，未展示不完整正文"))
         val root = runCatching { json.parseToJsonElement(body) as? JsonObject }.getOrNull() ?: invalid()
         val marker = root.text("messageStatus").lowercase()
         val clues = "$marker ${root.text("message")} ${root.text("error")}".lowercase()
@@ -36,7 +39,8 @@ internal object ApiDecoder {
         "err_request_captcha_v2" -> {
             val raw = root["messageExtra"] ?: root["extra"]
             val extra = (raw as? JsonObject) ?: (raw as? JsonPrimitive)?.contentOrNull?.let {
-                runCatching { json.parseToJsonElement(it) as? JsonObject }.getOrNull()
+                // The outer lexical check cannot inspect JSON embedded inside a quoted string.
+                if (boundedJsonEnvelope(it)) runCatching { json.parseToJsonElement(it) as? JsonObject }.getOrNull() else null
             } ?: root
             val id = extra.text("captchaId").takeIf { Regex("^[a-zA-Z0-9]{16,64}$").matches(it) } ?: "414e5c9b866a03db03f860a1a9101672"
             val candidate = (extra["captchaField"] as? JsonPrimitive)?.contentOrNull
@@ -47,6 +51,26 @@ internal object ApiDecoder {
     }
     private class Budget(var remaining: Int = 500)
     fun item(value: JsonElement): ContentItem = decodeItem(value, 0, Budget())
+    /** Same endpoint and ContentItem metadata contract; retain the actual detail message separately. */
+    fun feedDetail(value: JsonElement): ContentItem {
+        val obj = value as? JsonObject ?: invalid()
+        val preview = item(value)
+        val structured = obj["message_raw_output"]
+        val hasArticle = when (structured) {
+            null, JsonNull -> false
+            is JsonPrimitive -> !structured.contentOrNull.isNullOrBlank() && structured.contentOrNull != "null"
+            else -> true
+        }
+        val message = (obj["message"] as? JsonPrimitive)?.takeIf { it.isString }?.contentOrNull
+        val full = when {
+            hasArticle -> FullPostBody.Unavailable(FullPostBodyLimit.STRUCTURED_ARTICLE)
+            message == null -> FullPostBody.Unavailable(FullPostBodyLimit.MISSING_MESSAGE)
+            message.length > FullPostBodyBounds.MAX_HTML_UNITS ->
+                FullPostBody.Unavailable(FullPostBodyLimit.BODY_TOO_LARGE, message.length)
+            else -> FullPostBody.Available(message)
+        }
+        return preview.copy(fullPostBody = full)
+    }
     fun items(values: JsonArray): List<ContentItem> {
         val budget = Budget()
         return values.map { decodeItem(it, 0, budget) }

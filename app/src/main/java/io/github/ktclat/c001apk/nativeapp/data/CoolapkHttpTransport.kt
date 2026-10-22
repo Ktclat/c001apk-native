@@ -36,6 +36,13 @@ class CoolapkHttpTransport(
     private var replay: Replay? = null
     private var continuationSession = AtomicReference<RequestSession?>(null)
     private fun activeSession() = (if (operationScoped) continuationSession.get() else null) ?: requestSession?.invoke()
+    /** Fixed ordinary-read snapshot. Preserve browsing generation checks, including guest and
+     * normal Set-Cookie behavior; do not import authenticated mutation/challenge revision rules.
+     * This clone never consults the mutable original session supplier again.
+     */
+    internal fun forCapturedReadSession(session: RequestSession): CoolapkHttpTransport =
+        CoolapkHttpTransport(client, endpoints, protocol, { session }, monotonicMillis, false)
+
     /** Read-only scoped adapter: use exactly the caller's captured session, never recapture another account. */
     internal fun forRequestSession(session: RequestSession): CoolapkHttpTransport =
         CoolapkHttpTransport(client, endpoints, protocol, { session }, monotonicMillis, true)
@@ -200,7 +207,11 @@ class CoolapkHttpTransport(
                 val body = response.body ?: return@withContext failure(if (mutation) FailureKind.UNCERTAIN else FailureKind.INVALID_RESPONSE)
                 // Bound allocation; giant/unexpected server responses cannot exhaust app memory.
                 val source = body.source()
-                if (source.request((if (captchaImage) MAX_IMAGE else MAX_BODY) + 1)) return@withContext failure(if (mutation) FailureKind.UNCERTAIN else FailureKind.INVALID_RESPONSE)
+                if (source.request((if (captchaImage) MAX_IMAGE else MAX_BODY) + 1)) {
+                    return@withContext if (mutation) failure(FailureKind.UNCERTAIN)
+                    else failure(FailureKind.INVALID_RESPONSE).copy(message = if (captchaImage)
+                        "验证图片超过 1 MiB 安全上限，未读取图片" else "响应超过 4 MiB 安全上限，未读取完整内容")
+                }
                 if (captchaImage) {
                     if (body.contentType()?.toString()?.substringBefore(';') !in setOf("image/png", "image/jpeg", "image/webp", "image/gif")) return@withContext failure(FailureKind.INVALID_RESPONSE)
                     val bytes = source.readByteArray()

@@ -27,6 +27,8 @@ data class ContentItem(
     val feed: FeedMetadata? = null,
     val bodyTruncated: Boolean = false,
     val replyInteraction: ReplyInteractionMetadata? = null,
+    /** Separate bounded detail source; message remains a <=12,000-unit list/history preview. */
+    val fullPostBody: FullPostBody? = null,
 
 )
 /** Reply-specific server state. Missing action/counts remain unknown rather than false/zero. */

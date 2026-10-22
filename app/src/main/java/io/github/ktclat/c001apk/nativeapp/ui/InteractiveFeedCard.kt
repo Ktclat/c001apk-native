@@ -17,7 +17,7 @@ import kotlinx.coroutines.launch
 ) {
     val scope = rememberCoroutineScope()
     val context = androidx.compose.ui.platform.LocalContext.current
-    var originalError by remember { mutableStateOf(false) }
+    var originalError by remember(item.id) { mutableStateOf(false) }
     val projected = item.toFeedCardModel(System.currentTimeMillis() / 1000, detail)
     val runner = remember(item.id, accountState.generation, projected.likeState) { MutationRunner() }
     DisposableEffect(runner) { onDispose { runner.dispose() } }
@@ -37,13 +37,17 @@ import kotlinx.coroutines.launch
                 navigate(if (target.startsWith("replies:")) "feed:${target.substringAfter(':')}" else target)
             } },
             favorite = { favorite(item) }, login = { navigate("login") },
+            openOriginal = item.id.takeIf { it.isNotEmpty() && it.all { c -> c in '0'..'9' } }?.let { id ->
+                { originalError = runCatching { io.github.ktclat.c001apk.nativeapp.platform.openWebLink(context,
+                    "https://www.coolapk.com/feed/$id", preferExternal = true) }.isFailure }
+            },
             toggleLike = if (projected.likeState.canToggle()) ({ scope.launch {
                 runner.submit(isCurrent = { accounts.store.state.value.generation == accountState.generation }, onConfirmed = onChanged) {
                     accounts.socialRepository.like(item.id, reply = false, targetLiked = projected.likeState == FeedLikeState.NOT_LIKED, expectedGeneration = accountState.generation)
                 }
             }; Unit }) else null,
         ), detail = detail)
-        if (item.bodyTruncated) {
+        if (item.bodyTruncated && detail && item.fullPostBody == null) {
             androidx.compose.material3.Text("当前为长内容预览，完整正文请在原始页面阅读。")
             if (item.id.isNotBlank() && item.id.all { it in '0'..'9' }) androidx.compose.material3.TextButton(onClick = { originalError = runCatching { io.github.ktclat.c001apk.nativeapp.platform.openWebLink(context, "https://www.coolapk.com/feed/${item.id}", preferExternal = true) }.isFailure }) { androidx.compose.material3.Text("浏览器打开完整原文") }
         }

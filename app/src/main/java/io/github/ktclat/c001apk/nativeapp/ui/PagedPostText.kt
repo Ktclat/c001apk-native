@@ -52,7 +52,9 @@ internal fun rememberParsedPost(
 }
 
 /** Parsing never runs on Main; a large server body cannot become a single unbounded Text layout. */
-@Composable internal fun PagedPostText(html: String, openLink: (String) -> Unit) {
+@Composable internal fun PagedPostText(html: String, openLink: (String) -> Unit) = PagedPostText(html, false, openLink)
+
+@Composable internal fun PagedPostText(html: String, sourceIncomplete: Boolean, openLink: (String) -> Unit) {
     var expanded by rememberSaveable(html) { mutableStateOf(false) }
     var page by rememberSaveable(html) { mutableIntStateOf(0) }
     var linksOpen by rememberSaveable(html) { mutableStateOf(false) }
@@ -72,9 +74,10 @@ internal fun rememberParsedPost(
     val links = remember(value, start, end) { value.links.filter { it.start < end && it.end > start }.distinctBy { it.url } }
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
         SelectionContainer { Text(visible, style = LocalReadingStyles.current.body) }
+        if (sourceIncomplete) Text("当前仅为预览，尚未包含完整正文。", style = MaterialTheme.typography.bodySmall)
         if (!expanded && (html.length > 12_000 || value.text.length > size)) {
-            Text("当前为长内容预览，全文采用分段阅读以避免卡顿。", style = MaterialTheme.typography.bodySmall)
-            TextButton(onClick = { expanded = true; page = 0 }) { Text("阅读完整内容") }
+            if (!sourceIncomplete) Text("当前为长内容预览，已加载内容采用分段阅读以避免卡顿。", style = MaterialTheme.typography.bodySmall)
+            TextButton(onClick = { expanded = true; page = 0 }) { Text(if (sourceIncomplete) "展开已加载预览" else "阅读完整内容") }
         }
         if (expanded && pages > 1) Row {
             TextButton(enabled = current > 0, onClick = { page-- }) { Text("上一段") }

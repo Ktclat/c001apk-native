@@ -34,6 +34,7 @@ import io.github.ktclat.c001apk.nativeapp.feature.media.MediaGrid
 import io.github.ktclat.c001apk.nativeapp.settings.LocalReadingStyles
 import io.github.ktclat.c001apk.nativeapp.ui.FlutterMaterialIcons
 import io.github.ktclat.c001apk.nativeapp.ui.PagedPostText
+import io.github.ktclat.c001apk.nativeapp.ui.FullPostText
 
 /** Required navigation callbacks have no fake/no-op defaults. Null actions are not offered. */
 data class FeedCardActions(
@@ -48,6 +49,7 @@ data class FeedCardActions(
     val copy: (() -> Unit)? = null,
     val block: (() -> Unit)? = null,
     val report: (() -> Unit)? = null,
+    val openOriginal: (() -> Unit)? = null,
 )
 
 @OptIn(ExperimentalLayoutApi::class)
@@ -99,8 +101,13 @@ fun NativeFeedCard(model: FeedCardModel, actions: FeedCardActions, modifier: Mod
             }
             Column(Modifier.fillMaxWidth().then(if (!detail) Modifier.clickable(onClickLabel = "查看动态详情", onClick = actions.openPost) else Modifier).testTag("feed-body:${model.id}")) {
                 if (model.title.isNotBlank()) { Spacer(Modifier.height(5.dp)); Text(model.title.take(600), style = LocalReadingStyles.current.title) }
-                if (model.body.isNotBlank()) { Spacer(Modifier.height(5.dp)); PagedPostText(model.body, actions.openLink) }
-                if (model.body.length > 12_000) TextButton(onClick = actions.openPost) { Text("打开完整动态") }
+                if (detail && model.fullPostBody != null) {
+                    Spacer(Modifier.height(5.dp))
+                    key(model.id) { FullPostText(model.fullPostBody, model.body, actions.openLink, actions.openOriginal) }
+                } else {
+                    if (model.body.isNotBlank()) { Spacer(Modifier.height(5.dp)); PagedPostText(model.body, model.bodyTruncated, actions.openLink) }
+                    if (model.bodyTruncated && !detail) TextButton(onClick = actions.openPost) { Text("加载详情正文") }
+                }
             }
             if (model.images.isNotEmpty()) { Spacer(Modifier.height(10.dp)); MediaGrid(model.images) }
             model.forward?.let { Spacer(Modifier.height(10.dp)); ReferenceSurface(it, false, actions) }
