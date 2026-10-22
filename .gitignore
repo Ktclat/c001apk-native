@@ -5,3 +5,10 @@ local.properties
 *.jks
 *.keystore
 captures/
+
+# Reproducibly prepared, pinned fonts. Preserve OFL/copyright notices in assets/licenses/.
+/app/src/main/res/font/noto_sans_cjk_sc_regular.otf
+/app/src/main/res/font/noto_sans_cjk_sc_medium.otf
+/app/src/main/res/font/noto_sans_cjk_sc_bold.otf
+/app/src/main/res/font/.*.tmp
+/app/tools/__pycache__/

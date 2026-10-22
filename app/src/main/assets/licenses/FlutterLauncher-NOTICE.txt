@@ -1,0 +1,10 @@
+c001apk Flutter launcher reuse
+
+The native app reuses the existing infinity-symbol launcher assets from Ktclat/c001apk, inherited from TG-Twilight/c001apk and the earlier c001apk-flutter project. The repository's root GNU Affero General Public License v3 is retained by the native project; this notice does not change third-party artwork rights.
+Source: https://github.com/Ktclat/c001apk/tree/79958360d94fc81c3ce2bfcffb6d4cf7d579c099/apps/flutter/android/app/src/main/res
+Adaptive foreground, monochrome reference, and Android 12 light/dark color resources are copied unchanged. Only the three colors.xml filenames are renamed to avoid collisions. The native app targets API26 and newer, so pre-26 bitmap fallback densities are omitted; the adaptive icon identity is unchanged.
+
+Inherited attribution for Android 12 system Monet color combinations: bggRGjQaUbCoE/PiliPlus commit bd5e04e5de5a523e85a8eeba30da748dcd68925a, android/app/src/main/res/values-v31/colors.xml and values-night-v31/colors.xml. GPL-3.0 license is preserved in PiliPlus-GPL-3.0.txt. No PiliPlus graphical artwork is included.
+https://github.com/bggRGjQaUbCoE/PiliPlus/tree/bd5e04e5de5a523e85a8eeba30da748dcd68925a/android/app/src/main/res
+
+The inherited repository notices identify the infinity mark as the existing c001apk identity but do not provide a separate original artwork attribution/license statement. Reuse here preserves that source record and does not assert ownership or grant new trademark/artwork rights.

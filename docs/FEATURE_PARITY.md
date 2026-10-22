@@ -27,7 +27,7 @@
 | NAV01 | 根导航只有“首页 / 关注 / 我的”；切换保留各列表、滚动位置、嵌套标签；重复点击返回顶部 | pages/main/main_page.dart; pages/home/return_top_controller.dart, S；PR navigation_review_test.dart, T/R | P0；不要另造“应用”第四根标签 |
 | NAV02 | Android 首页顶部依次 应用、动态、热门、话题、数码、酷图，默认动态；顶部标签可横滑 | pages/home/home_page.dart, S | P1/P3；应用是 Android 专有顶部标签，不可漏掉酷图 |
 | NAV03 | 传统导航与设置中的 opt-in 悬浮导航；图标上文字下，稳定点击区；选中背景果冻，不压缩文字/图标；切页轻微入场，不穿越中间页 | PR components/floating_tab_bar.dart; pages/main/main_page.dart, S/T/R | P0/P4；详见第7节，不盲目抄固定像素 |
-| NAV04 | 自动隐藏/恢复、IME隐藏、系统安全区、宽屏 rail、字体放大、辅助功能、旋转 | 同上及 main.dart, S/T/R；Android真机 NOT_RUN | P0/P4；隐藏时无点击/焦点/语义节点，减少动画时即时切换 |
+| NAV04 | 自动隐藏/恢复、IME隐藏、系统安全区、字体放大、辅助功能、旋转（历史源码含宽屏 rail；当前要求悬浮模式在宽屏仍保持底部 overlay，仅经典模式可用 rail） | 同上及 main.dart, S/T/R；Android真机 NOT_RUN | P0/P4；隐藏时无点击/焦点/语义节点，减少动画时即时切换 |
 | NET01 | API签名/头、身份与设备范围、明确错误分类；HTTP200仍检查业务包络 | logic/network/{request,interceptor,api_failure}.dart; utils/token_util.dart, S/T | P0；禁止凭据跨域、无限验证码循环及不确定写操作自动重放 |
 | HOME01 | 首页动态分页/刷新/更多/空状态/失败重试/去重；首次启动参数 | pages/home/feed/home_feed_controller.dart; pages/common/common_controller.dart, S | P1；保留 page/firstItem/lastItem语义，不用offset替代 |
 | HOME02 | 热榜与酷图推荐由服务端 page/dataList卡片组织；专题轮播/网格/横向滚动卡片 | components/item_card.dart; components/cards/*; pages/carousel/*, S | P1；typed sealed card family，未知卡片可降级，不崩溃 |

@@ -15,7 +15,7 @@ import kotlinx.serialization.Serializable
     val theme: ThemeMode = ThemeMode.SYSTEM,
     val dynamicColor: Boolean = true,
     val themeColor: Int = 0,
-    val font: FontChoice = FontChoice.SYSTEM,
+    val font: FontChoice = FontChoice.NOTO_SANS,
     val fontScale: Float = 1f,
     val readingPreset: ReadingPreset = ReadingPreset.COMFORTABLE,
     val floatingNavigation: Boolean = false,
@@ -29,7 +29,7 @@ import kotlinx.serialization.Serializable
     fun validated(): AppSettings {
         require(schemaVersion in 1..2) { "不支持的设置版本" }
         require(fontScale.isFinite() && fontScale in 0.8f..1.6f)
-        require(themeColor in 0..7 && followType in 0..4)
+        require(themeColor in 0..18 && followType in 0..4)
         // Native has no access to Flutter's Hive. Migration never overwrites explicit typography.
         return copy(schemaVersion = 2)
     }

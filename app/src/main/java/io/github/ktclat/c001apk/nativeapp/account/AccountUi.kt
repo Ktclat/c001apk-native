@@ -68,6 +68,7 @@ fun PasswordLogin(coordinator: LoginCoordinator, transport: HttpLoginTransport, 
     var imageFailed by remember { mutableStateOf(false) }
     var humanProof by remember { mutableStateOf<String?>(null) }
     var showHumanVerification by remember { mutableStateOf(false) }
+    var showOfficialLogin by remember { mutableStateOf(false) }
     LaunchedEffect(coordinator) { coordinator.prepare() }
     DisposableEffect(coordinator) { onDispose { password = ""; coordinator.cancel(); captchaImage?.recycle() } }
     LaunchedEffect(state) {
@@ -99,7 +100,7 @@ fun PasswordLogin(coordinator: LoginCoordinator, transport: HttpLoginTransport, 
         if (busy) { LinearProgressIndicator(Modifier.fillMaxWidth()); Text(if (state == LoginState.Preparing) "准备登录会话…" else "正在提交，请勿重复操作…") }
         when (state) {
             LoginState.Rejected -> Text("登录未被接受，请检查输入或完成服务要求的验证。", color = MaterialTheme.colorScheme.error)
-            LoginState.WebLoginRequired -> Text("服务器要求官方网页登录验证，当前原生版尚未接入此流程。不会套用其他接口的验证码或跳过验证。", color = MaterialTheme.colorScheme.error)
+            LoginState.WebLoginRequired -> Text("服务器要求官方网页登录验证，请使用下方官方网页登录入口亲自完成。不会套用其他接口的验证码或跳过验证。", color = MaterialTheme.colorScheme.error)
             LoginState.Failed -> Text("登录请求失败或响应不完整，没有自动重试。", color = MaterialTheme.colorScheme.error)
             is LoginState.HumanVerificationRequired -> {
                 Text(if (humanProof == null) "服务器要求人机验证，请亲自完成验证。" else "验证已完成，请重新输入密码并点登录，仅重试这一次请求。")
@@ -109,6 +110,7 @@ fun PasswordLogin(coordinator: LoginCoordinator, transport: HttpLoginTransport, 
             else -> Unit
         }
         Button(onClick = { val secret = password.toCharArray(); password = ""; scope.launch { coordinator.submit(login, secret, captcha, humanProof); humanProof = null } }, enabled = !busy && login.isNotBlank() && password.isNotBlank() && (state !is LoginState.HumanVerificationRequired || humanProof != null) && state != LoginState.Cancelled && state != LoginState.Completed && state != LoginState.WebLoginRequired, modifier = Modifier.fillMaxWidth()) { Text("登录") }
+        TextButton(onClick = { password = ""; humanProof = null; showOfficialLogin = true }, enabled = !busy) { Text("使用官方网页登录") }
         TextButton(onClick = { password = ""; scope.launch { coordinator.prepare() } }, enabled = !busy) { Text("重新准备登录") }
     }
     val challenge = (state as? LoginState.HumanVerificationRequired)?.challenge
@@ -116,6 +118,10 @@ fun PasswordLogin(coordinator: LoginCoordinator, transport: HttpLoginTransport, 
         Surface(Modifier.fillMaxSize()) {
             HumanVerification(challenge, onProof = { proof -> humanProof = proof; showHumanVerification = false }, onCancel = { showHumanVerification = false })
         }
+    }
+
+    if (showOfficialLogin) Dialog(onDismissRequest = { showOfficialLogin = false }, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+        Surface(Modifier.fillMaxSize()) { OfficialWebLogin(coordinator, onCancel = { showOfficialLogin = false }) }
     }
 
 }

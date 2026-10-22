@@ -7,7 +7,10 @@ import io.github.ktclat.c001apk.nativeapp.data.HttpCoolapkRepository
 import io.github.ktclat.c001apk.nativeapp.domain.CoolapkRepository
 
 class NativeApplication : Application() {
-    val container: AppContainer by lazy { AppContainer(this) }
+    val container: AppContainer by lazy {
+        check(Build.VERSION.SDK_INT < 28 || !Application.getProcessName().endsWith(":public_web")) { "Main stores cannot be opened in the public web process" }
+        AppContainer(this)
+    }
 }
 class AppContainer(private val application: Application) {
     val settings = io.github.ktclat.c001apk.nativeapp.settings.SettingsRepository.create(application)
@@ -23,6 +26,13 @@ class AppContainer(private val application: Application) {
         initialization.lock()
         try { return runtime ?: io.github.ktclat.c001apk.nativeapp.account.AccountRuntime.initialize(application, localDeviceCode, Build.VERSION.SDK_INT).also { runtime = it } } finally { initialization.unlock() }
     }
+    val nativeUpdates = io.github.ktclat.c001apk.nativeapp.platform.NativeUpdateService(application)
+    // Inventory requests are explicitly confirmed in the UI and never share account cookies.
+    val appUpdates = io.github.ktclat.c001apk.nativeapp.platform.InstalledAppUpdatesRepository(
+        io.github.ktclat.c001apk.nativeapp.data.CoolapkHttpTransport(
+            protocol = ClientProtocol(deviceCode = localDeviceCode, sdkInt = Build.VERSION.SDK_INT),
+        )
+    )
     val repository: CoolapkRepository = HttpCoolapkRepository(
         protocol = ClientProtocol(deviceCode = localDeviceCode, sdkInt = Build.VERSION.SDK_INT),
         installTimeSeconds = installedAt,

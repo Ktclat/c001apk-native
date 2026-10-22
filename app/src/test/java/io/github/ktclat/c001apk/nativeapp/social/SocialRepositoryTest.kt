@@ -36,7 +36,7 @@ class SocialRepositoryTest {
     @After fun tearDown() { server.shutdown() }
     @Test fun likeUsesQueryAndUrlencodedTrace() = runBlocking {
         server.enqueue(MockResponse().setBody("{\"data\":{\"likenum\":1}}"))
-        assertTrue(repo.like("42", reply = false, liked = true) is WriteOutcome.Confirmed)
+        assertTrue(repo.like("42", reply = false, targetLiked = true) is WriteOutcome.Confirmed)
         val request = server.takeRequest()
         assertEquals("POST", request.method); assertEquals("/v6/feed/like?id=42&detail=0", request.path)
         assertEquals("trace=", request.body.readUtf8())

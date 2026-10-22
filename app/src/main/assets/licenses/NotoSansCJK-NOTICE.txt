@@ -1,0 +1,15 @@
+Noto Sans CJK SC (standard hinted subset), Regular / Medium / Bold.
+Copyright © 2014, 2015 Adobe Systems Incorporated (http://www.adobe.com/).
+Licensed under the SIL Open Font License, Version 1.1. See NotoSansCJK-OFL.txt.
+
+These unmodified font binaries are obtained from CodePlayer/webfont-noto at
+commit 7af038d32866b387c64ef8e644abf5c303e48db6:
+https://github.com/CodePlayer/webfont-noto/tree/7af038d32866b387c64ef8e644abf5c303e48db6/dist/NotoSans/NotoSansCJKsc-hinted/subset/NotoSansCJKsc-hinted-standard
+
+Git blob SHA-1 verification (same pinned binaries as Ktclat/c001apk fetch_fonts.sh):
+NotoSansCJKsc-Regular.otf db41e65196f7ac227ace4a88b290d925587ed9be
+NotoSansCJKsc-Medium.otf df0844dd98e040db25dfdb62a61975745b183844
+NotoSansCJKsc-Bold.otf 2c02c2a70768918337ba8125070abf60020b8360
+
+The Noto font name is not used to market any modified font. Fonts are included
+in the application for offline rendering, not downloaded on the user's device.

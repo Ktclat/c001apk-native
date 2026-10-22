@@ -14,15 +14,13 @@ import kotlinx.serialization.json.*
 class SocialRepository(private val accounts: AccountStore,
     private val transportFor: (SessionSnapshot) -> CoolapkHttpTransport) {
     private val notificationOwner = Any()
-    /** UI intent check; write entry independently verifies generation before constructing transport. */
+    /** UI intent guard; write entry still verifies the captured generation again on IO. */
     internal fun isCurrentGeneration(generation: Long) = accounts.state.value.generation == generation
     private suspend fun <T> authenticated(block: suspend (CoolapkHttpTransport) -> T): T =
         authenticatedScoped { transport, _ -> block(transport) }
-    private suspend fun <T> authenticatedScoped(expectedGeneration: Long? = null,
-        block: suspend (CoolapkHttpTransport, SessionSnapshot) -> T): T = withContext(Dispatchers.IO) {
+    private suspend fun <T> authenticatedScoped(block: suspend (CoolapkHttpTransport, SessionSnapshot) -> T): T = withContext(Dispatchers.IO) {
         val snapshot = accounts.snapshot()
         if (snapshot.accountId == null) throw LoginRequired()
-        if (expectedGeneration != null && snapshot.generation != expectedGeneration) throw StaleOperationScope()
         val result = block(transportFor(snapshot), snapshot)
         if (!accounts.isCurrent(snapshot)) throw CancellationException("Session changed")
         result
@@ -57,9 +55,10 @@ class SocialRepository(private val accounts: AccountStore,
             }
         } } } catch (_: LoginRequired) { loginFailure() }
     }
-    suspend fun like(id: String, reply: Boolean, liked: Boolean, expectedGeneration: Long? = null): WriteOutcome {
+    /** targetLiked is the desired final state, never the currently displayed state. */
+    suspend fun like(id: String, reply: Boolean, targetLiked: Boolean, expectedGeneration: Long? = null): WriteOutcome {
         if (!validId(id)) return badArgument()
-        val action = if (reply) { if (liked) "likeReply" else "unLikeReply" } else if (liked) "like" else "unlike"
+        val action = if (reply) { if (targetLiked) "likeReply" else "unLikeReply" } else if (targetLiked) "like" else "unlike"
         return write(expectedGeneration = expectedGeneration) { it.post("v6/feed/$action", mapOf("trace" to ""), query = mapOf("id" to id, "detail" to "0")) }
     }
     suspend fun follow(target: FollowTarget, id: String, followed: Boolean, expectedGeneration: Long? = null): WriteOutcome {
@@ -124,26 +123,35 @@ class SocialRepository(private val accounts: AccountStore,
         if (snapshot.accountId == null) return@withContext WriteOutcome.Rejected(FailureKind.AUTHENTICATION, "请先登录")
         if (expectedGeneration != null && snapshot.generation != expectedGeneration)
             return@withContext WriteOutcome.Rejected(FailureKind.AUTHENTICATION, "账号状态已变化，图片尚未上传或发送")
-        val transport = transportFor(snapshot)
+        val transport = transportFor(snapshot).forSingleOperation()
         val fileList = buildJsonArray { add(buildJsonObject {
             put("name", image.name); put("resolution", "${image.width}x${image.height}"); put("md5", image.md5Hex)
         }) }.toString()
-        val prepared = transport.post("v6/upload/ossUploadPrepare", mapOf("uploadBucket" to "message", "uploadDir" to "message",
-            "is_anonymous" to "0", "uploadFileList" to fileList, "toUid" to uid), multipart = true)
+        val form = mapOf("uploadBucket" to "message", "uploadDir" to "message", "is_anonymous" to "0", "uploadFileList" to fileList, "toUid" to uid)
+        val prepared = transport.post("v6/upload/ossUploadPrepare", form, multipart = true)
         if (!accounts.isCurrent(snapshot)) throw CancellationException("Session changed")
-        if (prepared is ApiResult.Failure) return@withContext prepared.writeOutcome()
-        val grant = parseOssGrant((prepared as ApiResult.Success).value, image, System.currentTimeMillis())
-            ?: return@withContext WriteOutcome.Rejected(FailureKind.INVALID_RESPONSE, "图片上传授权不符合安全限制；消息尚未发送")
-        val uploaded = uploader.upload(grant, image) { accounts.isCurrent(snapshot) }
-        if (!accounts.isCurrent(snapshot)) throw CancellationException("Session changed")
-        if (uploaded is ApiResult.Failure) return@withContext uploaded.writeOutcome()
-        val result = transport.post("v6/message/send", mapOf("message" to "", "message_pic" to (uploaded as ApiResult.Success).value),
-            query = mapOf("uid" to uid), multipart = true)
-        if (!accounts.isCurrent(snapshot)) throw CancellationException("Session changed")
-        return@withContext when (result) {
-            is ApiResult.Failure -> result.writeOutcome()
-            is ApiResult.Success -> confirmWrite(result.value, requireRecord = true, messageRecord = true)
+        when (prepared) {
+            is ApiResult.Success -> uploadPreparedAndSend(snapshot, transport, uid, image, uploader, prepared.value, allowChallenge = true)
+            is ApiResult.Failure -> challengeOutcome(snapshot, transport, prepared) { verifiedTransport ->
+                when (val retried = verifiedTransport.post("v6/upload/ossUploadPrepare", form, multipart = true)) {
+                    is ApiResult.Failure -> retried.writeOutcome()
+                    is ApiResult.Success -> uploadPreparedAndSend(snapshot, transport, uid, image, uploader, retried.value, allowChallenge = false)
+                }
+            }
         }
+    }
+    private suspend fun uploadPreparedAndSend(snapshot: SessionSnapshot, transport: CoolapkHttpTransport, uid: String,
+        image: SelectedImage, uploader: OssImageUploader, data: JsonElement, allowChallenge: Boolean): WriteOutcome {
+        if (!accounts.isCurrent(snapshot) || !transport.isRequestScopeCurrent()) throw CancellationException("Session changed")
+        val grant = parseOssGrant(data, image, System.currentTimeMillis())
+            ?: return WriteOutcome.Rejected(FailureKind.INVALID_RESPONSE, "图片上传授权不符合安全限制；消息尚未发送")
+        val uploaded = uploader.upload(grant, image) { accounts.isCurrent(snapshot) && transport.isRequestScopeCurrent() }
+        if (!accounts.isCurrent(snapshot)) throw CancellationException("Session changed")
+        if (uploaded is ApiResult.Failure) return uploaded.writeOutcome()
+        // A send challenge retries only this exact message reference, never the already-completed upload.
+        val messageForm = mapOf("message" to "", "message_pic" to (uploaded as ApiResult.Success).value)
+        return scopedWrite(snapshot, transport, { it.post("v6/message/send", messageForm, query = mapOf("uid" to uid), multipart = true) },
+            requireRecord = true, messageRecord = true, allowChallenge = allowChallenge)
     }
     suspend fun sendFeed(uid: String, idOrUrl: String, expectedGeneration: Long? = null): WriteOutcome =
         feedShareUrl(idOrUrl)?.let { sendText(uid, it, expectedGeneration = expectedGeneration) } ?: badArgument()
@@ -173,14 +181,52 @@ class SocialRepository(private val accounts: AccountStore,
     }
     private suspend fun write(requireRecord: Boolean = false, messageRecord: Boolean = false, messageMutation: Boolean = false,
         expectedGeneration: Long? = null,
-        action: suspend (CoolapkHttpTransport) -> ApiResult<JsonElement>): WriteOutcome = try {
-        authenticatedScoped(expectedGeneration) { transport, _ -> when (val response = action(transport)) {
-            is ApiResult.Failure -> response.writeOutcome()
-            is ApiResult.Success -> confirmWrite(response.value, requireRecord, messageRecord, messageMutation)
-        } }
-    } catch (_: LoginRequired) { WriteOutcome.Rejected(FailureKind.AUTHENTICATION, "请先登录后操作") }
-    catch (_: StaleOperationScope) { WriteOutcome.Rejected(FailureKind.AUTHENTICATION, "账号状态已变化，请刷新后重新操作") }
-    private class StaleOperationScope : IllegalStateException()
+        action: suspend (CoolapkHttpTransport) -> ApiResult<JsonElement>): WriteOutcome = withContext(Dispatchers.IO) {
+        val snapshot = accounts.snapshot()
+        if (snapshot.accountId == null) return@withContext WriteOutcome.Rejected(FailureKind.AUTHENTICATION, "请先登录后操作")
+        if (expectedGeneration != null && snapshot.generation != expectedGeneration)
+            return@withContext WriteOutcome.Rejected(FailureKind.AUTHENTICATION, "账号状态已变化，请刷新后重新操作")
+        val transport = transportFor(snapshot).forSingleOperation()
+        scopedWrite(snapshot, transport, action, requireRecord, messageRecord, messageMutation)
+    }
+    private suspend fun scopedWrite(snapshot: SessionSnapshot, transport: CoolapkHttpTransport,
+        action: suspend (CoolapkHttpTransport) -> ApiResult<JsonElement>, requireRecord: Boolean = false,
+        messageRecord: Boolean = false, messageMutation: Boolean = false, allowChallenge: Boolean = true): WriteOutcome {
+        if (!accounts.isCurrent(snapshot)) throw CancellationException("Session changed")
+        val response = action(transport)
+        if (!accounts.isCurrent(snapshot)) throw CancellationException("Session changed")
+        if (response is ApiResult.Success) return confirmWrite(response.value, requireRecord, messageRecord, messageMutation)
+        val failure = response as ApiResult.Failure
+        if (!allowChallenge) return failure.writeOutcome()
+        return challengeOutcome(snapshot, transport, failure) { verifiedTransport ->
+            scopedWrite(snapshot, verifiedTransport, action, requireRecord, messageRecord, messageMutation, allowChallenge = false)
+        }
+    }
+    private fun challengeOutcome(snapshot: SessionSnapshot, transport: CoolapkHttpTransport, failure: ApiResult.Failure,
+        verifiedAction: suspend (CoolapkHttpTransport) -> WriteOutcome): WriteOutcome {
+        val challenge = failure.challenge
+        if (failure.kind != FailureKind.CAPTCHA || challenge == null) return failure.writeOutcome()
+        val prompt = when (challenge) {
+            is ApiChallenge.Graphic -> CaptchaPrompt.Graphic
+            is ApiChallenge.Netease -> CaptchaPrompt.Netease(io.github.ktclat.c001apk.nativeapp.account.HumanChallengeSpec(challenge.captchaId, challenge.field))
+        }
+        val pending = PendingCaptcha(prompt,
+            isCurrent = { accounts.isCurrent(snapshot) && transport.isCaptchaContinuationCurrent(challenge) },
+            loadGraphic = { transport.getCaptchaImage() },
+            validateGraphic = { code -> transport.validateGraphicCaptcha(code) },
+            replay = retry@{ proof ->
+                if (!accounts.isCurrent(snapshot) || !transport.isCaptchaContinuationCurrent(challenge))
+                    WriteOutcome.Rejected(FailureKind.AUTHENTICATION, "账号或会话已变化，原操作未重发")
+                else {
+                    val verifiedTransport = try { when (challenge) {
+                        is ApiChallenge.Graphic -> transport.withGraphicVerification(challenge)
+                        is ApiChallenge.Netease -> transport.withCaptchaProof(challenge, proof.orEmpty())
+                    } } catch (_: IllegalArgumentException) { return@retry WriteOutcome.Rejected(FailureKind.CAPTCHA, "验证已失效，原操作未重发") }
+                    verifiedAction(verifiedTransport)
+                }
+            })
+        return WriteOutcome.Rejected(failure.kind, failure.message, pending)
+    }
     private class LoginRequired : IllegalStateException()
     private fun loginFailure() = ApiResult.Failure(FailureKind.AUTHENTICATION, "请先登录后查看")
     private fun invalid() = ApiResult.Failure(FailureKind.INVALID_RESPONSE, "响应格式异常")

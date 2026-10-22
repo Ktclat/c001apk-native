@@ -9,6 +9,8 @@ import coil.request.ImageRequest
 import coil.request.CachePolicy
 import kotlinx.coroutines.CancellationException
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material3.*
@@ -19,7 +21,10 @@ import io.github.ktclat.c001apk.nativeapp.domain.*
 import kotlinx.coroutines.launch
 
 @Composable
-fun MutationStatus(state: DeliveryState, onCorrect: () -> Unit = {}) {
+fun MutationStatus(state: DeliveryState, runner: MutationRunner? = null, onCorrect: () -> Unit = {}) {
+    val retryScope = rememberCoroutineScope()
+    if (state == DeliveryState.Ready) return
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
     when (state) {
         DeliveryState.Ready -> Unit
         DeliveryState.Sending -> LinearProgressIndicator(Modifier.fillMaxWidth())
@@ -28,32 +33,39 @@ fun MutationStatus(state: DeliveryState, onCorrect: () -> Unit = {}) {
             is WriteOutcome.Uncertain -> Text(result.message, color = MaterialTheme.colorScheme.error)
             is WriteOutcome.Rejected -> {
                 Text(result.message, color = MaterialTheme.colorScheme.error)
-                if (result.kind == FailureKind.CAPTCHA) Text("需要人工验证；原生验证码续传尚未接入，本次不会重发")
+                if (result.kind == FailureKind.CAPTCHA) {
+                    if (result.continuation != null && runner != null) CaptchaContinuationUi(result.continuation, runner) { retryScope.launch { runner.resumeChallenge(result.continuation) } }
+                    else {
+                        Text("验证码挑战无法继续或已使用，本次不会自动重发")
+                        if (runner != null) TextButton(onClick = { runner.abandonRejected() }) { Text("返回编辑") }
+                    }
+                }
                 else TextButton(onClick = onCorrect) { Text("修改后重试") }
             }
         }
+    }
     }
 }
 
 /** Route owner must key this screen by account generation to discard another account's draft. */
 @Composable
-fun SocialComposerScreen(repository: SocialRepository, generation: Long, initial: ComposerDraft = ComposerDraft("")) {
-    key(generation, initial.replyId, initial.targetId) {
+fun SocialComposerScreen(repository: SocialRepository, generation: Long, initial: ComposerDraft = ComposerDraft(""), showTitle: Boolean = true, onSent: () -> Unit = {}) {
+    key(generation, initial.replyId, initial.targetId, initial.targetType, initial.replyToReply) {
         var text by remember { mutableStateOf(initial.text) }
         var option by remember { mutableStateOf(if (initial.replyId == null) initial.selfOnly else initial.replyAndForward) }
         val runner = remember { MutationRunner() }
         val state by runner.state.collectAsState()
         val scope = rememberCoroutineScope()
-        Column(Modifier.fillMaxSize().imePadding().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Text(if (initial.replyId == null) "发布动态" else "回复", style = MaterialTheme.typography.headlineSmall)
+        Column(Modifier.fillMaxSize().imePadding().verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            if (showTitle) Text(if (initial.replyId == null) "发布动态" else "回复", style = MaterialTheme.typography.headlineSmall)
             OutlinedTextField(value = text, onValueChange = { text = it }, label = { Text("内容") },
-                modifier = Modifier.fillMaxWidth().weight(1f), enabled = state == DeliveryState.Ready)
+                modifier = Modifier.fillMaxWidth().heightIn(min = 160.dp, max = 320.dp), enabled = state == DeliveryState.Ready)
             Row { Checkbox(checked = option, onCheckedChange = { option = it }, enabled = state == DeliveryState.Ready)
                 Text(if (initial.replyId == null) "仅自己可见" else "回复并转发", modifier = Modifier.padding(top = 12.dp)) }
             Text("图片上传尚未接入；当前支持文字和系统键盘表情", style = MaterialTheme.typography.bodySmall)
-            MutationStatus(state) { runner.allowCorrection() }
+            MutationStatus(state, runner) { runner.allowCorrection() }
             Button(enabled = text.isNotBlank() && state == DeliveryState.Ready, onClick = {
-                scope.launch { runner.submit(isCurrent = { repository.isCurrentGeneration(generation) }) { repository.publish(initial.copy(text = text, selfOnly = option, replyAndForward = option), expectedGeneration = generation) } }
+                scope.launch { runner.submit(isCurrent = { repository.isCurrentGeneration(generation) }, onConfirmed = onSent) { repository.publish(initial.copy(text = text, selfOnly = option, replyAndForward = option), expectedGeneration = generation) } }
             }, modifier = Modifier.fillMaxWidth()) { Text("确认发送") }
         }
     }
@@ -154,7 +166,7 @@ fun ChatScreen(repository: SocialRepository, generation: Long, conversationKey: 
             Box(Modifier.weight(1f)) { SocialRowsScreen(load = { repository.chat(conversationKey, it) }, onClick = {}, actions = { row, _ ->
                 if (row.hasImage) MessageImage(repository, row)
             }) }
-            MutationStatus(state) { runner.allowCorrection() }
+            MutationStatus(state, runner) { runner.allowCorrection() }
             if ((state as? DeliveryState.Finished)?.outcome is WriteOutcome.Confirmed) {
                 TextButton(onClick = { if (runner.beginNext()) { text = ""; selectedImage = null } }) { Text("写下一条消息") }
             }
@@ -193,13 +205,12 @@ fun SocialActionBar(repository: SocialRepository, generation: Long, id: String, 
         Column {
             Row {
                 TextButton(enabled = state == DeliveryState.Ready && liked != null, onClick = { scope.launch {
-                    runner.submit(isCurrent = { repository.isCurrentGeneration(generation) }) { repository.like(id, reply, liked != true, expectedGeneration = generation) }
-                    if ((runner.state.value as? DeliveryState.Finished)?.outcome is WriteOutcome.Confirmed) onConfirmed()
+                    runner.submit(isCurrent = { repository.isCurrentGeneration(generation) }, onConfirmed = onConfirmed) { repository.like(id, reply, targetLiked = liked != true, expectedGeneration = generation) }
                 } }) { Text(if (liked == true) "取消赞" else "点赞") }
                 TextButton(onClick = onReply) { Text("回复") }
             }
             if (liked == null) Text("点赞状态尚未确认", style = MaterialTheme.typography.bodySmall)
-            MutationStatus(state) { runner.allowCorrection() }
+            MutationStatus(state, runner) { runner.allowCorrection() }
         }
     }
 }
@@ -212,10 +223,9 @@ fun SocialFollowButton(repository: SocialRepository, generation: Long, target: F
         val scope = rememberCoroutineScope()
         Column {
             TextButton(enabled = state == DeliveryState.Ready, onClick = { scope.launch {
-                runner.submit(isCurrent = { repository.isCurrentGeneration(generation) }) { repository.follow(target, id, !followed, expectedGeneration = generation) }
-                if ((runner.state.value as? DeliveryState.Finished)?.outcome is WriteOutcome.Confirmed) onConfirmed()
+                runner.submit(isCurrent = { repository.isCurrentGeneration(generation) }, onConfirmed = onConfirmed) { repository.follow(target, id, !followed, expectedGeneration = generation) }
             } }) { Text(if (followed) "取消关注" else "关注") }
-            MutationStatus(state) { runner.allowCorrection() }
+            MutationStatus(state, runner) { runner.allowCorrection() }
         }
     }
 }
@@ -230,19 +240,18 @@ fun SocialDeleteButton(repository: SocialRepository, generation: Long, target: D
         val scope = rememberCoroutineScope()
         Column {
             TextButton(enabled = state == DeliveryState.Ready, onClick = { confirm = true }) { Text("删除") }
-            MutationStatus(state) { runner.allowCorrection() }
+            MutationStatus(state, runner) { runner.allowCorrection() }
         }
         if (confirm) AlertDialog(onDismissRequest = { confirm = false }, title = { Text("确认删除？") },
             text = { Text("将删除服务端内容，此操作可能无法撤销。") },
             dismissButton = { TextButton(onClick = { confirm = false }) { Text("取消") } },
             confirmButton = { TextButton(onClick = {
                 confirm = false
-                scope.launch { runner.submit(isCurrent = { repository.isCurrentGeneration(generation) }) {
+                scope.launch { runner.submit(isCurrent = { repository.isCurrentGeneration(generation) }, onConfirmed = onConfirmed) {
                     if (target == DeleteTarget.NOTIFICATION) notificationRow?.let { repository.deleteNotification(it) }
                         ?: WriteOutcome.Rejected(FailureKind.INVALID_ARGUMENT, "通知来源未确认，请刷新后重试")
                     else repository.delete(target, id, conversationKey, expectedGeneration = generation)
                 }
-                    if ((runner.state.value as? DeliveryState.Finished)?.outcome is WriteOutcome.Confirmed) onConfirmed()
                 }
             }) { Text("确认删除") } })
     }
@@ -256,10 +265,9 @@ private fun ConversationActions(repository: SocialRepository, generation: Long, 
         var confirmDelete by remember { mutableStateOf(false) }
         Column {
             TextButton(enabled = state == DeliveryState.Ready, onClick = { scope.launch {
-                runner.submit(isCurrent = { repository.isCurrentGeneration(generation) }) { repository.conversationPinned(row.conversationKey!!, !row.pinned, expectedGeneration = generation) }
-                if ((runner.state.value as? DeliveryState.Finished)?.outcome is WriteOutcome.Confirmed) refresh()
+                runner.submit(isCurrent = { repository.isCurrentGeneration(generation) }, onConfirmed = refresh) { repository.conversationPinned(row.conversationKey!!, !row.pinned, expectedGeneration = generation) }
             } }) { Text(if (row.pinned) "取消置顶" else "置顶") }
-            MutationStatus(state) { runner.allowCorrection() }
+            MutationStatus(state, runner) { runner.allowCorrection() }
             TextButton(enabled = state == DeliveryState.Ready, onClick = { confirmDelete = true }) { Text("删除会话") }
         }
         if (confirmDelete) AlertDialog(onDismissRequest = { confirmDelete = false }, title = { Text("删除会话？") },
@@ -267,8 +275,7 @@ private fun ConversationActions(repository: SocialRepository, generation: Long, 
             dismissButton = { TextButton(onClick = { confirmDelete = false }) { Text("取消") } },
             confirmButton = { TextButton(onClick = {
                 confirmDelete = false
-                scope.launch { runner.submit(isCurrent = { repository.isCurrentGeneration(generation) }) { repository.delete(DeleteTarget.CONVERSATION, row.id, row.conversationKey, expectedGeneration = generation) }
-                    if ((runner.state.value as? DeliveryState.Finished)?.outcome is WriteOutcome.Confirmed) refresh()
+                scope.launch { runner.submit(isCurrent = { repository.isCurrentGeneration(generation) }, onConfirmed = refresh) { repository.delete(DeleteTarget.CONVERSATION, row.id, row.conversationKey, expectedGeneration = generation) }
                 }
             }) { Text("确认删除") } })
     }

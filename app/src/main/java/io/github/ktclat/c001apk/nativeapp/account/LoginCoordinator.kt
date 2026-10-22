@@ -53,6 +53,8 @@ sealed interface LoginState {
 class LoginCoordinator(private val store: AccountStore, private val transport: LoginTransport, private val deviceId: String) {
     private val mutableState = MutableStateFlow<LoginState>(LoginState.Idle)
     val state = mutableState.asStateFlow()
+    internal class OfficialAttempt(val gate: OfficialWebLoginGate, val expected: SessionSnapshot, val operation: Long)
+    private var official: OfficialAttempt? = null
     private var operation = 0L
     private var submitting = false
     private var preparation: LoginPreparation? = null
@@ -118,7 +120,42 @@ class LoginCoordinator(private val store: AccountStore, private val transport: L
         catch (_: Exception) { if (op == operation) mutableState.value = LoginState.Failed }
         finally { if (ownsSubmission && op == operation) submitting = false; password.fill('\u0000') }
     }
+    internal suspend fun beginOfficialLogin(): OfficialAttempt? {
+        cancel()
+        val op = operation
+        mutableState.value = LoginState.Preparing
+        val snapshot = withContext(Dispatchers.IO) { store.snapshot() }
+        if (op != operation) return null
+        if (!withContext(Dispatchers.IO) { store.isCurrent(snapshot) }) { if (op == operation) cancel(); return null }
+        if (op != operation) return null
+        val attempt = OfficialAttempt(OfficialWebLoginGate(), snapshot, op)
+        official = attempt
+        mutableState.value = LoginState.WebLoginRequired
+        return attempt
+    }
+    internal suspend fun officialCurrent(attempt: OfficialAttempt): Boolean {
+        if (official !== attempt || operation != attempt.operation) return false
+        val current = withContext(Dispatchers.IO) { store.isCurrent(attempt.expected) }
+        return current && official === attempt && operation == attempt.operation
+    }
+    internal suspend fun finishOfficialLogin(attempt: OfficialAttempt, cleaned: Boolean): Boolean {
+        val current = officialCurrent(attempt)
+        val credentials = attempt.gate.cleanupFinished(attempt.gate.nonce, cleaned, current) ?: return false
+        if (!current) return false
+        val saved = withContext(Dispatchers.IO) {
+            if (!attempt.gate.claimImport()) false else
+                store.saveAuthenticated(credentials.id, credentials.name, deviceId, credentials.cookies, attempt.expected)
+        }
+        if (official !== attempt || operation != attempt.operation) return false
+        official = null
+        mutableState.value = if (saved) LoginState.Completed else LoginState.Cancelled
+        return saved
+    }
+    internal fun cancelOfficial(attempt: OfficialAttempt) {
+        if (official === attempt && operation == attempt.operation) cancel()
+    }
     fun cancel() {
+        official?.gate?.cancel(); official = null
         operation++; submitting = false; preparation = null; captured = null; challenge = null; challengeRetried = false
         transport.clear(); mutableState.value = LoginState.Cancelled
     }

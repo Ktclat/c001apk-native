@@ -136,4 +136,49 @@ class AccountStoreTest {
         assertEquals("", corrupted.snapshot().cookieHeader(api, now))
     }
 
+    @Test fun exactChallengeResponseMayEstablishAndAdvanceSessionButNotIdentity() {
+        val store = AccountStore(Memory()) { now }; login(store, "1")
+        val initial = store.snapshot()
+        val challenge = store.acceptChallengeCookies(initial, api, listOf("SESSID=challenge; Path=/; Secure"))!!
+        assertFalse(initial.sameIdentityAndSession(challenge))
+        assertTrue(initial.sameIdentityAndCredentials(challenge))
+        val image = store.acceptChallengeCookies(challenge, api, listOf("SESSID=image; Path=/; Secure"))!!
+        val verified = store.acceptChallengeCookies(image, api, emptyList())!!
+        assertTrue(verified.sameIdentityAndSession(store.snapshot()))
+        assertTrue(verified.cookieHeader(api, now).contains("SESSID=image"))
+        assertNull(store.acceptChallengeCookies(verified, api, listOf("token=different; Domain=.coolapk.com; Path=/; Secure")))
+        assertTrue(verified.sameIdentityAndSession(store.snapshot()))
+    }
+    @Test fun unrelatedConcurrentResponseCannotBeAdoptedByChallenge() {
+        val store = AccountStore(Memory()) { now }; login(store, "1")
+        val original = store.snapshot()
+        assertTrue(store.acceptCookies(original, api, listOf("SESSID=unrelated; Path=/; Secure")))
+        assertNull(store.acceptChallengeCookies(original, api, listOf("SESSID=challenge; Path=/; Secure")))
+        assertNull(store.acceptChallengeCookies(store.snapshot(), "https://account.coolapk.com/".toHttpUrl(), emptyList()))
+        store.useGuest()
+        assertFalse(original.sameIdentityAndSession(store.snapshot()))
+    }
+
+    @Test fun accountOnlyTokenCannotPretendToAuthenticateApi() {
+        val store = AccountStore(Memory()) { now }
+        val accountToken = Cookie.parse("https://account.coolapk.com/".toHttpUrl(), "token=synthetic; Path=/; Secure")!!
+        try { store.saveAuthenticated("1", "Synthetic", "device", listOf(accountToken), store.snapshot()); fail() }
+        catch (_: IllegalArgumentException) { }
+        assertNull(store.state.value.activeId)
+        val apiToken = Cookie.parse(api, "token=synthetic; Path=/v6/; Secure")!!
+        assertTrue(store.saveAuthenticated("1", "Synthetic", "device", listOf(apiToken), store.snapshot()))
+        assertTrue(store.snapshot().cookieHeader("https://api.coolapk.com/v6/feed/detail".toHttpUrl(), now).contains("token="))
+    }
+    @Test fun restoredAccountOnlyTokenRequiresReloginWithoutScopeWidening() {
+        val memory = Memory(); val store = AccountStore(memory) { now }
+        val apiToken = Cookie.parse(api, "token=synthetic; Path=/; Secure")!!
+        store.saveAuthenticated("1", "Synthetic", "device", listOf(apiToken), store.snapshot())
+        memory.value = memory.value!!.decodeToString().replace("api.coolapk.com", "account.coolapk.com").encodeToByteArray()
+        val restored = AccountStore(memory) { now }
+        assertNull(restored.state.value.activeId)
+        assertTrue(restored.state.value.accounts.single().needsLogin)
+        assertFalse(restored.state.value.recoveryRequired)
+        assertEquals("", restored.snapshot().cookieHeader(api, now))
+    }
+
 }

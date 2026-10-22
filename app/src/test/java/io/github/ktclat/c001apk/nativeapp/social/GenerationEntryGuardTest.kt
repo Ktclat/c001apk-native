@@ -126,7 +126,7 @@ class GenerationEntryGuardTest {
         runner.submit { fail("Uncertain writes cannot replay"); WriteOutcome.Confirmed() }
         assertEquals(1, requests.size)
     }
-    @Test fun baselineCaptchaRejectionDoesNotIntroduceAnAutomaticRetry() = runBlocking {
+    @Test fun captchaRejectionDoesNotAutomaticallyRetryWithoutExplicitHumanProof() = runBlocking {
         responseBody = """{"messageStatus":"err_request_captcha_v2"}"""
         val generation = accounts.state.value.generation
         val runner = MutationRunner()
@@ -135,7 +135,7 @@ class GenerationEntryGuardTest {
         assertEquals(FailureKind.CAPTCHA, outcome.kind)
         assertFalse(runner.allowCorrection()); assertFalse(runner.beginNext())
         accounts.useGuest(); accounts.switchTo("1")
-        runner.submit { fail("Baseline CAPTCHA has no continuation and cannot replay"); WriteOutcome.Confirmed() }
+        runner.submit { fail("Unverified CAPTCHA cannot replay through normal submit"); WriteOutcome.Confirmed() }
         assertEquals(1, requests.size)
     }
 }

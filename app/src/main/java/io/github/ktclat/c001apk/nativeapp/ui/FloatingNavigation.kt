@@ -15,20 +15,27 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.SemanticsPropertyKey
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.compose.foundation.BorderStroke
+
+internal val DecorativeJellyScale = SemanticsPropertyKey<Float>("DecorativeJellyScale")
 
 /** Actual hit regions never scale; only the decorative active pill has a jelly pulse. */
 @Composable
 fun FloatingNavigation(selected: Int, reduceMotion: Boolean, onSelect: (Int) -> Unit, modifier: Modifier = Modifier) {
     val labels = listOf("首页", "关注", "我的")
-    val icons = listOf(Icons.Outlined.Home, Icons.Outlined.FavoriteBorder, Icons.Outlined.Person)
+    val icons = (0..2).map { rootNavigationIcon(it, it == selected) }
     val density = LocalDensity.current
-    val height = (62 * density.fontScale.coerceAtLeast(1f)).coerceAtMost(116f).dp
+    val height = floatingNavigationHeight()
     val pulse = remember { Animatable(1f) }
     var previousSelection by remember { mutableIntStateOf(selected) }
     LaunchedEffect(selected, reduceMotion) {
@@ -41,23 +48,29 @@ fun FloatingNavigation(selected: Int, reduceMotion: Boolean, onSelect: (Int) -> 
             pulse.animateTo(1f, tween(80))
         }
     }
-    Surface(modifier.widthIn(max = if (density.fontScale > 1.3f) 320.dp else 268.dp).fillMaxWidth().height(height), shape = RoundedCornerShape(30.dp),
-        color = MaterialTheme.colorScheme.surfaceContainer, tonalElevation = 3.dp, shadowElevation = 4.dp) {
+    Surface(modifier.testTag("floating-navigation").widthIn(max = if (density.fontScale >= 1.3f) 320.dp else 268.dp).fillMaxWidth().height(height), shape = RoundedCornerShape(50),
+        color = MaterialTheme.colorScheme.surface, border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = .34f)), shadowElevation = 4.dp) {
         Row(Modifier.padding(5.dp).selectableGroup()) {
             labels.forEachIndexed { index, label ->
                 val active = selected == index
-                Box(Modifier.weight(1f).fillMaxHeight().clip(RoundedCornerShape(25.dp))
+                Box(Modifier.weight(1f).fillMaxHeight().clip(RoundedCornerShape(50))
                     .selectable(active, role = Role.Tab, onClick = { onSelect(index) }), contentAlignment = Alignment.Center) {
-                    if (active) Box(Modifier.fillMaxSize().padding(2.dp).graphicsLayer {
+                    if (active) Box(Modifier.fillMaxSize().testTag("selected-pill").semantics { this[DecorativeJellyScale] = pulse.value }.graphicsLayer {
                         scaleX = pulse.value; scaleY = 2f - pulse.value
-                    }.background(MaterialTheme.colorScheme.secondaryContainer, RoundedCornerShape(24.dp)))
+                    }.background(MaterialTheme.colorScheme.primaryContainer, RoundedCornerShape(50)))
                     Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
                         Icon(icons[index], contentDescription = null, modifier = Modifier.size(22.dp),
-                            tint = if (active) MaterialTheme.colorScheme.onSecondaryContainer else MaterialTheme.colorScheme.onSurfaceVariant)
-                        Text(label, style = MaterialTheme.typography.labelMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            tint = if (active) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant)
+                        Spacer(Modifier.height(2.dp))
+                        Text(label, fontSize = 12.5.sp, lineHeight = 14.375.sp, fontWeight = if (active) androidx.compose.ui.text.font.FontWeight.SemiBold else androidx.compose.ui.text.font.FontWeight.Medium, color = if (active) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     }
                 }
             }
         }
     }
+}
+
+/** Grow only the label line, not icon or decorative padding, at large accessibility scales. */
+@Composable internal fun floatingNavigationHeight(): androidx.compose.ui.unit.Dp = with(LocalDensity.current) {
+    (22.dp + 2.dp + 14.375.sp.toDp() + 14.dp).coerceAtLeast(if (fontScale >= 1.8f) 72.dp else if (fontScale >= 1.3f) 66.dp else 62.dp)
 }

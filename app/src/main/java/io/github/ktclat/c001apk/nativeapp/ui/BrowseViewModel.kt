@@ -17,13 +17,23 @@ class BrowseViewModel(private val repository: CoolapkRepository = HttpCoolapkRep
     private val mutable = MutableStateFlow<Map<String, BrowseState>>(emptyMap())
     val states = mutable.asStateFlow()
     private var activeKey: String? = null
+    private class Request(var job: kotlinx.coroutines.Job? = null)
+    private val requests = mutableMapOf<String, Request>()
+    fun markVisible(key: String) { activeKey = key }
+    fun invalidateReplies(feedId: String) {
+        val affected = (mutable.value.keys + requests.keys).filter { it.startsWith("ordered:$feedId:") || it == "replies:$feedId" }.toSet()
+        affected.forEach { requests.remove(it)?.job?.cancel() }
+        mutable.update { states -> states.filterKeys { it !in affected } }
+    }
     fun load(key: String, refresh: Boolean = false, more: Boolean = false) {
         activeKey = key
         val old = mutable.value[key] ?: BrowseState()
         if (key in mutable.value) mutable.update { (it - key) + (key to old) }
         if (old.loading || (!refresh && !more && old.loaded) || (more && old.next == null)) return
         mutable.update { it + (key to old.copy(loading = true, error = null)) }
-        viewModelScope.launch {
+        val request = Request()
+        requests[key] = request
+        request.job = viewModelScope.launch {
             val cursor = if (more) old.next!! else PageCursor()
             val result = try { when {
                 key.startsWith("following:") -> repository.following(FollowType.entries.getOrElse(key.substringAfter(":").toIntOrNull() ?: 0) { FollowType.ALL }, cursor)
@@ -34,6 +44,11 @@ class BrowseViewModel(private val repository: CoolapkRepository = HttpCoolapkRep
                 key.startsWith("product:") -> repository.productDetail(key.removePrefix("product:")).asPage()
                 key == "topics" -> repository.page("V11_VERTICAL_TOPIC", "话题", cursor)
                 key.startsWith("search:") -> repository.search(key.removePrefix("search:"), cursor)
+                key.startsWith("thread:") -> repository.replyThread(key.removePrefix("thread:"), cursor)
+                key.startsWith("ordered:") -> {
+                    val parts = key.split(':')
+                    repository.orderedReplies(parts[1], ReplyOrder.valueOf(parts[2]), parts[3].toBooleanStrict(), cursor)
+                }
                 key.startsWith("replies:") -> repository.replies(key.removePrefix("replies:"), cursor)
                 key.startsWith("feed:") -> repository.feedDetail(key.removePrefix("feed:")).asPage()
                 key.startsWith("app:") -> repository.appDetail(key.removePrefix("app:")).asPage()
@@ -43,16 +58,22 @@ class BrowseViewModel(private val repository: CoolapkRepository = HttpCoolapkRep
                 else -> ApiResult.Failure(FailureKind.INVALID_ARGUMENT, "此入口尚未迁移，不展示模拟数据")
             }
             } catch (cancelled: CancellationException) {
-                mutable.update { current -> current + (key to (current[key] ?: old).copy(loading = false)) }; throw cancelled
+                if (requests[key] === request) {
+                    requests.remove(key)
+                    mutable.update { current -> current + (key to (current[key] ?: old).copy(loading = false)) }
+                }
+                throw cancelled
             } catch (_: Exception) { ApiResult.Failure(FailureKind.NETWORK, "加载失败，请重试") }
+            if (requests[key] !== request) return@launch
             mutable.update { current ->
                 bounded((current - key) + (key to when (result) {
                     is ApiResult.Success -> BrowseState(
                         items = if (more) (old.items + result.value.items).distinctBy { "${it.kind}:${it.id}:${it.title}" } else result.value.items,
                         next = result.value.nextCursor, loaded = true)
                     is ApiResult.Failure -> old.copy(loading = false, error = result.message, loaded = true)
-                }), setOfNotNull(activeKey, key))
+                }), setOfNotNull(activeKey, key, activeKey?.takeIf { it.startsWith("ordered:") }?.split(':')?.getOrNull(1)?.let { "feed:$it" }))
             }
+            requests.remove(key)
         }
     }
 }

@@ -1,5 +1,10 @@
 package io.github.ktclat.c001apk.nativeapp
 
+import android.app.Activity
+import android.view.Window
+import androidx.core.view.WindowCompat
+import androidx.compose.runtime.SideEffect
+import androidx.compose.ui.platform.LocalView
 import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -17,7 +22,13 @@ import io.github.ktclat.c001apk.nativeapp.ui.SessionViewModelStore
 import androidx.compose.runtime.remember
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Density
-import androidx.compose.ui.unit.sp
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.layout.*
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.initializer
@@ -33,31 +44,34 @@ class MainActivity : ComponentActivity() {
         val container = (application as NativeApplication).container
         val sessionOwner = ViewModelProvider(this)[SessionViewModelStore::class.java]
         setContent {
-            val runtimeResult by produceState<Result<AccountRuntime>?>(null) {
+            var initializationAttempt by remember { mutableIntStateOf(0) }
+            val runtimeResult by produceState<Result<AccountRuntime>?>(null, initializationAttempt) {
+                value = null
                 value = try { Result.success(container.accounts()) } catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled } catch (e: Exception) { Result.failure(e) }
             }
-            if (runtimeResult == null) { MaterialTheme { CircularProgressIndicator() }; return@setContent }
+            if (runtimeResult == null) { StartupState(); return@setContent }
             val runtime = runtimeResult!!.getOrNull()
-            if (runtime == null) { MaterialTheme { Text("账户存储无法初始化，原有数据未被重置。") }; return@setContent }
+            if (runtime == null) { StartupState("账户存储无法初始化，原有数据未被重置。") { initializationAttempt++ }; return@setContent }
             val accountState by runtime.store.state.collectAsStateWithLifecycle()
             sessionOwner.select(accountState.generation)
             val model = remember(accountState.generation) { ViewModelProvider(sessionOwner, viewModelFactory { initializer { BrowseViewModel(runtime.repository) } })[BrowseViewModel::class.java] }
 
             val settingsState by remember(container) { container.settings.loadStates() }.collectAsStateWithLifecycle(SettingsLoadState.Loading)
             if (settingsState is SettingsLoadState.Failed) {
-                MaterialTheme { androidx.compose.foundation.layout.Column { Text("设置无法读取") ; Text("设置数据可能损坏或来自更新版本，原有记录未被覆盖。请保留数据并检查应用版本。") } }
+                StartupState("设置无法读取。数据可能损坏或来自更新版本，原有记录未被覆盖。请保留数据并检查应用版本。")
                 return@setContent
             }
-            if (settingsState is SettingsLoadState.Loading) { MaterialTheme { CircularProgressIndicator() }; return@setContent }
+            if (settingsState is SettingsLoadState.Loading) { StartupState(); return@setContent }
             val settings = (settingsState as SettingsLoadState.Ready).value
             val dark = when (settings.theme) { ThemeMode.SYSTEM -> isSystemInDarkTheme(); ThemeMode.DARK -> true; ThemeMode.LIGHT -> false }
+            SideEffect { applyNativeSystemBarAppearance(window, dark) }
             val colors = if (settings.dynamicColor && Build.VERSION.SDK_INT >= 31) {
                 if (dark) dynamicDarkColorScheme(this) else dynamicLightColorScheme(this)
-            } else if (dark) darkColorScheme() else lightColorScheme()
+            } else fixedColorScheme(settings.themeColor, dark)
             val density = LocalDensity.current
-            val base = Typography()
-            val type = if (settings.readingPreset == ReadingPreset.COMFORTABLE) base.copy(bodyLarge = base.bodyLarge.copy(fontSize = 17.sp, lineHeight = 27.sp)) else base
-            CompositionLocalProvider(LocalDensity provides Density(density.density, density.fontScale * settings.fontScale)) {
+            val type = remember(settings.font) { appTypography(settings.font) }
+            val reading = remember(settings.font, settings.readingPreset) { readingStyles(settings.readingPreset, settings.font) }
+            CompositionLocalProvider(LocalDensity provides Density(density.density, density.fontScale * settings.fontScale), LocalReadingStyles provides reading) {
                 MaterialTheme(colorScheme = colors, typography = type) {
                     CompositionLocalProvider(LocalViewModelStoreOwner provides sessionOwner) {
                         key(accountState.generation) { NativeApp(model, container, settings, runtime, accountState) }
@@ -65,5 +79,30 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
+    }
+}
+
+@Composable private fun StartupState(message: String? = null, retry: (() -> Unit)? = null) {
+    val dark = isSystemInDarkTheme()
+    val window = (LocalView.current.context as? Activity)?.window
+    SideEffect { window?.let { applyNativeSystemBarAppearance(it, dark) } }
+    MaterialTheme(colorScheme = if (dark) darkColorScheme() else lightColorScheme()) {
+        Surface(Modifier.fillMaxSize()) {
+            Box(Modifier.fillMaxSize().safeDrawingPadding().padding(24.dp), contentAlignment = Alignment.Center) {
+                if (message == null) CircularProgressIndicator()
+                else Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                    Text(message)
+                    if (retry != null) Button(onClick = retry) { Text("重试") }
+                }
+            }
+        }
+    }
+}
+
+/** Appearance only: keep platform navigation-bar contrast and system gesture protections intact. */
+internal fun applyNativeSystemBarAppearance(window: Window, dark: Boolean) {
+    WindowCompat.getInsetsController(window, window.decorView).apply {
+        isAppearanceLightStatusBars = !dark
+        isAppearanceLightNavigationBars = !dark
     }
 }

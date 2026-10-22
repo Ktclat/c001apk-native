@@ -18,8 +18,10 @@ class SettingsUiTest {
     @Test fun switchesHaveReadableLabelAndWholeRowAction() {
         var result: AppSettings? = null
         compose.setContent { MaterialTheme { SettingsScreen(AppSettings(), { result=it }, {}, {}, {}, {}) } }
+        compose.onNode(hasScrollToIndexAction()).performScrollToNode(hasText("悬浮导航栏"))
         compose.onNodeWithText("悬浮导航栏").assertIsOff().performClick()
         compose.runOnIdle { assertEquals(true,result?.floatingNavigation) }
+        compose.onNode(hasScrollToIndexAction()).performScrollToNode(hasContentDescription("应用字号"))
         compose.onNodeWithContentDescription("应用字号").assertExists()
     }
 }

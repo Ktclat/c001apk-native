@@ -24,6 +24,8 @@ data class RequestSession(
     val isCurrent: () -> Boolean,
     val acceptCookies: (HttpUrl, List<String>) -> Unit,
     val deviceCode: String? = null,
+    val isSessionCurrent: (() -> Boolean)? = null,
+    val acceptChallengeCookies: ((HttpUrl, List<String>) -> RequestSession?)? = null,
 )
 
 class HttpCoolapkRepository(

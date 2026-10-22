@@ -21,6 +21,47 @@ data class ContentItem(
     val topicTags: List<String> = emptyList(),
     val topicTitle: String = "",
     val firstRelationTitle: String = "",
+    /** Container entities only. Replies and forward quotes never become sibling posts. */
+    val entityTemplate: String? = null,
+    val replies: List<ContentItem> = emptyList(),
+    val feed: FeedMetadata? = null,
+    val bodyTruncated: Boolean = false,
+
+)
+enum class ExplicitLikeState { UNKNOWN, NOT_LIKED, LIKED }
+/** Values absent from the response remain unknown, including zero versus missing counts. */
+data class FeedMetadata(
+    val deviceTitle: String? = null,
+    val infoHtml: String? = null,
+    val ipLocation: String? = null,
+    val pinned: Boolean? = null,
+    val likeState: ExplicitLikeState = ExplicitLikeState.UNKNOWN,
+    val replyCount: Int? = null,
+    val likeCount: Int? = null,
+    val forwardSourceType: String? = null,
+    val forward: FeedReference? = null,
+    val hotReply: FeedReference? = null,
+    val link: FeedLinkMetadata? = null,
+    val target: FeedRelationMetadata? = null,
+    val relations: List<FeedRelationMetadata> = emptyList(),
+)
+enum class FeedReferenceKind { FORWARD, HOT_REPLY }
+/** Flat, bounded quote projection. No JSON or recursively expanding quote trees reach UI. */
+data class FeedReference(
+    val kind: FeedReferenceKind,
+    val id: String = "",
+    val parentFeedId: String = "",
+    val authorId: String = "",
+    val author: String = "",
+    val title: String = "",
+    val body: String = "",
+    val images: List<String> = emptyList(),
+    val deleted: Boolean = false,
+)
+data class FeedLinkMetadata(val title: String, val url: String, val image: String? = null)
+data class FeedRelationMetadata(
+    val id: String = "", val entityType: String? = null, val targetType: String? = null,
+    val title: String = "", val url: String? = null, val image: String? = null,
 )
 data class ContentTab(val title: String, val url: String)
 data class PageCursor(val page: Int = 1, val firstItem: String? = null, val lastItem: String? = null) {
@@ -31,7 +72,7 @@ enum class FailureKind { UNCERTAIN, NETWORK, HTTP, AUTHENTICATION, CAPTCHA, RATE
 sealed interface ApiResult<out T> {
     data class Success<T>(val value: T) : ApiResult<T>
     /** Only locally authored, safe messages; never raw server data, URLs or exceptions. */
-    data class Failure(val kind: FailureKind, val message: String, val httpStatus: Int? = null) : ApiResult<Nothing>
+    data class Failure(val kind: FailureKind, val message: String, val httpStatus: Int? = null, val challenge: ApiChallenge? = null) : ApiResult<Nothing>
 }
 
 data class SearchOptions(val type: String = "feed", val feedType: String = "all", val sort: String = "default", val strict: Boolean = false, val pageType: String? = null, val pageParam: String? = null)

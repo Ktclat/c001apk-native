@@ -31,6 +31,11 @@ jobs:
           sdk_manager="$(find "${ANDROID_HOME:?}/cmdline-tools" -type f -path '*/bin/sdkmanager' -print | sort -V | tail -n 1)"
           test -n "$sdk_manager" && test -x "$sdk_manager"
           "$sdk_manager" --sdk_root="$ANDROID_HOME" 'platforms;android-36' 'build-tools;36.0.0'
+      - name: Test and prepare pinned font resources
+        run: |
+          python3 -m unittest discover -s app/tools -p 'test_fetch_fonts.py' -v
+          python3 app/tools/fetch_fonts.py
+          python3 app/tools/fetch_fonts.py --offline
       - name: Build debug, synthetic tests, and lint
         run: ./gradlew --no-daemon :app:assembleDebug :app:testDebugUnitTest :app:lintDebug
       - name: Preserve debug APK and explicitly synthetic verification artifacts

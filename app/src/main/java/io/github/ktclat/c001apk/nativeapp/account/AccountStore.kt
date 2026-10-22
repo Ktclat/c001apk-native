@@ -34,6 +34,12 @@ class SessionSnapshot internal constructor(val accountId: String?, val generatio
                 val accepted = validation?.takeIf { url.host in setOf("api.coolapk.com", "api2.coolapk.com") && it.expiresAt > now && it.sessionHash == sessionHash() && cookies.any { c -> c.name == "SESSID" && c.expiresAt > now && c.matches(url) } }
                 if (accepted == null) header else "$header; validate=${accepted.proof}"
             }
+    /** Exact authenticated identity/session, including cookie scope and expiry. No secret is exposed. */
+    fun sameIdentityAndSession(other: SessionSnapshot): Boolean = sameIdentityAndCredentials(other) &&
+        cookies.filter { it.name == "SESSID" }.toSet() == other.cookies.filter { it.name == "SESSID" }.toSet()
+    internal fun sameIdentityAndCredentials(other: SessionSnapshot): Boolean = owner === other.owner &&
+        accountId != null && accountId == other.accountId && generation == other.generation && deviceId == other.deviceId &&
+        cookies.filter { it.name in setOf("uid", "token") }.toSet() == other.cookies.filter { it.name in setOf("uid", "token") }.toSet()
     fun sessionHash(): String = sessionFingerprint(cookies)
     override fun toString() = "SessionSnapshot(generation=$generation, authenticated=${accountId != null})"
 }
@@ -103,7 +109,7 @@ class AccountStore(private val persistence: CredentialPersistence, private val c
         }
         val record = AccountRecord(id, name, deviceId, bounded.map { encodeCookie(it) })
         validate(record)
-        require(cookies.any { it.name == "token" && it.value.isNotEmpty() && it.expiresAt > clock() })
+        require(bounded.any { usableApiToken(it, clock()) }) { "Login token is not usable by the API" }
         commit(Vault(accounts = vault.accounts.filterNot { it.id == id } + record, activeId = id), true)
         return true
     }
@@ -136,6 +142,19 @@ class AccountStore(private val persistence: CredentialPersistence, private val c
         commit(Vault(accounts = vault.accounts.map { if (it.id == current.id) updated else it }, activeId = vault.activeId), false)
         return true
     }
+    /** Only the transport's source-known challenge/image/validation response may use this handoff.
+     * Revision gate and capture share one monitor: unrelated responses cannot be silently adopted. */
+    @Synchronized fun acceptChallengeCookies(expected: SessionSnapshot, url: HttpUrl, headers: List<String>): SessionSnapshot? {
+        if (!isCurrent(expected) || expected.accountId == null || expected.revision != revision ||
+            url.host !in setOf("api.coolapk.com", "api2.coolapk.com") || !CookieScope.allows(url)) return null
+        val before = snapshot()
+        // A challenge is never permission to change or renew account credentials.
+        val credentialUpdates = headers.mapNotNull { CookieScope.parse(url, it, clock()) }.filter { it.name in setOf("uid", "token") }
+        if (credentialUpdates.any { incoming -> incoming !in before.cookies }) return null
+        if (!acceptCookies(expected, url, headers)) return null
+        val after = snapshot()
+        return after.takeIf { before.sameIdentityAndCredentials(it) }
+    }
     /** Store only after the server accepted this proof; never on mere challenge completion. */
     @Synchronized fun saveAcceptedValidation(expected: SessionSnapshot, challenge: HumanChallengeSpec, proof: String, acceptedSessionHash: String): Boolean {
         if (!isCurrent(expected) || expected.accountId == null || expected.revision != revision || !challenge.accepts(proof)) return false
@@ -155,7 +174,7 @@ class AccountStore(private val persistence: CredentialPersistence, private val c
     private fun expireTokens() {
         val changed = vault.accounts.map { record ->
             if (!record.needsLogin && record.cookies.mapNotNull(::restoreCookie).none {
-                    it.name == "token" && it.value.isNotEmpty() && it.expiresAt > clock()
+                    usableApiToken(it, clock())
                 }) AccountRecord(record.id, record.name, record.deviceId, emptyList(), true) else record
         }
         if (changed == vault.accounts) return
@@ -186,6 +205,11 @@ class AccountStore(private val persistence: CredentialPersistence, private val c
     private fun publish(increment: Long = 0) { mutableState.value = AccountState(
         vault.accounts.map { AccountSummary(it.id, it.name, it.needsLogin) }, vault.activeId, state.value.generation + increment) }
     companion object {
+        private val apiAuthUrls = listOf("api.coolapk.com", "api2.coolapk.com").map {
+            okhttp3.HttpUrl.Builder().scheme("https").host(it).addPathSegment("v6").addPathSegment("").build()
+        }
+        private fun usableApiToken(cookie: Cookie, now: Long): Boolean = cookie.name == "token" &&
+            cookie.value.isNotBlank() && cookie.expiresAt > now && apiAuthUrls.any(cookie::matches)
         private fun encodeCookie(cookie: Cookie): String = "${cookie.domain}|$cookie"
         private fun restoreCookie(value: String): Cookie? {
             val host = value.substringBefore('|')

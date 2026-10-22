@@ -19,7 +19,7 @@ enum class FollowTarget { USER, APP, TOPIC, PRODUCT }
 enum class DeleteTarget { FEED, REPLY, NOTIFICATION, MESSAGE, CONVERSATION }
 sealed interface WriteOutcome {
     data class Confirmed(val serverId: String? = null) : WriteOutcome
-    data class Rejected(val kind: FailureKind, val message: String) : WriteOutcome
+    data class Rejected(val kind: FailureKind, val message: String, val continuation: PendingCaptcha? = null) : WriteOutcome
     data class Uncertain(val message: String = "服务端结果未确认，请刷新核实；不要重复发送") : WriteOutcome
 }
 sealed interface DeliveryState {
