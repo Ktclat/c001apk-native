@@ -2,6 +2,7 @@
 package io.github.ktclat.c001apk.nativeapp.data
 
 import io.github.ktclat.c001apk.nativeapp.domain.*
+import io.github.ktclat.c001apk.nativeapp.diagnostics.*
 import kotlinx.coroutines.*
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonPrimitive
@@ -25,6 +26,7 @@ class CoolapkHttpTransport(
     private val requestSession: (() -> RequestSession)? = null,
     private val monotonicMillis: () -> Long = { System.nanoTime() / 1_000_000 },
     private val operationScoped: Boolean = false,
+    private val homeDiagnostics: HomeRequestDiagnostics? = null,
 ) {
     private data class Operation(val path: String, val params: Map<String,String>, val api2: Boolean, val post: Boolean, val query: Map<String,String>, val multipart: Boolean, val mutation: Boolean)
     private class Rejected(val operation: Operation, val challenge: ApiChallenge, @Volatile var session: RequestSession?, @Volatile var scope: String, val expires: Long, val originalUrl: HttpUrl) {
@@ -41,16 +43,16 @@ class CoolapkHttpTransport(
      * This clone never consults the mutable original session supplier again.
      */
     internal fun forCapturedReadSession(session: RequestSession): CoolapkHttpTransport =
-        CoolapkHttpTransport(client, endpoints, protocol, { session }, monotonicMillis, false)
+        CoolapkHttpTransport(client, endpoints, protocol, { session }, monotonicMillis, false, homeDiagnostics)
 
     /** Read-only scoped adapter: use exactly the caller's captured session, never recapture another account. */
     internal fun forRequestSession(session: RequestSession): CoolapkHttpTransport =
-        CoolapkHttpTransport(client, endpoints, protocol, { session }, monotonicMillis, true)
+        CoolapkHttpTransport(client, endpoints, protocol, { session }, monotonicMillis, true, homeDiagnostics)
 
     /** Capture once for one social action/pipeline, not a shared browsing repository. */
     fun forSingleOperation(): CoolapkHttpTransport {
         val captured = activeSession()
-        return CoolapkHttpTransport(client, endpoints, protocol, captured?.let { value -> { value } }, monotonicMillis, true)
+        return CoolapkHttpTransport(client, endpoints, protocol, captured?.let { value -> { value } }, monotonicMillis, true, homeDiagnostics)
     }
     fun isRequestScopeCurrent(): Boolean = activeSession().let { it == null || (it.isCurrent() && it.isSessionCurrent?.invoke() != false) }
     fun isCaptchaContinuationCurrent(challenge: ApiChallenge): Boolean = rejected.get()?.let { it.challenge == challenge && eligible(it) && !it.replayGranted.get() } ?: false
@@ -88,7 +90,7 @@ class CoolapkHttpTransport(
         val record = requireNotNull(rejected.get()) { "No pending challenge" }
         require(record.challenge == challenge && eligible(record) && (!graphic || record.graphicVerified.get())) { "Challenge scope changed" }
         require(record.replayGranted.compareAndSet(false, true)) { "Challenge already consumed" }
-        return CoolapkHttpTransport(client, endpoints, protocol, requestSession, monotonicMillis, operationScoped).also { it.replay = Replay(record, proof); it.continuationSession = continuationSession }
+        return CoolapkHttpTransport(client, endpoints, protocol, requestSession, monotonicMillis, operationScoped, homeDiagnostics).also { it.replay = Replay(record, proof); it.continuationSession = continuationSession }
     }
     suspend fun getCaptchaImage(): ApiResult<ByteArray> {
         val record = rejected.get()
@@ -111,7 +113,33 @@ class CoolapkHttpTransport(
     private val client = client.newBuilder().followRedirects(false).followSslRedirects(false)
         .retryOnConnectionFailure(false).cookieJar(CookieJar.NO_COOKIES)
         .callTimeout(25, TimeUnit.SECONDS).build()
-    suspend fun get(path: String, params: Map<String, String> = emptyMap(), api2: Boolean = false, mutation: Boolean = false): ApiResult<JsonElement> = request(path, params, api2, false, emptyMap(), false, mutation)
+    suspend fun get(path: String, params: Map<String, String> = emptyMap(), api2: Boolean = false, mutation: Boolean = false): ApiResult<JsonElement> {
+        val observation = if (homeDiagnostics != null && !mutation) homeRequestRoute(path, params)?.let { HomeObservation(it) } else null
+        val result = request(path, params, api2, false, emptyMap(), false, mutation, homeObservation = observation)
+        // Cancellation bypasses this point. No extra request, retry, body read or cookie access.
+        if (observation != null) observeSafely { observation.finish(result) }
+        return result
+    }
+    private inline fun observeSafely(block: () -> Unit) {
+        try { block() } catch (e: CancellationException) { throw e } catch (_: Exception) { /* Diagnostics must not change transport behavior. */ }
+    }
+    private inner class HomeObservation(private val route: Pair<HomeRequestTab, HomeRequestEndpoint>) {
+        private val started = System.nanoTime()
+        private var generation: Long? = null
+        private var event: HomeRequestEvent? = null
+        fun capture(session: RequestSession?, host: String, cookie: String?) {
+            generation = session?.diagnosticGeneration
+            event = HomeRequestEvent(route.first, route.second,
+                when (host) { "api.coolapk.com" -> HomeRequestHost.API; "api2.coolapk.com" -> HomeRequestHost.API2; "localhost", "127.0.0.1", "::1" -> HomeRequestHost.LOCAL_TEST; else -> HomeRequestHost.UNAVAILABLE },
+                session?.diagnosticMode ?: HomeRequestMode.UNKNOWN,
+                cookie.orEmpty().split(';').any { it.trim().substringBefore('=') == "SESSID" },
+                protocol.diagnosticInfo(), null, HomeContentType.UNAVAILABLE, null, 0)
+        }
+        fun headers(code: Int, type: String?) { event = event?.copy(httpStatus = code, contentType = homeContentType(type)) }
+        fun finish(result: ApiResult<JsonElement>) {
+            event?.let { homeDiagnostics?.append(generation, it.copy(failure = (result as? ApiResult.Failure)?.kind, elapsedMillis = (System.nanoTime() - started) / 1_000_000)) }
+        }
+    }
     suspend fun post(path: String, form: Map<String, String>, query: Map<String, String> = emptyMap(), api2: Boolean = false, multipart: Boolean = false): ApiResult<JsonElement> = request(path, form, api2, true, query, multipart, true)
     /** Resolve only the source's signed image endpoint; returned URL is fetched without app headers. */
     suspend fun getImageLocation(id: String): ApiResult<String> {
@@ -141,7 +169,7 @@ class CoolapkHttpTransport(
             labels.last() in setOf("localhost", "local", "internal", "lan", "home", "test", "invalid", "example", "onion", "arpa")) return null
         return url
     }
-    private suspend fun request(path: String, params: Map<String, String>, api2: Boolean, post: Boolean, query: Map<String, String>, multipart: Boolean, mutation: Boolean, imageRedirect: Boolean = false, captchaImage: Boolean = false, challengeRecord: Rejected? = null, browserRedirect: Boolean = false): ApiResult<JsonElement> = withContext(Dispatchers.IO) {
+    private suspend fun request(path: String, params: Map<String, String>, api2: Boolean, post: Boolean, query: Map<String, String>, multipart: Boolean, mutation: Boolean, imageRedirect: Boolean = false, captchaImage: Boolean = false, challengeRecord: Rejected? = null, browserRedirect: Boolean = false, homeObservation: HomeObservation? = null): ApiResult<JsonElement> = withContext(Dispatchers.IO) {
         var dispatched = false
         try {
             require(Regex("^v6/[A-Za-z0-9]+(?:/[A-Za-z0-9]+)*$").matches(path))
@@ -165,6 +193,7 @@ class CoolapkHttpTransport(
                 builder.post(body)
             } else builder.get()
             val baseCookie = session?.cookieFor?.invoke(url)?.takeIf { it.isNotBlank() }
+            if (homeObservation != null) observeSafely { homeObservation.capture(session, url.host, baseCookie) }
             val cookieProof = attempt?.proof?.takeIf { (attempt.rejected.challenge as? ApiChallenge.Netease)?.field == "" }
             val cookie = if (cookieProof == null) baseCookie else {
                 val clean = baseCookie.orEmpty().split(';').map { it.trim() }.filter { it.isNotEmpty() && it.substringBefore('=') != "validate" }
@@ -182,6 +211,7 @@ class CoolapkHttpTransport(
                 try { awaitCancellation() } finally { if (consumingResponse.get()) call.cancel() }
             }
             try { call.await().use { response ->
+                if (homeObservation != null) observeSafely { homeObservation.headers(response.code, response.header("Content-Type")) }
                 if (boundRecord != null && !eligible(boundRecord)) {
                     if (mutation && now() > boundRecord.expires && session?.isCurrent?.invoke() != false && session?.isSessionCurrent?.invoke() != false) return@withContext failure(FailureKind.UNCERTAIN)
                     throw CancellationException("Challenge session changed")

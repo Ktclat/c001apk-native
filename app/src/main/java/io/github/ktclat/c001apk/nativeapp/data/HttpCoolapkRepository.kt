@@ -30,6 +30,8 @@ data class RequestSession(
     val acceptChallengeCookies: ((HttpUrl, List<String>) -> RequestSession?)? = null,
     /** Explicit anonymous identity marker; never infer identity from the presence of SESSID. */
     val isGuest: Boolean = false,
+    val diagnosticGeneration: Long? = null,
+    val diagnosticMode: io.github.ktclat.c001apk.nativeapp.diagnostics.HomeRequestMode = io.github.ktclat.c001apk.nativeapp.diagnostics.HomeRequestMode.UNKNOWN,
 )
 
 class HttpCoolapkRepository(
@@ -38,8 +40,9 @@ class HttpCoolapkRepository(
     private val protocol: ClientProtocol = ClientProtocol(),
     private val installTimeMillis: Long = System.currentTimeMillis(),
     private val requestSession: (() -> RequestSession)? = null,
+    val homeDiagnostics: io.github.ktclat.c001apk.nativeapp.diagnostics.HomeRequestDiagnostics? = null,
 ) : CoolapkRepository {
-    private val transport = CoolapkHttpTransport(client, endpoints, protocol, requestSession)
+    private val transport = CoolapkHttpTransport(client, endpoints, protocol, requestSession, homeDiagnostics = homeDiagnostics)
 
     /** Root must bind isCurrentAccount to immutable expected activeId + generation. */
     fun personalLists(isCurrentAccount: () -> Boolean): PersonalListRepository = PersonalListRepository { request, uid, cursor ->

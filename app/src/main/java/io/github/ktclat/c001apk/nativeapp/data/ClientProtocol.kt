@@ -17,6 +17,8 @@ class ClientProtocol(
     private val sdkInt: Int = 21,
     private val deviceProfile: ClientDeviceProfile? = null,
 ) {
+    fun diagnosticInfo() = io.github.ktclat.c001apk.nativeapp.diagnostics.HomeProtocolInfo(appCode, sdkInt, deviceProfile != null)
+
     fun headers(deviceOverride: String? = null): Map<String, String> = mapOf(
         "User-Agent" to (deviceProfile?.userAgent(appCode) ?: "c001apk-native/0.1 (Android; independent client)"),
         "X-Requested-With" to "XMLHttpRequest", "X-Sdk-Locale" to "zh-CN",

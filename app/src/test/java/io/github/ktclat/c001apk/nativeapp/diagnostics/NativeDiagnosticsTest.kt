@@ -55,7 +55,9 @@ class NativeDiagnosticsTest {
     }
     @Test fun reportIsAnExplicitNonSensitiveAllowlist() {
         val report = sampleDiagnostics()
-        assertEquals(21, report.entries().size)
+        assertEquals(23, report.entries().size)
+        assertTrue(report.entries().any { it.first == "首页请求观察范围" && it.second.contains("无记录不代表成功") })
+        assertEquals("unavailable", report.entries().last().second)
         val fields = NativeDiagnostics::class.java.declaredFields.map { it.name.lowercase() }
         listOf("account", "device", "model", "manufacturer", "cookie", "token", "credential", "path", "email").forEach { prohibited ->
             assertFalse("Unexpected field: $prohibited", fields.any { it.contains(prohibited) })
