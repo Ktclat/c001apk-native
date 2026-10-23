@@ -43,9 +43,29 @@ import java.util.concurrent.atomic.AtomicInteger
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
 class NativeAppRenderingTest {
     @get:Rule val compose = createAndroidComposeRule<ComponentActivity>()
+    @get:Rule val testName = org.junit.rules.TestName()
+    private fun traceThisTest() = testName.methodName == "detailHidesDockAndBackRestoresRootWithoutReload"
+    private fun postParseTraceFile(suffix: String) =
+        File("build/verification/readiness-${testName.methodName}-post-parse-$suffix.txt")
     private val homeCalls = AtomicInteger()
     private var fixtureImages: io.github.ktclat.c001apk.nativeapp.feature.feed.SyntheticFeedImageLoader? = null
-    @org.junit.After fun closeFixtureImages() { fixtureImages?.close() }
+    @org.junit.Before fun startPostParseTrace() {
+        if (traceThisTest()) PostParseTrace.start()
+    }
+    @org.junit.After fun closeFixtureImages() {
+        try {
+            // Also retain successful runs. Logging can perturb timing; success is not proof of repair.
+            if (traceThisTest()) runCatching {
+                postParseTraceFile("final").apply {
+                    parentFile?.mkdirs()
+                    writeText(PostParseTrace.snapshot())
+                }
+            }
+        } finally {
+            if (traceThisTest()) PostParseTrace.stop()
+            fixtureImages?.close()
+        }
+    }
     private var diagnosticContainer: AppContainer? = null
     private var diagnosticModel: BrowseViewModel? = null
     private fun render(fontScale: Float = 1f, initialRoute: String? = null, sourceReference: Boolean = false, dark: Boolean = false, populated: Boolean = false, browseListStates: Map<String, LazyListState> = emptyMap()) {
@@ -113,8 +133,12 @@ class NativeAppRenderingTest {
     }
     /** Failure-only observation. The original timeout remains authoritative even if rescue changes UI. */
     private fun diagnoseReadinessFailure(phase: String) {
+        // Freeze the earliest failure trace before any extra semantics query, drawing or rescue.
+        val failureTrace = if (traceThisTest()) PostParseTrace.snapshot() else null
         val directory = File("build/verification").apply { mkdirs() }
+        if (failureTrace != null) runCatching { postParseTraceFile("$phase-before").writeText(failureTrace) }
         val notes = StringBuilder()
+        val capturedEvidence = mutableListOf<File>()
         fun attempt(label: String, action: () -> Unit) {
             runCatching(action).onFailure { notes.append("$label diagnostic failed: ${it.javaClass.name}: ${it.message}\n") }
         }
@@ -123,10 +147,16 @@ class NativeAppRenderingTest {
                 val view = compose.activity.findViewById<View>(android.R.id.content)
                 Bitmap.createBitmap(view.width, view.height, Bitmap.Config.ARGB_8888).also { view.draw(Canvas(it)) }
             }
-            File(directory, name).outputStream().use { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) }
+            val file = File(directory, name)
+            file.outputStream().use { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) }
+            if (traceThisTest()) capturedEvidence += file
         }
         // Preserve the unrecovered tree and pixels before any extra collection or snapshot notification.
-        attempt("before tree") { File(directory, "readiness-$phase-before.txt").writeText(compose.onRoot(useUnmergedTree = true).printToString()) }
+        attempt("before tree") {
+            val file = File(directory, "readiness-$phase-before.txt")
+            file.writeText(compose.onRoot(useUnmergedTree = true).printToString())
+            if (traceThisTest()) capturedEvidence += file
+        }
         attempt("before image") { image("readiness-$phase-before.png") }
         notes.append("homeCalls=${homeCalls.get()}\n")
         notes.append("model=" + diagnosticModel?.states?.value?.mapValues { (_, value) ->
@@ -136,8 +166,11 @@ class NativeAppRenderingTest {
         attempt("snapshot notification probe") {
             compose.runOnUiThread { androidx.compose.runtime.snapshots.Snapshot.sendApplyNotifications() }
             compose.waitForIdle()
-            File(directory, "readiness-$phase-after-notification.txt").writeText(compose.onRoot(useUnmergedTree = true).printToString())
+            val file = File(directory, "readiness-$phase-after-notification.txt")
+            file.writeText(compose.onRoot(useUnmergedTree = true).printToString())
+            if (traceThisTest()) capturedEvidence += file
             image("readiness-$phase-after-notification.png")
+            if (traceThisTest()) postParseTraceFile("$phase-after-notification").writeText(PostParseTrace.snapshot())
         }
         // Collect cold app state only AFTER the rescue comparison; doing this earlier could warm the
         // DataStore/flow and make its progress look like a snapshot-notification effect.
@@ -155,7 +188,18 @@ class NativeAppRenderingTest {
                 null -> "timeout or unavailable"
             } + "\n")
         }
-        attempt("notes") { File(directory, "readiness-$phase-state.txt").writeText(notes.toString()) }
+        attempt("notes") {
+            val file = File(directory, "readiness-$phase-state.txt")
+            file.writeText(notes.toString())
+            if (traceThisTest()) capturedEvidence += file
+        }
+        // Preserve only files successfully captured in THIS target failure. Copy after the existing
+        // query/draw/probe ordering, with no additional UI query, draw, collection or notification.
+        if (traceThisTest()) capturedEvidence.forEach { file ->
+            attempt("target evidence copy ${file.name}") {
+                file.copyTo(File(directory, "readiness-${testName.methodName}-${file.name.removePrefix("readiness-")}"), overwrite = true)
+            }
+        }
     }
     private fun capture(name: String) {
         awaitBodyLayout()
