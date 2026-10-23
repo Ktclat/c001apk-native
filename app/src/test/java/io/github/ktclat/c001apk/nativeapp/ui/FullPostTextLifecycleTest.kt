@@ -27,18 +27,53 @@ import java.util.concurrent.atomic.AtomicInteger
 @Config(sdk = [35])
 class FullPostTextLifecycleTest {
     @get:Rule val compose = createAndroidComposeRule<ComponentActivity>()
-    @Test fun realDetailTailIsReachableAndRemainingPageStateIsExplicit() {
+    @Test fun realDetailTailIsReachableAndSegmentPositionIsExplicit() {
         val html = "x".repeat(12_000) + "FULL_DETAIL_TAIL"
         compose.setContent { MaterialTheme { Column(Modifier.verticalScroll(rememberScrollState())) {
             FullPostText(FullPostBody.Available(html), "x".repeat(12_000), {}, null)
         } } }
-        awaitText("接口正文已完整载入 · 分段阅读 · 第 1/4 段 · 剩余 3 段")
+        awaitPage("x".repeat(4000))
+        compose.onNodeWithTag("full-post-progress").assertTextEquals("第 1/4 段")
         compose.onAllNodesWithText("FULL_DETAIL_TAIL").assertCountEquals(0)
         repeat(3) { compose.onNodeWithText("下一段").performScrollTo().performClick() }
         compose.onNodeWithTag("full-post-page").assertTextEquals("FULL_DETAIL_TAIL")
-        compose.onNodeWithTag("full-post-progress").assertTextEquals("接口正文已完整载入 · 分段阅读 · 第 4/4 段 · 剩余 0 段")
+        compose.onNodeWithTag("full-post-progress").assertTextEquals("第 4/4 段")
         compose.onNodeWithText("已到正文末尾").assertExists()
         compose.onNodeWithText("下一段").assertIsNotEnabled()
+    }
+    @Test fun singleSegmentShowsExactBodyWithoutPersistentReadinessChrome() {
+        compose.setContent { MaterialTheme {
+            FullPostText(FullPostBody.Available("SINGLE_BODY_EXACT_TAIL"), "preview", {}, null)
+        } }
+        awaitPage("SINGLE_BODY_EXACT_TAIL")
+        compose.onNodeWithTag("full-post-page").assertIsDisplayed()
+        assertSingleSegmentChromeAbsent()
+    }
+    @Test fun emptySingleSegmentKeepsItsExplicitEmptyState() {
+        compose.setContent { MaterialTheme {
+            FullPostText(FullPostBody.Available(""), "preview", {}, null)
+        } }
+        awaitPage("")
+        compose.onNodeWithText("此动态没有文本正文").assertIsDisplayed()
+        assertSingleSegmentChromeAbsent()
+    }
+    @Test fun pendingRemainsVisibleUntilTheRealBodyIsPublished() {
+        val release = CountDownLatch(1)
+        val parser: (FullPostBody, () -> Unit) -> PreparedFullPost = { body, active ->
+            check(release.await(15, TimeUnit.SECONDS))
+            prepareFullPost(body, active)
+        }
+        try {
+            compose.setContent { MaterialTheme {
+                FullPostText(FullPostBody.Available("PENDING_THEN_BODY"), "preview", {}, null, parser)
+            } }
+            compose.onNodeWithTag("full-post-pending").assertTextEquals("正在排版详情正文…").assertIsDisplayed()
+            compose.onNodeWithTag("full-post-page").assertDoesNotExist()
+            compose.onNodeWithTag("full-post-progress").assertDoesNotExist()
+            release.countDown()
+            awaitPage("PENDING_THEN_BODY")
+            assertSingleSegmentChromeAbsent()
+        } finally { release.countDown() }
     }
     @Test fun oversizeAndUnsupportedDoNotAdvertiseFullAvailability() {
         val body = mutableStateOf<FullPostBody>(FullPostBody.Unavailable(FullPostBodyLimit.BODY_TOO_LARGE, 262145))
@@ -60,13 +95,14 @@ class FullPostTextLifecycleTest {
         compose.setContent { MaterialTheme { Column(Modifier.verticalScroll(rememberScrollState())) {
             FullPostText(body.value, "", {}, null)
         } } }
-        awaitText("接口正文已完整载入 · 分段阅读 · 第 1/3 段 · 剩余 2 段")
+        awaitPage("x".repeat(4000))
+        compose.onNodeWithTag("full-post-progress").assertTextEquals("第 1/3 段")
         repeat(2) { compose.onNodeWithText("下一段").performScrollTo().performClick() }
         compose.onNodeWithTag("full-post-page").assertTextEquals("OLD_TAIL")
         compose.runOnIdle { body.value = FullPostBody.Available("NEW_BODY") }
         awaitText("NEW_BODY")
         compose.onAllNodesWithText("OLD_TAIL").assertCountEquals(0)
-        compose.onNodeWithTag("full-post-progress").assertTextEquals("接口正文已完整载入 · 分段阅读 · 第 1/1 段 · 剩余 0 段")
+        assertSingleSegmentChromeAbsent()
     }
     @Test fun parserExceptionLeavesPendingOffersFallbackAndCanRetry() {
         val attempts = AtomicInteger()
@@ -179,6 +215,19 @@ class FullPostTextLifecycleTest {
             assertEquals(1, newPublications.get())
             assertEquals(0, oldPublications.get())
         } finally { release.countDown() }
+    }
+    private fun awaitPage(text: String) {
+        compose.waitUntil(15_000) {
+            compose.onAllNodes(hasTestTag("full-post-page") and hasText(text)).fetchSemanticsNodes().size == 1
+        }
+        compose.onNodeWithTag("full-post-page").assertTextEquals(text)
+        compose.onNodeWithTag("full-post-pending").assertDoesNotExist()
+    }
+    private fun assertSingleSegmentChromeAbsent() {
+        compose.onNodeWithTag("full-post-progress").assertDoesNotExist()
+        compose.onNodeWithTag("full-post-pending").assertDoesNotExist()
+        for (label in listOf("接口正文已完整载入", "已到正文末尾", "上一段", "下一段"))
+            compose.onAllNodesWithText(label, substring = true, useUnmergedTree = true).assertCountEquals(0)
     }
     private fun awaitText(text: String) {
         compose.waitUntil(15_000) { compose.onAllNodesWithText(text).fetchSemanticsNodes().isNotEmpty() }
