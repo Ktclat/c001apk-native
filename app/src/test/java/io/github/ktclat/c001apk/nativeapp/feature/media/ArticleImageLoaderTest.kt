@@ -169,23 +169,57 @@ class ArticleImageLoaderTest {
         val callerOne = QueuedDispatcher()
         val callerTwo = QueuedDispatcher()
         val decoded = java.util.concurrent.CopyOnWriteArrayList<Bitmap>()
+        val decodeEntered = List(2) { CountDownLatch(1) }
+        val allowDecodeReturn = List(2) { CountDownLatch(1) }
+        val decodeCalls = AtomicInteger()
         val decoder = object : ArticleBitmapDecoder {
             override fun bounds(bytes: ByteArray) = ArticleImageBounds(8, 8)
-            override fun decode(bytes: ByteArray, sampleSize: Int): Bitmap =
-                Bitmap.createBitmap(1, 1, Bitmap.Config.ARGB_8888).also { decoded += it }
+            override fun decode(bytes: ByteArray, sampleSize: Int): Bitmap {
+                val index = decodeCalls.getAndIncrement()
+                val bitmap = Bitmap.createBitmap(1, 1, Bitmap.Config.ARGB_8888).also { decoded += it }
+                if (index < 2) {
+                    decodeEntered[index].countDown()
+                    check(allowDecodeReturn[index].await(5, TimeUnit.SECONDS)) { "Decode return gate $index was not released" }
+                }
+                return bitmap
+            }
         }
         val calls = FixtureCalls { ByteBody(jpeg) }
         val loader = BoundedArticleImageLoader(calls, decoder, proxySelector = ArticleProxySelector { directSelector() })
         var publishedOne = false
         var secondResult: ArticleImageResult? = null
-        val first = launch(callerOne) { loader.load(url); publishedOne = true }
-        callerOne.runNext() // Enter withContext on the caller, then suspend for IO.
-        callerOne.awaitQueued() // Ready exists, but its return to the caller is deliberately blocked.
-        val second = launch(callerTwo) { secondResult = loader.load(url) }
-        callerTwo.runNext()
-        callerTwo.awaitQueued()
-        val third = async(start = CoroutineStart.UNDISPATCHED) { loader.load(url) }
+        val jobs = mutableListOf<Job>()
+        var phase = "setup"
+        var primaryFailure: Throwable? = null
+        fun snapshot() = "phase=$phase, jobs=${jobs.mapIndexed { index, job -> "$index:active=${job.isActive}/completed=${job.isCompleted}/cancelled=${job.isCancelled}" }}, " +
+            "publishedOne=$publishedOne, secondResult=${secondResult?.javaClass?.simpleName}, requests=${calls.requests.size}, " +
+            "decoded=${decoded.size}, recycled=${decoded.map { it.isRecycled }}, queues=${callerOne.queuedCount}/${callerTwo.queuedCount}, " +
+            "entered=${decodeEntered.map { it.count }}, returnGates=${allowDecodeReturn.map { it.count }}"
         try {
+            phase = "first caller suspension"
+            val first = launch(callerOne) { loader.load(url); publishedOne = true }.also { jobs += it }
+            callerOne.runNext()
+            awaitLatch(decodeEntered[0])
+            assertFalse(first.isCompleted)
+            assertFalse(publishedOne)
+            assertEquals(0, callerOne.queuedCount)
+            // Only permit decode to return after runNext has returned with the caller suspended.
+            // withContext may otherwise legally complete inline and never enqueue a return task.
+            allowDecodeReturn[0].countDown()
+            phase = "first queued return"
+            callerOne.awaitQueued()
+            phase = "second caller suspension"
+            val second = launch(callerTwo) { secondResult = loader.load(url) }.also { jobs += it }
+            callerTwo.runNext()
+            awaitLatch(decodeEntered[1])
+            assertFalse(second.isCompleted)
+            assertNull(secondResult)
+            assertEquals(0, callerTwo.queuedCount)
+            allowDecodeReturn[1].countDown()
+            phase = "second queued return"
+            callerTwo.awaitQueued()
+            val third = async(start = CoroutineStart.UNDISPATCHED) { loader.load(url) }.also { jobs += it }
+            phase = "cancel blocked first return"
             assertEquals(2, calls.requests.size)
             assertEquals(2, decoded.size)
             first.cancel()
@@ -196,21 +230,37 @@ class ArticleImageLoaderTest {
             first.join()
             assertTrue(decoded[0].isRecycled)
             assertFalse(publishedOne)
+            phase = "deliver second return and release third"
             callerTwo.runNext()
             second.join()
             assertFalse(decoded[1].isRecycled) // Ownership was actually transferred to this caller.
             (secondResult as ArticleImageResult.Ready).bitmap.recycle()
             (third.await() as ArticleImageResult.Ready).bitmap.recycle()
             assertEquals(3, calls.requests.size)
+        } catch (failure: Throwable) {
+            primaryFailure = failure
+            failure.addSuppressed(AssertionError("Return-dispatch fixture failure before cleanup: ${snapshot()}"))
+            throw failure
         } finally {
-            first.cancel(); second.cancel(); third.cancel()
-            withTimeout(5000) {
-                while (!first.isCompleted || !second.isCompleted) {
-                    callerOne.runIfQueued(); callerTwo.runIfQueued(); delay(1)
+            // Includes early gate/queue failures, before all three callers have been created.
+            jobs.forEach { it.cancel() }
+            allowDecodeReturn.forEach { it.countDown() }
+            try {
+                withContext(NonCancellable) {
+                    withTimeout(5000) {
+                        while (jobs.any { !it.isCompleted }) {
+                            callerOne.runIfQueued(); callerTwo.runIfQueued(); delay(1)
+                        }
+                        jobs.forEach { it.join() }
+                    }
                 }
+            } catch (cleanupFailure: Throwable) {
+                cleanupFailure.addSuppressed(AssertionError("Return-dispatch fixture cleanup failure: ${snapshot()}"))
+                val original = primaryFailure
+                if (original != null) original.addSuppressed(cleanupFailure) else throw cleanupFailure
+            } finally {
+                decoded.forEach { if (!it.isRecycled) it.recycle() }
             }
-            third.join()
-            decoded.forEach { if (!it.isRecycled) it.recycle() }
         }
     }
 
@@ -269,6 +319,7 @@ class ArticleImageLoaderTest {
 
     private class QueuedDispatcher : CoroutineDispatcher() {
         private val pending = LinkedBlockingQueue<Runnable>()
+        val queuedCount: Int get() = pending.size
         override fun dispatch(context: CoroutineContext, block: Runnable) { pending.add(block) }
         fun runNext() { checkNotNull(pending.poll(5, TimeUnit.SECONDS)).run() }
         fun runIfQueued() { pending.poll()?.run() }
