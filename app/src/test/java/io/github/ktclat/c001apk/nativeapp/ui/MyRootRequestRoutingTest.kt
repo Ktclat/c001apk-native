@@ -6,6 +6,8 @@ import android.graphics.Canvas
 import android.view.View
 import java.io.File
 import androidx.activity.ComponentActivity
+import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.systemGestures
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.semantics.getOrNull
@@ -45,7 +47,11 @@ class MyRootRequestRoutingTest {
     @get:Rule val compose = createAndroidComposeRule<ComponentActivity>()
     private val myScroll = androidx.compose.foundation.ScrollState(0)
     private var unknownProfile = false
+    private var reportedInsets = Triple(0, 0, 0)
+    private var previousSystemFontScale: Float? = null
     private var verifiedProfileRequests = 0
+    private var verifiedCountsRequests = 0
+    private val countsRequests = CopyOnWriteArrayList<Request>()
     private val profileRequests = CopyOnWriteArrayList<Request>()
     private lateinit var images: io.github.ktclat.c001apk.nativeapp.feature.feed.SyntheticFeedImageLoader
     private val requests = CopyOnWriteArrayList<Request>()
@@ -93,7 +99,7 @@ class MyRootRequestRoutingTest {
             assertTrue(store.saveAuthenticated(id, "synthetic user $id", "synthetic-device-$id", listOf(cookie), store.snapshot()))
         }
         store.switchTo("1")
-        val allowed = (notices + personal).map { it.second }.toSet() + setOf("/v6/main/indexV8", "/v6/user/profile", "/v6/user/feedList")
+        val allowed = (notices + personal).map { it.second }.toSet() + setOf("/v6/main/indexV8", "/v6/user/profile", "/v6/user/feedList", "/v6/notification/checkCount")
         val client = OkHttpClient.Builder().addInterceptor { chain ->
             val request = chain.request()
             if (request.url.host !in setOf("api.coolapk.com", "api2.coolapk.com") || request.url.encodedPath !in allowed || request.method != "GET") {
@@ -101,9 +107,18 @@ class MyRootRequestRoutingTest {
                 throw IOException("Unexpected synthetic route; sockets are disabled")
             }
             val isProfile = request.url.encodedPath == "/v6/user/profile"
-            // Keep profile side-I/O independently accounted; destination assertions below stay exact.
-            if (isProfile) profileRequests += request else requests += request
+            val isCounts = request.url.encodedPath == "/v6/notification/checkCount"
+            // Independently verify both My side reads; destination assertions below stay exact.
+            if (isProfile) profileRequests += request else if (isCounts) countsRequests += request else requests += request
             var body = """{"data":[]}"""
+            if (isCounts) {
+                if (request.url.query != null || request.body != null ||
+                    listOf("1", "2").count { request.header("Cookie").orEmpty().contains("token=synthetic-account-$it") } != 1) {
+                    unexpected += "Counts account/query/body mismatch"
+                    throw IOException("Synthetic counts must use the exact authenticated GET")
+                }
+                body = """{"data":{"atme":1,"atcommentme":0,"feedlike":100,"contacts_follow":5,"message":3,"notification":4}}"""
+            }
             if (isProfile) {
                 val uid = request.url.queryParameter("uid")
                 val cookie = request.header("Cookie").orEmpty()
@@ -142,7 +157,12 @@ class MyRootRequestRoutingTest {
     }
     @After fun cleanup() {
         images.close()
+        compose.runOnUiThread {
+            androidx.core.view.ViewCompat.setOnApplyWindowInsetsListener(compose.activity.window.decorView, null)
+            previousSystemFontScale?.let(org.robolectric.RuntimeEnvironment::setFontScale)
+        }
         assertEquals("Every profile request must be verified", verifiedProfileRequests, profileRequests.size)
+        assertEquals("Every counts request must be verified", verifiedCountsRequests, countsRequests.size)
         assertTrue("No unexpected image route: ${images.unexpectedUrls}", images.unexpectedUrls.isEmpty())
         delayedFirstCollection?.countDown()
         clients.forEach { it.dispatcher.cancelAll(); it.connectionPool.evictAll(); it.dispatcher.executorService.shutdownNow() }
@@ -213,6 +233,7 @@ class MyRootRequestRoutingTest {
         }
         compose.onNode(hasText("粉丝") and hasClickAction()).assertDoesNotExist()
         assertTrue("Guest must not request an own profile", profileRequests.isEmpty())
+        assertTrue("Guest must not request unread counts", countsRequests.isEmpty())
     }
     @Test fun actualAccountToolbarSwitchChangesNextRequestScopeAndGuestModeGatesIt() {
         showMy()
@@ -279,6 +300,56 @@ class MyRootRequestRoutingTest {
         showMy(dark = true)
         assertPopulatedHeader()
         capture("native-my-populated-393-dark-synthetic.png")
+    }
+    @Test @Config(qualifiers = "w369dp-h822dp-520dpi")
+    fun unreadBadgeRowsAtReportedViewportLight() = verifyUnreadGeometry(dark = false, scale = 1f)
+    @Test @Config(qualifiers = "w369dp-h822dp-520dpi")
+    fun unreadBadgeRowsAtReportedViewportDarkTwoTimesText() = verifyUnreadGeometry(dark = true, scale = 2f)
+    private fun verifyUnreadGeometry(dark: Boolean, scale: Float) {
+        compose.runOnUiThread {
+            previousSystemFontScale = org.robolectric.RuntimeEnvironment.getFontScale()
+            org.robolectric.RuntimeEnvironment.setFontScale(scale)
+        }
+        showMy(fontScale = scale, dark = dark, widthPx = 1200, heightPx = 2670, floating = true)
+        val fixtureInsets = androidx.core.view.WindowInsetsCompat.Builder()
+            .setInsets(androidx.core.view.WindowInsetsCompat.Type.statusBars(), androidx.core.graphics.Insets.of(0, 140, 0, 0))
+            .setInsets(androidx.core.view.WindowInsetsCompat.Type.navigationBars(), androidx.core.graphics.Insets.NONE)
+            .setInsets(androidx.core.view.WindowInsetsCompat.Type.systemGestures(), androidx.core.graphics.Insets.of(0, 179, 0, 0))
+            .setInsets(androidx.core.view.WindowInsetsCompat.Type.ime(), androidx.core.graphics.Insets.NONE)
+            .setVisible(androidx.core.view.WindowInsetsCompat.Type.statusBars(), true)
+            .setVisible(androidx.core.view.WindowInsetsCompat.Type.navigationBars(), false).build()
+        compose.runOnUiThread {
+            val decor = compose.activity.window.decorView
+            androidx.core.view.ViewCompat.setOnApplyWindowInsetsListener(decor) { view, _ -> androidx.core.view.ViewCompat.onApplyWindowInsets(view, fixtureInsets) }
+            androidx.core.view.ViewCompat.dispatchApplyWindowInsets(decor, fixtureInsets)
+        }
+        compose.waitForIdle(); assertViewport(1200, 2670, 3.25f)
+        assertEquals(scale, compose.activity.resources.configuration.fontScale, .001f)
+        assertEquals(scale, compose.activity.application.resources.configuration.fontScale, .001f)
+        assertEquals("Known fixture values are separate, never summed", Triple(140, 179, 0), reportedInsets)
+        val label = if (dark) "dark-font200" else "light-font100"
+        capture("native-my-unread-$label-top-reported-insets-synthetic.png")
+        for ((index, category) in listOf("MENTIONS", "REPLIES", "LIKES", "FOLLOWERS", "MESSAGES").withIndex()) {
+            val row = compose.onNodeWithTag("my-notice-$category").performScrollTo().assertIsDisplayed()
+            val node = row.fetchSemanticsNode()
+            assertTrue(node.boundsInRoot.height >= 48f * 3.25f)
+            assertTrue("Row is clear of status bars", node.boundsInRoot.top >= 140f)
+            assertTrue("Row center is clear of top gesture area", node.boundsInRoot.center.y >= 179f)
+            val text = compose.onNodeWithText(notices[index].first, useUnmergedTree = true)
+            val layouts = mutableListOf<androidx.compose.ui.text.TextLayoutResult>()
+            text.performSemanticsAction(androidx.compose.ui.semantics.SemanticsActions.GetTextLayoutResult) { it(layouts) }
+            assertTrue(layouts.isNotEmpty()); assertTrue("Notice label must not clip", layouts.none { it.hasVisualOverflow })
+            val badge = compose.onNodeWithTag("my-notice-badge-$category", useUnmergedTree = true)
+            if (category == "REPLIES") badge.assertDoesNotExist() else {
+                val bounds = badge.assertIsDisplayed().fetchSemanticsNode().boundsInRoot
+                assertTrue(bounds.left >= text.fetchSemanticsNode().boundsInRoot.right)
+                assertTrue(bounds.right <= node.boundsInRoot.right)
+                assertTrue(bounds.top >= node.boundsInRoot.top && bounds.bottom <= node.boundsInRoot.bottom)
+            }
+            assertEquals(1, node.config[androidx.compose.ui.semantics.SemanticsProperties.Text].size)
+        }
+        capture("native-my-unread-$label-tail-reported-insets-synthetic.png")
+        verifyLastActionAboveVisibleDock("unread-$label-reported-insets")
     }
     @Test fun unknownHeaderNeverInventsCountsOrLevel() {
         unknownProfile = true
@@ -360,6 +431,10 @@ class MyRootRequestRoutingTest {
         compose.setContent {
             val state by accounts.store.state.collectAsState()
             val density = LocalDensity.current.density
+            val drawing = androidx.compose.foundation.layout.WindowInsets.safeDrawing.getTop(LocalDensity.current)
+            val gesture = androidx.compose.foundation.layout.WindowInsets.systemGestures.getTop(LocalDensity.current)
+            val bottom = androidx.compose.foundation.layout.WindowInsets.safeDrawing.getBottom(LocalDensity.current)
+            androidx.compose.runtime.SideEffect { reportedInsets = Triple(drawing, gesture, bottom) }
             CompositionLocalProvider(
                 io.github.ktclat.c001apk.nativeapp.feature.media.LocalMediaImageLoader provides images.loader,
                 LocalDensity provides Density(density, fontScale),
@@ -392,9 +467,11 @@ class MyRootRequestRoutingTest {
             throw failure
         }
         val profilesBefore = profileRequests.size
+        val countsBefore = countsRequests.size
         compose.onNode(hasText("我的") and hasClickAction()).performClick()
         compose.onNodeWithTag("my-root-list").assertExists()
         awaitOwnProfile(profilesBefore)
+        awaitCounts(countsBefore)
         compose.waitForIdle()
     }
     /** Actual Compose Android view, native graphics; never HTML or a redrawn mock screen. */
@@ -409,6 +486,27 @@ class MyRootRequestRoutingTest {
         try {
             file.outputStream().use { check(bitmap.compress(Bitmap.CompressFormat.PNG, 100, it)) }
         } finally { bitmap.recycle() }
+        fun sha(relative: String) = java.security.MessageDigest.getInstance("SHA-256")
+            .digest(File("..", relative).readBytes()).joinToString("") { "%02x".format(it.toInt() and 0xff) }
+        val metadata = kotlinx.serialization.json.buildJsonObject {
+            put("syntheticOnly", kotlinx.serialization.json.JsonPrimitive(true))
+            put("sourceCommit", kotlinx.serialization.json.JsonPrimitive(io.github.ktclat.c001apk.nativeapp.diagnostics.NativeBuildInfo.COMMIT))
+            put("sourceBranch", kotlinx.serialization.json.JsonPrimitive(io.github.ktclat.c001apk.nativeapp.diagnostics.NativeBuildInfo.BRANCH))
+            put("sourceWorktree", kotlinx.serialization.json.JsonPrimitive(io.github.ktclat.c001apk.nativeapp.diagnostics.NativeBuildInfo.WORKTREE))
+            put("sourceFingerprint", kotlinx.serialization.json.JsonPrimitive(io.github.ktclat.c001apk.nativeapp.diagnostics.NativeBuildInfo.SOURCE_FINGERPRINT))
+            put("fingerprintScope", kotlinx.serialization.json.JsonPrimitive(io.github.ktclat.c001apk.nativeapp.diagnostics.NativeBuildInfo.FINGERPRINT_SCOPE))
+            put("baselineIntegrationCommit", kotlinx.serialization.json.JsonPrimitive("fcf99a5c77345ce64e5df9876c835983cd3a40ed"))
+            put("baselineSourceTree", kotlinx.serialization.json.JsonPrimitive("12c2fe802225441d126c51a6372a73a812bab645"))
+            put("testSourceSha256", kotlinx.serialization.json.JsonPrimitive(sha("app/src/test/java/io/github/ktclat/c001apk/nativeapp/ui/MyRootRequestRoutingTest.kt")))
+            put("dashboardSourceSha256", kotlinx.serialization.json.JsonPrimitive(sha("app/src/main/java/io/github/ktclat/c001apk/nativeapp/ui/MyDashboard.kt")))
+            put("lifecycleSourceSha256", kotlinx.serialization.json.JsonPrimitive(sha("app/src/main/java/io/github/ktclat/c001apk/nativeapp/ui/OwnProfileDashboard.kt")))
+            put("statusTopPx", kotlinx.serialization.json.JsonPrimitive(reportedInsets.first))
+            put("gestureTopPx", kotlinx.serialization.json.JsonPrimitive(reportedInsets.second))
+            put("bottomPx", kotlinx.serialization.json.JsonPrimitive(reportedInsets.third))
+            put("systemFontScale", kotlinx.serialization.json.JsonPrimitive(compose.activity.resources.configuration.fontScale))
+            put("fontChoice", kotlinx.serialization.json.JsonPrimitive("NOTO_SANS"))
+        }
+        File(file.parentFile, file.nameWithoutExtension + ".json").writeText(metadata.toString())
     }
     private fun clickMy(label: String) {
         compose.onNode(hasText(label) and hasClickAction() and hasAnyAncestor(hasTestTag("my-root-list")))
@@ -416,9 +514,11 @@ class MyRootRequestRoutingTest {
     }
     private fun backToMy() {
         val profilesBefore = profileRequests.size
+        val countsBefore = countsRequests.size
         compose.runOnUiThread { compose.activity.onBackPressedDispatcher.onBackPressed() }
         compose.onNodeWithTag("my-root-list").assertExists()
         awaitOwnProfile(profilesBefore)
+        awaitCounts(countsBefore)
     }
     private fun awaitOwnProfile(before: Int) {
         assertEquals("No unaccounted profile request between root entries", verifiedProfileRequests, before)
@@ -438,6 +538,25 @@ class MyRootRequestRoutingTest {
         assertEquals(setOf("uid"), request.url.queryParameterNames)
         assertEquals(uid, request.url.queryParameter("uid"))
         verifiedProfileRequests++
+    }
+    private fun awaitCounts(before: Int) {
+        assertEquals("No unaccounted counts request between root entries", verifiedCountsRequests, before)
+        val uid = personalListAccountId(accounts.store.state.value)
+        if (uid == null) {
+            compose.waitForIdle()
+            assertEquals("Guest navigation must not request counts", before, countsRequests.size)
+            return
+        }
+        compose.waitUntil(5_000) {
+            compose.onAllNodes(hasTestTag("my-notice-MENTIONS") and SemanticsMatcher.expectValue(
+                androidx.compose.ui.semantics.SemanticsProperties.StateDescription, "1 条未读")).fetchSemanticsNodes().size == 1
+        }
+        compose.waitForIdle()
+        val request = countsRequests.drop(before).single()
+        assertAccount(request, uid)
+        assertEquals("/v6/notification/checkCount", request.url.encodedPath)
+        assertNull(request.url.query); assertNull(request.body)
+        verifiedCountsRequests++
     }
     private fun awaitRequest(path: String, after: Int) {
         compose.waitUntil(5_000) { requests.drop(after).any { it.url.encodedPath == path } }
