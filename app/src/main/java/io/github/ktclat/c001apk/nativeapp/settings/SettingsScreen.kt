@@ -62,7 +62,7 @@ enum class SettingsSection(val title: String, val description: String) {
                     } }
                     item { HorizontalDivider() }
                     item { NavigationSetting("账号管理", "已保存 $accountCount 个账号 · 切换、添加或移除", ProfileIcons.SwitchAccountOutlined) { onNavigate("accounts") } }
-                    item { NavigationSetting("关于", "原生客户端 ${BuildConfig.VERSION_NAME}", ProfileIcons.InfoOutline) { onNavigate("native-diagnostics") } }
+                    item { NavigationSetting("关于", "原生客户端 ${BuildConfig.VERSION_NAME}", ProfileIcons.InfoOutline) { onNavigate("native-about") } }
                 }
                 if (wide) VerticalDivider()
                 if (wide || selected != null) Box(Modifier.weight(1f).fillMaxHeight(), contentAlignment = Alignment.TopCenter) {
