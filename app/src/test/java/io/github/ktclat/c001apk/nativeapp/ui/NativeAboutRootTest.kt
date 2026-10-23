@@ -117,6 +117,7 @@ class NativeAboutRootTest {
         runBlocking { withTimeout(5_000) { container.local.loadStates().first { it is LocalLoadState.Ready } } }
         restorer = StateRestorationTester(compose)
         restorer.setContent {
+            val accountState by store.state.collectAsState()
             val density = LocalDensity.current
             val drawing = WindowInsets.safeDrawing.getTop(density)
             val gesture = WindowInsets.systemGestures.getTop(density)
@@ -124,7 +125,7 @@ class NativeAboutRootTest {
             SideEffect { insets = Triple(drawing, gesture, bottom) }
             MaterialTheme(colorScheme = fixedColorScheme(0, dark), typography = appTypography(FontChoice.NOTO_SANS)) {
                 NativeApp(model, container, AppSettings(dynamicColor = false, font = FontChoice.NOTO_SANS),
-                    accounts, store.state.value, initialRoute = "settings")
+                    accounts, accountState, initialRoute = "settings")
             }
         }
         injectInsets()
