@@ -283,6 +283,11 @@ fun NativeApp(model: BrowseViewModel, container: AppContainer, settings: AppSett
                         HomeCategoryTabs(tabs, homeTab, { i ->
                             if (homeTab == i) reselectEvents.tryEmit(!reduceMotion) else homeTab = i
                         }, Modifier.weight(1f))
+                        if (homeTab == 1) IconButton(
+                            onClick = { navigate(if (accountState.activeId == null) "login" else "compose") },
+                            modifier = Modifier.size(48.dp).testTag("home-publish")) {
+                            Icon(FlutterMaterialIcons.Add, "发布动态")
+                        }
                         IconButton(onClick = { searchOpen = !searchOpen }, modifier = Modifier.floatingDockRecovery(revealDock)) { Icon(FlutterMaterialIcons.Search, "搜索") }
                     }
                 }

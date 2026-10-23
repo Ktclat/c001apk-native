@@ -23,6 +23,7 @@ class GenerationEntryUiTest {
         val repository = SocialRepository(accounts) { factories.incrementAndGet(); error("Stale UI must not construct transport") }
         compose.setContent { MaterialTheme { SocialComposerScreen(repository, generation, ComposerDraft("synthetic draft")) } }
         compose.runOnIdle { accounts.switchTo("2") }
+        compose.onNodeWithText("检查并发送").performScrollTo().assertIsDisplayed().performClick()
         compose.onNodeWithText("确认发送").assertIsDisplayed().performClick()
         compose.waitForIdle()
         assertEquals(0, factories.get())

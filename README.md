@@ -26,13 +26,19 @@ Minimum Android API 26 (Android 8.0), following the updated user scope. Native p
 
 ## Current development snapshot
 
-## Reader-status polish: CI14 and scoped review passed, integration pending
+## Native image composer: CI21 passed; final documentation gate pending
+
+The bounded feed/reply image composer is published in [draft PR #6](https://github.com/Ktclat/c001apk-native/pull/6) at `9f91dfba2e29259c79ef6c734e7ec2510389d211`, tree `7b636fe646aac4dbdbefaeefc282cab92d56bc3d`, targeting the implementation branch. [CI21](https://github.com/Ktclat/c001apk-native/actions/runs/39913364972) passed ordinary debug assembly, **712 tests across 115 XML suites**, zero failures/errors/skips, and lint with **zero errors, 42 warnings and one hint**. Independent artifact review verified the source binding, debug APK/signature, fonts/licenses, real-IO/Main-UI evidence and 25 fresh composer images/metrics. This is the full ordinary workflow, not the earlier ordered focused harness. Final documentation CI and guarded implementation integration remain pending; main is unchanged.
+
+Image selection remains local until explicit confirmation. The candidate preserves ordered originals, privacy/metadata warnings, account/route ownership and uncertain-delivery safeguards. Actual effective dialog font scaling and the caller-owned CAPTCHA real-IO/Main-UI path have bounded synthetic evidence. HostedScreen/modal-backdrop differences, physical IME/device/TalkBack behavior, live upload/live 403 and full Flutter parity remain unverified. CI17's intermittent pending-reply readiness observation remains an unresolved risk, not repaired by these passing checks. See [composer validation](docs/IMAGE_COMPOSER_VALIDATION_PENDING.md) and [verification details](docs/VERIFICATION.md).
+
+## Historical reader-status validation: CI14
 
 The separate [draft PR #3](https://github.com/Ktclat/c001apk-native/pull/3) contains candidate `7ca367ecaa59a14888b0a213d1196b9a6dd4f57d`, based on implementation `7e60aee5159b187d8f11cdf23eb12864da2f6d41`. [CI #14](https://github.com/Ktclat/c001apk-native/actions/runs/39885805681) passed debug assembly, **645 tests across 106 XML suites**, zero failures/errors/skips, and lint with zero errors, 42 warnings and one hint. Independent artifact and bounded ordinary/article frame review passed. **Final docs CI and guarded integration are pending; PR #1/main merge, full parity, live403 and actual-device/TalkBack acceptance are not approved.**
 
 Successful single-segment ordinary and article readers omit redundant progress/end narration. Explicit empty, pending, parse-limit/error and image-failure states remain; multiple segments retain concise position, previous/next controls, final-segment notices and page-start behavior. Actual-root single-tail, child Back, same-model return and metadata-refresh checks passed. Parser/media/session and retention implementations are unchanged. Build80's local zero-test watchdog stop remains a separate unsuccessful validation attempt, not retroactively a local pass.
 
-## Structured article candidate: CI and scoped review passed
+## Historical structured-article validation
 
 The baseline is `a616a61ec38e5c2879cc42ce894400749c9f9f80` (Build71/CI10). The separate [draft validation PR #2](https://github.com/Ktclat/c001apk-native/pull/2) contains candidate `1d23984d81c6f40feb27db711078e5d67850cb7a`, tree `bdfea8d62697f0edebc3fe021b995c7497ec0bb8`. [CI #11](https://github.com/Ktclat/c001apk-native/actions/runs/39881207962) passed debug assembly, synthetic tests and lint. Independent review verified **640 tests across 106 XML suites**, zero failures/errors/skips, including 108 tests in nine new article classes. Lint has zero errors, 42 warnings and one hint. Source/artifact binding, APK signature, fonts/licenses and six fresh article frames received scoped review. **After final CI12 and exact review, PR #2 was merged only into the implementation branch as `7e60aee5159b187d8f11cdf23eb12864da2f6d41`; post-integration CI13 passed. This is not full feature parity, live-service or device acceptance.** PR #1 remains draft/unmerged to main; main is unchanged.
 

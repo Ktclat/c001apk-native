@@ -368,14 +368,14 @@ class NativeAppRenderingTest {
         compose.onNodeWithText("内容").performTextInput("合成草稿，没有发送")
         insets(280)
         compose.onNodeWithTag("floating-navigation").assertDoesNotExist()
-        compose.onNodeWithText("确认发送").assertIsDisplayed()
+        compose.onNodeWithText("检查并发送").assertIsDisplayed()
         capture("native-editor-ime-synthetic.png")
     }
     @Test @Config(qualifiers = "w852dp-h393dp-land-420dpi")
     fun landscapeEditorHasNoRootDock() {
         render(initialRoute = "compose")
         compose.onNodeWithTag("floating-navigation").assertDoesNotExist()
-        compose.onNodeWithText("确认发送").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithText("检查并发送").performScrollTo().assertIsDisplayed()
         capture("native-editor-landscape-synthetic.png")
     }
     @Test @Config(qualifiers = "w852dp-h393dp-land-420dpi")
@@ -383,7 +383,7 @@ class NativeAppRenderingTest {
         render(initialRoute = "compose")
         insets(180)
         compose.onNodeWithText("内容").performScrollTo().performTextInput("横屏合成草稿，不发送")
-        compose.onNodeWithText("确认发送").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithText("检查并发送").performScrollTo().assertIsDisplayed()
         compose.onNodeWithTag("floating-navigation").assertDoesNotExist()
         capture("native-editor-landscape-ime-synthetic.png")
     }
