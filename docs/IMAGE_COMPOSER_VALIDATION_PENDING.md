@@ -1,4 +1,4 @@
-# Native image composer: bounded validation, full CI pending
+# Native image composer: CI21 passed, final documentation gate pending
 
 Base: `50e7655e557e0a696a8692086e9d8582d73d599e`. This candidate adds native feed/reply image composing and related UI/lifecycle tests. It is not a declaration of full Flutter parity, live-service acceptance, or readiness to merge into main.
 
@@ -26,7 +26,7 @@ Build101's focused two CAPTCHA tests passed: replay ran on a DefaultDispatcher w
 
 ## Current gate
 
-Build102 passed the exact 171-test, 26-class ordered focused gate with zero failures, errors or skips. All 334 frozen source hashes matched; 145 fresh verification artifacts were archived. Method starts, ends and class order matched the expected inventory exactly. The real IO worker/Main callback/Main UI witnesses also passed in this ordered context. No source file changed during the run. Full ordinary remote unit tests, debug assembly and lint remain pending for the final publication tree. Focused counts are not added together or presented as the full suite. Publication remains a draft targeting the implementation branch; main remains out of scope until separate guarded acceptance.
+Build102 passed the exact 171-test, 26-class ordered focused gate with zero failures, errors or skips. All 334 frozen source hashes matched; 145 fresh verification artifacts were archived. Method starts, ends and class order matched the expected inventory exactly. The real IO worker/Main callback/Main UI witnesses also passed in this ordered context. No source file changed during the run. The published candidate `9f91dfba2e29259c79ef6c734e7ec2510389d211` (tree `7b636fe646aac4dbdbefaeefc282cab92d56bc3d`) then passed [ordinary CI21](https://github.com/Ktclat/c001apk-native/actions/runs/39913364972): 712 tests across 115 XML suites, zero failures/errors/skips, successful debug assembly, and lint with zero errors, 42 warnings and one hint. Independent artifact review verified the exact source binding, debug APK/signature, pinned fonts and bundled licenses, full-suite real-IO/Main-UI evidence, and 25 composer PNGs/metrics byte-identical to reviewed Build102. The final documentation CI and guarded implementation integration remain pending. Focused counts are not added together or presented as the full suite. Publication remains a draft targeting the implementation branch; main remains out of scope until separate guarded acceptance.
 
 ## Explicit limits and retained risks
 
