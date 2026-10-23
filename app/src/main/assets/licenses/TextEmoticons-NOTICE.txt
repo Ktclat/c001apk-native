@@ -1,0 +1,13 @@
+Text-only emoticon token catalog and grouping
+
+Derived from Ktclat/c001apk (https://github.com/Ktclat/c001apk), itself based on
+TG-Twilight/c001apk, under AGPL-3.0. The repository LICENSE remains applicable.
+Reference commit: e7db2976 (full source revision recorded in validation documentation).
+Sources: lib/utils/emoji_util.dart and lib/pages/feed/reply/emoji_panel.dart.
+Catalog SHA-256: 5943011424fadac93d12beeab76cfdd3c694f79f716f72f3034bf8ab475632eb
+Picker SHA-256: c00e3f01323385e55bb83a5a558de9a9ea4e765e601302dbd903bb41652efd10
+
+Changes: Kotlin text-only catalog; exact entries.skip(4) order and three grouping
+predicates retained. Adaptive full-token text buttons replace the image grid.
+No upstream emoji image, asset path, image rendering code, or artwork rights are
+included or claimed. This feature inserts literal text markers, not artwork.

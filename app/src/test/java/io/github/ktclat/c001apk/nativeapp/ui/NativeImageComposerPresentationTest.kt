@@ -16,6 +16,11 @@ import androidx.activity.compose.LocalActivityResultRegistryOwner
 import androidx.activity.result.ActivityResultRegistry
 import androidx.activity.result.ActivityResultRegistryOwner
 import androidx.activity.result.contract.ActivityResultContract
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.systemGestures
+import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.runtime.SideEffect
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -76,6 +81,7 @@ import java.util.concurrent.atomic.AtomicInteger
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [35], qualifiers = "w369dp-h822dp-520dpi")
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
+@OptIn(ExperimentalTestApi::class)
 class NativeImageComposerPresentationTest {
     @get:Rule val compose = createAndroidComposeRule<ComponentActivity>()
 
@@ -107,6 +113,12 @@ class NativeImageComposerPresentationTest {
     private var viewportWidth = 1200
     private var viewportHeight = 2670
     private var chosenFontScale by mutableFloatStateOf(1f)
+    private var useReportedInsets = false
+    private var rootComposeInsets = Triple(-1, -1, -1)
+    private val suppliedInsets = mutableMapOf<String, Triple<Int,Int,Int>>()
+    private val returnedInsets = mutableMapOf<String, Triple<Int,Int,Int>>()
+    private val insetDispatchEvents = mutableListOf<JsonObject>()
+    private val insetDecorViews = mutableSetOf<android.view.View>()
 
     @Before fun setup() {
         val context = compose.activity.applicationContext
@@ -204,6 +216,15 @@ class NativeImageComposerPresentationTest {
     }
 
     @After fun cleanup() {
+        compose.runOnUiThread { insetDecorViews.forEach { androidx.core.view.ViewCompat.setOnApplyWindowInsetsListener(it, null) } }
+        if (useReportedInsets) {
+            val directory = File("build/verification/text-emoticons").apply { mkdirs() }
+            File(directory, "reported-window-inset-events.json").writeText(buildJsonObject {
+                put("sourceFingerprint", io.github.ktclat.c001apk.nativeapp.diagnostics.NativeBuildInfo.SOURCE_FINGERPRINT)
+                put("windowInsetSource", "Fixed synthetic provider, not physical system measurement; raw events retained separately")
+                put("events", JsonArray(insetDispatchEvents.toList()))
+            }.toString())
+        }
         firstPutGate?.countDown()
         compose.runOnUiThread { compose.activity.viewModelStore.clear() }
         if (::imageLoader.isInitialized) imageLoader.shutdown()
@@ -319,7 +340,12 @@ class NativeImageComposerPresentationTest {
                     io.github.ktclat.c001apk.nativeapp.settings.ReadingPreset.COMFORTABLE, io.github.ktclat.c001apk.nativeapp.settings.FontChoice.NOTO_SANS)) {
                 MaterialTheme(colorScheme = io.github.ktclat.c001apk.nativeapp.settings.fixedColorScheme(0, false),
                     typography = io.github.ktclat.c001apk.nativeapp.settings.appTypography(io.github.ktclat.c001apk.nativeapp.settings.FontChoice.NOTO_SANS)) {
-                    // This presentation fixture does not change the selected account mid-route.
+                    val effective = LocalDensity.current
+                    val status = WindowInsets.statusBars.getTop(effective)
+                    val gestures = WindowInsets.systemGestures.getTop(effective)
+                    val bottom = WindowInsets.safeDrawing.getBottom(effective)
+                    SideEffect { rootComposeInsets = Triple(status, gestures, bottom) }
+                    // Most presentation fixtures do not change the selected account mid-route.
                     NativeApp(model, container, AppSettings(floatingNavigation = true, dynamicColor = false,
                         font = io.github.ktclat.c001apk.nativeapp.settings.FontChoice.NOTO_SANS, fontScale = chosenFontScale),
                         accounts, snapshot, initialRoute = route)
@@ -513,11 +539,14 @@ class NativeImageComposerPresentationTest {
         bitmap.recycle()
         val geometry = buildJsonObject {
             put("widthPx", viewportWidth); put("heightPx", viewportHeight); put("density", 3.25f); put("fontScale", chosenFontScale)
+            put("sourceFingerprint", io.github.ktclat.c001apk.nativeapp.diagnostics.NativeBuildInfo.SOURCE_FINGERPRINT)
+            put("rootComposeStatusTopPx", rootComposeInsets.first); put("rootComposeGestureTopPx", rootComposeInsets.second)
+            put("rootComposeSafeBottomPx", rootComposeInsets.third)
             put("theme", "Production fixedColorScheme(0,false), appTypography(NOTO_SANS), dynamicColor=false")
             put("scope", "Actual NativeApp HostedScreen; shared original PNG bytes; zero live I/O; not modal or device parity")
             put("rectsDp", buildJsonObject {
                 listOf("composer-surface", "composer-editor", "composer-toolbar", "composer-add-images", "composer-audience",
-                    "composer-review", "composer-images", "composer-image-1", "composer-image-2", "composer-remove-1", "composer-remove-2").forEach { tag ->
+                    "composer-open-emoticons", "composer-review", "composer-images", "composer-image-1", "composer-image-2", "composer-remove-1", "composer-remove-2").forEach { tag ->
                     if (compose.onAllNodesWithTag(tag, useUnmergedTree = true).fetchSemanticsNodes().size == 1) {
                         val r = compose.onNodeWithTag(tag, useUnmergedTree = true).getUnclippedBoundsInRoot()
                         put(tag, buildJsonArray { add(r.left.value); add(r.top.value); add((r.right - r.left).value); add((r.bottom - r.top).value) })
@@ -954,6 +983,341 @@ class NativeImageComposerPresentationTest {
         awaitVisible("same actual feed", hasTestTag("feed-detail-list"))
         compose.onNodeWithText(FEED_ORIGINAL).assertExists()
         assertStableCounts(0, 0, 0, detail = 1, replies = 1)
+    }
+
+    private fun openTextEmoticons(captureBeforeAssertions: Boolean = false) {
+        compose.onNodeWithTag("composer-open-emoticons").performScrollTo().assertIsEnabled().performClick()
+        if (!captureBeforeAssertions) {
+            compose.onNodeWithTag("composer-emoticon-dialog").assertIsDisplayed()
+            compose.onNodeWithTag("composer-emoticon-close").assertIsDisplayed()
+        }
+        assertNoWrites()
+    }
+
+    private fun insetTriple(value: androidx.core.view.WindowInsetsCompat) = Triple(
+        value.getInsets(androidx.core.view.WindowInsetsCompat.Type.statusBars()).top,
+        value.getInsets(androidx.core.view.WindowInsetsCompat.Type.systemGestures()).top,
+        value.getInsets(androidx.core.view.WindowInsetsCompat.Type.navigationBars()).bottom)
+
+    private fun reportedInsets() = androidx.core.view.WindowInsetsCompat.Builder()
+        .setInsets(androidx.core.view.WindowInsetsCompat.Type.statusBars(), androidx.core.graphics.Insets.of(0, 140, 0, 0))
+        .setInsets(androidx.core.view.WindowInsetsCompat.Type.navigationBars(), androidx.core.graphics.Insets.NONE)
+        .setInsets(androidx.core.view.WindowInsetsCompat.Type.systemGestures(), androidx.core.graphics.Insets.of(0, 179, 0, 0))
+        .setInsets(androidx.core.view.WindowInsetsCompat.Type.mandatorySystemGestures(), androidx.core.graphics.Insets.NONE)
+        .setInsets(androidx.core.view.WindowInsetsCompat.Type.tappableElement(), androidx.core.graphics.Insets.NONE)
+        .setInsets(androidx.core.view.WindowInsetsCompat.Type.ime(), androidx.core.graphics.Insets.NONE)
+        .setVisible(androidx.core.view.WindowInsetsCompat.Type.statusBars(), true)
+        .setVisible(androidx.core.view.WindowInsetsCompat.Type.navigationBars(), false)
+        .setVisible(androidx.core.view.WindowInsetsCompat.Type.ime(), false).build()
+
+    private fun injectReportedWindowInsets(window: android.view.Window = compose.activity.window, label: String = "activity") {
+        useReportedInsets = true
+        compose.runOnUiThread {
+            val decor = window.decorView
+            insetDecorViews += decor
+            androidx.core.view.ViewCompat.setOnApplyWindowInsetsListener(decor) { view, rawPlatformValue ->
+                // Model a stable synthetic window source, including automatic relayout requests.
+                // Do not confuse raw Robolectric zero events with the values supplied to production.
+                val supplied = reportedInsets()
+                suppliedInsets[label] = insetTriple(supplied)
+                androidx.core.view.ViewCompat.onApplyWindowInsets(view, supplied).also { returned ->
+                    returnedInsets[label] = insetTriple(returned)
+                    insetDispatchEvents += buildJsonObject {
+                        put("window", label); put("uptimeMs", android.os.SystemClock.uptimeMillis())
+                        put("decorWidthPx", decor.width); put("decorHeightPx", decor.height)
+                        fun tripleJson(value: Triple<Int, Int, Int>) = buildJsonArray { add(value.first); add(value.second); add(value.third) }
+                        put("rawPlatformDispatch", tripleJson(insetTriple(rawPlatformValue)))
+                        put("fixtureSuppliedToDefaultHandler", tripleJson(insetTriple(supplied)))
+                        put("defaultHandlerReturned", tripleJson(insetTriple(returned)))
+                    }
+                }
+            }
+            // No fixture padding, Dialog resizing, policy override or discarded raw zero events.
+            androidx.core.view.ViewCompat.dispatchApplyWindowInsets(decor, reportedInsets())
+        }
+        compose.waitForIdle()
+        assertEquals(Triple(140,179,0), suppliedInsets[label])
+        assertEquals(Triple(140,179,0), returnedInsets[label])
+        if (label == "activity") assertEquals(Triple(140,179,0), rootComposeInsets)
+    }
+
+    /** Source-bound native Dialog pixels + effective text engine measurements, not an Activity screenshot. */
+    private fun captureEmoticons(name: String, token: String) {
+        val button = compose.onNodeWithTag("composer-emoticon-$token")
+        val close = compose.onNodeWithTag("composer-emoticon-close")
+        if (useReportedInsets) {
+            val window = compose.runOnUiThread { requireNotNull(org.robolectric.shadows.ShadowDialog.getLatestDialog().window) }
+            injectReportedWindowInsets(window, "dialog")
+        }
+        // Insets may shrink the viewport: scroll only after its final measured bounds are applied.
+        button.performScrollTo()
+        val windowObservation = compose.runOnUiThread {
+            val decor = requireNotNull(org.robolectric.shadows.ShadowDialog.getLatestDialog().window).decorView
+            val config = decor.resources.configuration
+            val resourceDensity = decor.resources.displayMetrics.density
+            val host = compose.activity.findViewById<android.view.View>(android.R.id.content)
+            buildJsonObject {
+                val position = IntArray(2).also(decor::getLocationOnScreen)
+                put("actualDecorWidthPx", decor.width); put("actualDecorHeightPx", decor.height)
+                put("windowScreenXpx", position[0]); put("windowScreenYpx", position[1])
+                put("actualHostWidthPx", host.width); put("actualHostHeightPx", host.height)
+                put("configurationWidthDp", config.screenWidthDp); put("configurationHeightDp", config.screenHeightDp)
+                put("resourceDensity", resourceDensity)
+                put("naturalDialogMaximumWidthPx", Math.round(config.screenWidthDp * resourceDensity))
+                put("naturalDialogMaximumHeightPx", Math.round(config.screenHeightDp * resourceDensity))
+                put("naturalSizingRule", "Compose 1.7.6 DialogLayout display bound = round(resource configuration dp * resource density); content may wrap. No test resize/measure/layout of Dialog")
+                put("rootComposeStatusTopPx", rootComposeInsets.first); put("rootComposeGestureTopPx", rootComposeInsets.second)
+                put("rootComposeSafeBottomPx", rootComposeInsets.third)
+                put("fixtureSuppliedIndependentInsets", buildJsonObject { suppliedInsets.forEach { (label, value) ->
+                    put(label, buildJsonArray { add(value.first); add(value.second); add(value.third) })
+                } })
+                put("defaultDecorReturnedInsets", buildJsonObject { returnedInsets.forEach { (label, value) ->
+                    put(label, buildJsonArray { add(value.first); add(value.second); add(value.third) })
+                } })
+            }
+        }
+        val measuredDensity = textLayout(dialogText("关闭")).layoutInput.density.density
+        val dialogRoot = compose.onNode(isDialog()).fetchSemanticsNode()
+        val rootToWindowX = dialogRoot.boundsInWindow.left - dialogRoot.boundsInRoot.left
+        val rootToWindowY = dialogRoot.boundsInWindow.top - dialogRoot.boundsInRoot.top
+        val targets = listOf("close" to close, "token" to button).map { (label, node) ->
+            val full = node.getUnclippedBoundsInRoot()
+            val clipped = node.fetchSemanticsNode().boundsInRoot
+            label to floatArrayOf(full.left.value * measuredDensity + rootToWindowX, full.top.value * measuredDensity + rootToWindowY,
+                full.right.value * measuredDensity + rootToWindowX, full.bottom.value * measuredDensity + rootToWindowY, clipped.width, clipped.height)
+        }
+        val measuredTexts = listOf("表情文字", "关闭", token).map { label ->
+            label to textLayout(dialogText(label))
+        }
+        val facts = buildJsonObject {
+            put("windowObservations", windowObservation)
+            put("controlBoundsCoordinateSpace", "Actual Dialog window pixels: unclipped root dp × measured density + measured root-to-window offset")
+            put("rootToWindowXpx", rootToWindowX); put("rootToWindowYpx", rootToWindowY)
+            put("measuredBoundsDensity", measuredDensity)
+            put("fullTargetInsetPolicy", "New picker controls fully clear per-edge max(status, systemGestures), never sum. Synthetic geometry, not physical-gesture verification.")
+            put("controlBounds", buildJsonObject { targets.forEach { (label, rect) ->
+                put(label, buildJsonObject {
+                    put("fullLeftPx", rect[0]); put("fullTopPx", rect[1]); put("fullRightPx", rect[2]); put("fullBottomPx", rect[3])
+                    put("clippedWidthPx", rect[4]); put("clippedHeightPx", rect[5])
+                })
+            } })
+            put("sourceFingerprint", io.github.ktclat.c001apk.nativeapp.diagnostics.NativeBuildInfo.SOURCE_FINGERPRINT)
+            put("captureTarget", "Sole showing Dialog.window.decorView; no Activity substitution or composite")
+            put("activityWidthPx", viewportWidth); put("activityHeightPx", viewportHeight)
+            put("expectedDensity", 3.25f); put("expectedFontScale", chosenFontScale)
+            put("textLayouts", buildJsonArray {
+                measuredTexts.forEach { (label, result) ->
+                    val input = result.layoutInput
+                    val node = dialogText(label)
+                    val clippedText = node.fetchSemanticsNode().boundsInRoot
+                    val fullText = node.getUnclippedBoundsInRoot()
+                    add(buildJsonObject {
+                        put("clippedTextRootPx", buildJsonArray { add(clippedText.left); add(clippedText.top); add(clippedText.right); add(clippedText.bottom) })
+                        put("fullTextRootDp", buildJsonArray { add(fullText.left.value); add(fullText.top.value); add(fullText.right.value); add(fullText.bottom.value) })
+                        put("glyphBounds", buildJsonArray { label.indices.forEach { offset ->
+                            val glyph = result.getBoundingBox(offset)
+                            add(buildJsonObject { put("offset", offset); put("left", glyph.left); put("top", glyph.top); put("right", glyph.right); put("bottom", glyph.bottom) })
+                        } })
+                        put("text", label); put("fontSp", input.style.fontSize.value)
+                        put("density", input.density.density); put("effectiveFontScale", input.density.fontScale)
+                        put("lines", result.lineCount); put("widthPx", result.size.width); put("heightPx", result.size.height)
+                        put("overflow", result.hasVisualOverflow)
+                        put("didOverflowWidth", result.didOverflowWidth); put("didOverflowHeight", result.didOverflowHeight)
+                        put("multiParagraphWidth", result.multiParagraph.width); put("multiParagraphHeight", result.multiParagraph.height)
+                        put("didExceedMaxLines", result.multiParagraph.didExceedMaxLines)
+                        put("lineHeightSp", input.style.lineHeight.value)
+                        put("constraints", input.constraints.toString()); put("style", input.style.toString())
+                        put("maxLines", input.maxLines); put("softWrap", input.softWrap)
+                        put("lineBounds", buildJsonArray { for (line in 0 until result.lineCount) add(buildJsonObject {
+                            put("start", result.getLineStart(line)); put("end", result.getLineEnd(line))
+                            put("visibleEnd", result.getLineEnd(line, visibleEnd = true))
+                            put("left", result.getLineLeft(line)); put("right", result.getLineRight(line))
+                            put("top", result.getLineTop(line)); put("bottom", result.getLineBottom(line))
+                            put("ellipsized", result.isLineEllipsized(line))
+                        }) })
+                    })
+                }
+            })
+        }
+        saveEmoticonDialogCapture(name, facts)
+        // Persist all raw pixels and text/geometry measurements before any content assertion.
+        compose.onNodeWithTag("composer-emoticon-dialog").assertIsDisplayed()
+        button.assertIsDisplayed().assertIsEnabled().assertHeightIsAtLeast(48.dp).assertWidthIsAtLeast(48.dp)
+        close.assertIsDisplayed().assertIsEnabled().assertHeightIsAtLeast(48.dp).assertWidthIsAtLeast(48.dp)
+        measuredTexts.forEach { (label, result) ->
+            val input = result.layoutInput
+            assertEquals("Actual text density for $label", 3.25f, input.density.density, .001f)
+            assertEquals("Actual effective font scale for $label", chosenFontScale, input.density.fontScale, .001f)
+            assertEquals("Actual text must remain the full label", label, input.text.text)
+            assertTrue("Font size must be resolved", input.style.fontSize.value > 0f)
+            // The archived v4 pixels/line/glyph measurements confirm the same Compose 1.7.6
+            // semantics rebuild as measureConfirmationText: parent-width MultiParagraph plus
+            // real narrow layoutSize makes generic didOverflowWidth a false clipping witness.
+            // Keep the raw flag in diagnostics; validate every actual line, glyph and visible bound.
+            assertFalse("$label must not overflow vertically", result.didOverflowHeight)
+            assertFalse("$label must not exceed max lines", result.multiParagraph.didExceedMaxLines)
+            assertTrue("$label has at least one line", result.lineCount > 0)
+            assertEquals(0, result.getLineStart(0))
+            for (line in 0 until result.lineCount) {
+                assertFalse("Never ellipsize a token or close label", result.isLineEllipsized(line))
+                assertTrue("$label line must fit actual width", result.getLineLeft(line) >= -1f && result.getLineRight(line) <= result.size.width + 1f)
+                assertTrue("$label line must fit actual height", result.getLineTop(line) >= -1f && result.getLineBottom(line) <= result.size.height + 1f)
+                if (line > 0) assertEquals("Text coverage must be contiguous", result.getLineEnd(line - 1), result.getLineStart(line))
+            }
+            assertEquals(label.length, result.getLineEnd(result.lineCount - 1, visibleEnd = true))
+            label.indices.forEach { offset ->
+                val glyph = result.getBoundingBox(offset)
+                assertTrue("$label glyph $offset must fit actual text layout", glyph.left >= -1f && glyph.top >= -1f &&
+                    glyph.right <= result.size.width + 1f && glyph.bottom <= result.size.height + 1f)
+            }
+            val node = dialogText(label)
+            val full = node.getUnclippedBoundsInRoot()
+            val clipped = node.fetchSemanticsNode().boundsInRoot
+            assertEquals("$label must not be horizontally clipped", (full.right - full.left).value * input.density.density, clipped.width, 1f)
+            assertEquals("$label must not be vertically clipped", (full.bottom - full.top).value * input.density.density, clipped.height, 1f)
+        }
+        targets.forEach { (label, rect) ->
+            assertEquals("$label must not be horizontally clipped", rect[2] - rect[0], rect[4], 1f)
+            assertEquals("$label must not be vertically clipped", rect[3] - rect[1], rect[5], 1f)
+            assertTrue("$label complete target inside natural Dialog", rect[0] >= -1f && rect[1] >= -1f &&
+                rect[2] <= windowObservation.getValue("actualDecorWidthPx").jsonPrimitive.int + 1f &&
+                rect[3] <= windowObservation.getValue("actualDecorHeightPx").jsonPrimitive.int + 1f)
+            if (useReportedInsets) {
+                val screenY = windowObservation.getValue("windowScreenYpx").jsonPrimitive.int
+                assertTrue("$label full target must clear independent status/viewPadding top", rect[1] + screenY >= 140f)
+                assertTrue("$label pointer centre must clear separate system-gesture top", (rect[1] + rect[3]) / 2f + screenY >= 179f)
+                val observed = requireNotNull(suppliedInsets["dialog"])
+                assertTrue("$label full target must clear max(status, systemGestures) top without summing",
+                    rect[1] + screenY >= maxOf(observed.first, observed.second).toFloat())
+            }
+        }
+        assertNoWrites()
+    }
+
+    /** No scroll, forced layout, Activity substitution or image compositing. */
+    private fun saveEmoticonDialogCapture(name: String, facts: JsonObject) {
+        val bitmap = compose.runOnUiThread {
+            val shown = org.robolectric.shadows.ShadowDialog.getShownDialogs().filter { it.isShowing }.distinct()
+            check(shown.size == 1)
+            val dialog = requireNotNull(org.robolectric.shadows.ShadowDialog.getLatestDialog())
+            check(dialog === shown.single())
+            val window = requireNotNull(dialog.window)
+            check(window !== compose.activity.window && window.callback === dialog)
+            val decor = window.decorView
+            check(decor.isAttachedToWindow && decor.width > 0 && decor.height > 0)
+            android.graphics.Bitmap.createBitmap(decor.width, decor.height, android.graphics.Bitmap.Config.ARGB_8888).also {
+                decor.draw(android.graphics.Canvas(it))
+            }
+        }
+        val directory = File("build/verification/text-emoticons").apply { mkdirs() }
+        try {
+            File(directory, "$name.png").outputStream().use { check(bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, it)) }
+            File(directory, "$name.metrics.json").writeText(Json { prettyPrint = true }.encodeToString(JsonObject.serializer(), buildJsonObject {
+                facts.forEach { (key, value) -> put(key, value) }
+                put("windowInsetSource", if (useReportedInsets) "Fixed synthetic independent inset provider; not physical-system verification" else "Unmodified Robolectric platform window")
+                put("insetDispatchEvents", JsonArray(insetDispatchEvents.toList()))
+                put("actualCaptureWidthPx", bitmap.width); put("actualCaptureHeightPx", bitmap.height)
+            }))
+        } finally { bitmap.recycle() }
+    }
+
+    private fun captureEmoticonOpening(name: String) {
+        if (useReportedInsets) {
+            val window = compose.runOnUiThread { requireNotNull(org.robolectric.shadows.ShadowDialog.getLatestDialog().window) }
+            injectReportedWindowInsets(window, "dialog")
+        }
+        saveEmoticonDialogCapture("$name-open-top", buildJsonObject {
+            put("sourceFingerprint", io.github.ktclat.c001apk.nativeapp.diagnostics.NativeBuildInfo.SOURCE_FINGERPRINT)
+            put("captureTarget", "Sole showing Dialog.window.decorView before scrolling; no Activity substitution or composite")
+            put("activityWidthPx", viewportWidth); put("activityHeightPx", viewportHeight)
+            val layout = textLayout(dialogText("表情文字"))
+            put("actualTextDensity", layout.layoutInput.density.density)
+            put("actualEffectiveFontScale", layout.layoutInput.density.fontScale)
+            put("fixtureSuppliedIndependentInsets", buildJsonObject { suppliedInsets.forEach { (label, value) ->
+                put(label, buildJsonArray { add(value.first); add(value.second); add(value.third) })
+            } })
+        })
+    }
+
+    private fun verifyTextEmoticonGroups(name: String) {
+        compose.onNodeWithTag("composer-open-emoticons").performScrollTo().assertIsDisplayed()
+        capture("text-emoticons-$name-entry")
+        openTextEmoticons(captureBeforeAssertions = true)
+        captureEmoticonOpening(name)
+        listOf("[doge原谅ta]", "[牛牛问号脸]", "[新酷币100块]").forEachIndexed { index, token ->
+            compose.onNodeWithTag("composer-emoticon-group-$index").performScrollTo().performClick()
+            captureEmoticons("$name-group-$index", token)
+            compose.onNodeWithTag("composer-emoticon-$token").performClick()
+            compose.onNodeWithTag("composer-emoticon-dialog").assertIsDisplayed()
+        }
+        // Dollar tokens are literal text, not source escapes or an image request.
+        compose.onNodeWithTag("composer-emoticon-[新酷币1$]").performScrollTo().performClick()
+        compose.onNodeWithTag("composer-emoticon-close").performClick()
+        compose.onNodeWithTag("composer-editor").performScrollTo()
+            .assertTextContains("[doge原谅ta][牛牛问号脸][新酷币100块][新酷币1$]")
+        capture("text-emoticons-$name-inserted-editor")
+        compose.onNodeWithTag("composer-review").performScrollTo().assertIsDisplayed().assertIsEnabled()
+        openConfirmation()
+        dialogText("返回编辑").performClick()
+        compose.onNodeWithTag("composer-editor").performScrollTo()
+            .assertTextContains("[doge原谅ta][牛牛问号脸][新酷币100块][新酷币1$]")
+        assertNoWrites()
+    }
+
+    @Test fun textEmoticonsProductionRootUsesReportedInsetsAndAllGroupsWithoutSending() {
+        showRoot(); injectReportedWindowInsets(); verifyTextEmoticonGroups("user-1200x2670-status140-gesture179-bottom0")
+    }
+    @Test @Config(qualifiers = "w320dp-h480dp-520dpi")
+    fun textEmoticonsNarrowFont160KeepsFullLabelsCloseAndReviewReachable() {
+        showRoot(widthPx = 1040, heightPx = 1560, fontScale = 1.6f); verifyTextEmoticonGroups("narrow-font160")
+    }
+    @Test @Config(qualifiers = "w320dp-h480dp-520dpi")
+    fun textEmoticonsNarrowFont200KeepsFullLabelsCloseAndReviewReachable() {
+        showRoot(widthPx = 1040, heightPx = 1560, fontScale = 2f); verifyTextEmoticonGroups("narrow-font200")
+    }
+    @Test @Config(qualifiers = "w822dp-h369dp-land-520dpi")
+    fun textEmoticonsLandscapeFont200UsesActualDialogDensity() {
+        showRoot(widthPx = 2670, heightPx = 1200, fontScale = 2f); verifyTextEmoticonGroups("landscape-font200")
+    }
+    @Test fun textEmoticonsReplaceReverseSelectionBackKeepsDraftAndInputConnectionResumesAtCaret() {
+        showRoot(); selectImages(0)
+        val editor = compose.onNodeWithTag("composer-editor")
+        editor.performScrollTo().performTextInput("甲乙丙丁")
+        editor.performTextInputSelection(androidx.compose.ui.text.TextRange(3,1))
+        openTextEmoticons()
+        compose.onNodeWithTag("composer-emoticon-[笑哭]").performScrollTo().performClick()
+        confirmationBack() // The same native Back dispatch must dismiss only the sole current picker Dialog.
+        editor.performScrollTo().assertTextContains("甲[笑哭]丁")
+        editor.assert(SemanticsMatcher.expectValue(SemanticsProperties.TextSelectionRange, androidx.compose.ui.text.TextRange(5)))
+        editor.performSemanticsAction(SemanticsActions.RequestFocus) { it() }
+        editor.performTextInput("续")
+        editor.assertTextContains("甲[笑哭]续丁")
+        compose.onNodeWithText("添加图片（1/9）").assertExists()
+        openConfirmation(); dialogText("返回编辑").performClick()
+        editor.performScrollTo().assertTextContains("甲[笑哭]续丁")
+        compose.onNodeWithText("添加图片（1/9）").assertExists()
+        assertNoWrites()
+    }
+    @Test fun textEmoticonsCannotOpenWhileImagePickerWaitsAndCancelRestoresDraft() {
+        showRoot(); typeDraft()
+        compose.onNodeWithTag("composer-add-images").performScrollTo().performClick()
+        compose.onNodeWithTag("composer-open-emoticons").assertIsNotEnabled().performTouchInput { click() }
+        compose.onNodeWithTag("composer-emoticon-dialog").assertDoesNotExist()
+        compose.onNodeWithTag("composer-editor").assertIsNotEnabled()
+        compose.runOnIdle { picker.cancel() }
+        compose.onNodeWithTag("composer-editor").performScrollTo().assertTextContains(DRAFT).assertIsEnabled()
+        openTextEmoticons(); compose.onNodeWithTag("composer-emoticon-close").performClick()
+        assertNoWrites()
+    }
+    @Test fun textEmoticonsOldAccountDialogActionIsRejectedAtClickTime() {
+        showRoot(); typeDraft(); openTextEmoticons()
+        // This fixture intentionally retains the old root snapshot to exercise the click-time guard.
+        compose.runOnIdle { accounts.store.useGuest() }
+        compose.onNodeWithTag("composer-emoticon-[笑哭]").performScrollTo().performClick()
+        compose.onNodeWithTag("composer-emoticon-close").performClick()
+        compose.onNodeWithTag("composer-editor").performScrollTo().assertTextContains(DRAFT)
+            .assert(hasText("[笑哭]", substring = true).not())
+        assertNoWrites()
     }
 
     /** A content provider serves only files created by this fixture. No content/storage permissions are granted. */
