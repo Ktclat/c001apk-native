@@ -23,4 +23,9 @@ class MediaGridLayoutTest {
         assertEquals("https://image.coolapk.com/a@200x100.jpg.s.jpg", thumbnailUrl("https://image.coolapk.com/a@200x100.jpg"))
         assertEquals("file:///fixture.png", thumbnailUrl("file:///fixture.png"))
     }
+    @Test fun narrowGridsReduceColumnsWithoutOverflowOrChangingOrder() {
+        assertEquals(MediaGridLayout(61.5f, 61.5f, 2), mediaGridLayout(128f, 9, SourceImageSize()))
+        assertEquals(MediaGridLayout(100f, 100f, 1), mediaGridLayout(100f, 4, SourceImageSize()))
+        assertEquals(MediaGridLayout(48f, 48f, 2), mediaGridLayout(101f, 9, SourceImageSize()))
+    }
 }

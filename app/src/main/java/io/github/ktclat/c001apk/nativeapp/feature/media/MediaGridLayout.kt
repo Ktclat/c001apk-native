@@ -19,7 +19,15 @@ internal fun mediaGridLayout(maxWidth: Float, count: Int, first: SourceImageSize
         val width = when { first.ratio > 1.5f -> maxWidth; first.ratio >= 1f || 1f / first.ratio < 1.5f -> cell * 2; else -> cell }
         return MediaGridLayout(width, width * minOf(1f / first.ratio, 22f / 9f), 1)
     }
-    return MediaGridLayout(cell, cell, if (count == 4) 2 else 3)
+    val sourceColumns = if (count == 4) 2 else 3
+    // Keep the source's normal layout. Only exceptionally narrow containers reduce columns
+    // so each visible occurrence remains an independent 48dp target without horizontal overflow.
+    if (cell < 48f) {
+        val columns = ((maxWidth + 5f) / 53f).toInt().coerceIn(1, sourceColumns)
+        val adaptiveCell = ((maxWidth - (columns - 1) * 5f) / columns).coerceAtLeast(0f)
+        return MediaGridLayout(adaptiveCell, adaptiveCell, columns)
+    }
+    return MediaGridLayout(cell, cell, sourceColumns)
 }
 internal fun mediaBadge(url: String): String? = when {
     url.substringBefore('?').substringBefore('#').endsWith(".gif", ignoreCase = true) -> "GIF"
