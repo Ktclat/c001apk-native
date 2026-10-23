@@ -8,6 +8,7 @@ import java.util.Locale
 class NativeDiagnosticsTest {
     @Test fun usesMeasuredPixelsAndEffectiveDensityNotDeviceSpecifications() {
         val text = sampleDiagnostics().copyText()
+        assertTrue(text.startsWith("c001apk Native · 本地诊断\n"))
         assertTrue(text.contains("393.00 × 852.00"))
         assertTrue(text.contains("像素密度 px/dp: 3.00"))
         assertTrue(text.contains("系统字体缩放: 1.00"))

@@ -25,7 +25,7 @@ import org.robolectric.annotation.Config
 import java.io.IOException
 import java.util.concurrent.atomic.AtomicInteger
 
-/** Actual Home request -> My -> Settings -> About -> existing Copy, with only local clipboard writes. */
+/** Actual Home request -> My -> Settings -> Protocol -> Local diagnostics -> existing Copy, with only local clipboard writes. */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [35], qualifiers = "w393dp-h852dp-420dpi")
 class HomeDiagnosticsCopyRouteTest {
@@ -68,7 +68,10 @@ class HomeDiagnosticsCopyRouteTest {
         }
         compose.onNode(hasText("我的") and hasClickAction()).performClick()
         compose.onNodeWithContentDescription("设置").performClick()
-        compose.onNodeWithText("关于").performScrollTo().performClick()
+        compose.onNodeWithText("协议与设备").performScrollTo().performClick()
+        compose.onNodeWithText("本地诊断").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithText("版本、界面与脱敏首页请求摘要；仅手动复制，不含账号凭据").assertIsDisplayed()
+        compose.onNodeWithText("本地诊断").performClick()
         compose.onNodeWithTag("native-diagnostics").assertExists()
         assertEquals("unchanged before explicit Copy", clipboard.primaryClip!!.getItemAt(0).text.toString())
         assertEquals(1, calls.get())

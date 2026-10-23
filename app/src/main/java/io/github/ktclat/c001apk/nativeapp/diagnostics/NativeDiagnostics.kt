@@ -53,7 +53,7 @@ internal data class NativeDiagnostics(
     ) + listOf("首页请求观察范围" to "动态、热门、话题、数码、酷图的既有请求；tab由白名单请求路由推断，不证明当前可见页或调用入口；应用为本地列表、关注为范围外，均未观察。无记录不代表成功；transportResult不代表页面解析成功；仅保留当前账号代际最近12次，HTTP/内容类型不是403原因或修复证明。", "首页请求（本次进程，最多12条）" to (homeRequests?.takeIf { it.isNotEmpty() }?.joinToString("\n") { it.text() }
         ?: if (homeRequests == null) "unavailable" else "暂无当前账号代际的请求记录；应用页为本地列表，不产生请求"))
 
-    fun copyText(): String = "c001apk Native · 本地构建与窗口诊断\n" +
+    fun copyText(): String = "c001apk Native · 本地诊断\n" +
         entries().joinToString("\n") { (name, value) -> "$name: $value" } +
         "\n源码指纹仅覆盖白名单，不是 APK 哈希；dirty/unavailable 不代表已发布提交。\n" +
         "窗口是当前应用内容实测，不是设备屏幕规格；导航仍受根页、输入法及搜索状态约束，不代表此诊断页在执行自动隐藏。触摸探索不是滚动隐藏的总开关；减少动态效果只关闭装饰动画。"
