@@ -220,7 +220,7 @@ fun NativeApp(model: BrowseViewModel, container: AppContainer, settings: AppSett
     }
     when (route) {
         "native-updates" -> { NativeUpdateScreen(goBack, container.nativeUpdates, onOpenDiagnostics = { navigate("native-diagnostics") }); return }
-        "native-diagnostics" -> { NativeDiagnosticsScreen(settings.floatingNavigation, accessibility, goBack); return }
+        "native-diagnostics" -> { NativeDiagnosticsScreen(settings.floatingNavigation, accessibility, goBack, accounts.repository.homeDiagnostics); return }
         "app-updates" -> { InstalledAppUpdatesScreen(container.appUpdates, goBack) { navigate("app:$it") }; return }
         "accounts" -> { HostedScreen("账号", goBack) { AccountManager(accounts.store, { navigate("login") }) }; return }
         "login" -> { HostedScreen("登录", goBack) { PasswordLogin(accounts.loginCoordinator, accounts.loginTransport, goBack) }; return }

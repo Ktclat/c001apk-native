@@ -34,4 +34,13 @@ class CategorizedSettingsTest {
         compose.onNodeWithText("检查已安装应用更新").performClick()
         compose.runOnIdle { assertEquals("app-updates", route) }
     }
+    @Test fun protocolDiagnosticsEntryDescribesLocalRequestSummaryAndKeepsRoute() {
+        var route = ""
+        compose.setContent { MaterialTheme { SettingsScreen(AppSettings(), {}, {}, {}, {}, {}, onNavigate = { route = it }) } }
+        compose.onNodeWithText("协议与设备").performScrollTo().performClick()
+        compose.onNodeWithText("本地诊断").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithText("版本、界面与脱敏首页请求摘要；仅手动复制，不含账号凭据").assertIsDisplayed()
+        compose.onNodeWithText("本地诊断").performClick()
+        compose.runOnIdle { assertEquals("native-diagnostics", route) }
+    }
 }

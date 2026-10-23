@@ -19,10 +19,10 @@ import androidx.compose.ui.unit.dp
 import io.github.ktclat.c001apk.nativeapp.BuildConfig
 import io.github.ktclat.c001apk.nativeapp.ui.SystemAccessibility
 
-/** No network, storage, account access or clipboard reads. Copy is the sole explicit export action. */
+/** No network, persistent storage or clipboard reads. Reads only generation-scoped safe diagnostics; Copy is the sole explicit export action. */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-fun NativeDiagnosticsScreen(floatingNavigation: Boolean, accessibility: SystemAccessibility, onBack: () -> Unit) {
+fun NativeDiagnosticsScreen(floatingNavigation: Boolean, accessibility: SystemAccessibility, onBack: () -> Unit, homeDiagnostics: HomeRequestDiagnostics? = null) {
     val density = LocalDensity.current
     val direction = LocalLayoutDirection.current
     val configuration = LocalConfiguration.current
@@ -37,8 +37,12 @@ fun NativeDiagnosticsScreen(floatingNavigation: Boolean, accessibility: SystemAc
         WindowInsets.safeDrawing.snapshot(), WindowInsets.systemBars.snapshot(),
         WindowInsets.systemGestures.snapshot(), WindowInsets.mandatorySystemGestures.snapshot(),
         WindowInsets.ime.snapshot(), floatingNavigation, accessibility.touchExploration, accessibility.reduceMotion,
+        homeDiagnostics?.snapshot(),
     )
-    NativeDiagnosticsContent(report, onBack, { clipboard.setText(AnnotatedString(it)) }, Modifier.onSizeChanged { size = it })
+    NativeDiagnosticsContent(report, onBack, {
+        if (homeDiagnostics == null) clipboard.setText(AnnotatedString(it))
+        else homeDiagnostics.export { events -> clipboard.setText(AnnotatedString(report.copy(homeRequests = events).copyText())) }
+    }, Modifier.onSizeChanged { size = it })
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -53,7 +57,7 @@ internal fun NativeDiagnosticsContent(report: NativeDiagnostics, onBack: () -> U
         }) { padding ->
         Column(Modifier.fillMaxSize().padding(padding).consumeWindowInsets(padding).imePadding()
             .verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Text("仅在本机显示，不联网、不自动上传。只有点击复制才会写入系统剪贴板；不会包含账号、设备标识或本地路径。")
+            Text("仅在本机显示，不联网、不自动上传。只有点击复制才会写入系统剪贴板；不会包含账号、设备标识或本地路径。首页请求只保留状态与白名单类别，不含请求地址、参数或响应内容；不是403原因或修复证明。")
             if (copied) Text("已复制到系统剪贴板", Modifier.testTag("native-diagnostics-copied"))
             Text("源码指纹只覆盖白名单，不是 APK 哈希。dirty 表示源码有未提交改动；unavailable 表示无法确认，不能视为干净提交。")
             report.entries().forEach { (name, value) ->

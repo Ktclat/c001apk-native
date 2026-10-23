@@ -17,7 +17,8 @@ class AccountRuntime private constructor(val store: AccountStore, val loginTrans
             val protocol = ClientProtocol(deviceCode = stableDeviceCode, sdkInt = sdkInt, deviceProfile = deviceProfile)
             val loginTransport = HttpLoginTransport()
             val loginCoordinator = LoginCoordinator(store, loginTransport, stableDeviceCode)
-            val repository = HttpCoolapkRepository(protocol = protocol, installTimeMillis = installTimeMillis, requestSession = { store.captureRequestSession() })
+            val repository = HttpCoolapkRepository(protocol = protocol, installTimeMillis = installTimeMillis, requestSession = { store.captureRequestSession() },
+                homeDiagnostics = io.github.ktclat.c001apk.nativeapp.diagnostics.HomeRequestDiagnostics(store) { store.state.value.generation })
             val social = SocialRepository(store) { snapshot ->
                 CoolapkHttpTransport(protocol = protocol, requestSession = { store.requestSessionFor(snapshot) })
             }

@@ -112,7 +112,7 @@ enum class SettingsSection(val title: String, val description: String) {
                             SettingsSection.PROTOCOL -> {
                                 item { Text("设备标识与协议参数", style = MaterialTheme.typography.titleMedium) }
                                 item { Text("原生版当前使用独立的客户端请求与设备标识。官方设备标识导入、手动填写设备信息和协议参数编辑尚未接入；这里不会提供无效开关，也不会读取或显示登录凭据。") }
-                                item { NavigationSetting("构建与窗口诊断", "仅显示版本与界面信息，不包含账号凭据", ProfileIcons.InfoOutline) { onNavigate("native-diagnostics") } }
+                                item { NavigationSetting("本地诊断", "版本、界面与脱敏首页请求摘要；仅手动复制，不含账号凭据", ProfileIcons.InfoOutline) { onNavigate("native-diagnostics") } }
                             }
                         }
                     }

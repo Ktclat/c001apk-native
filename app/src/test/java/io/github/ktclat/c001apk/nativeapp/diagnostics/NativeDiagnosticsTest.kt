@@ -8,6 +8,7 @@ import java.util.Locale
 class NativeDiagnosticsTest {
     @Test fun usesMeasuredPixelsAndEffectiveDensityNotDeviceSpecifications() {
         val text = sampleDiagnostics().copyText()
+        assertTrue(text.startsWith("c001apk Native · 本地诊断\n"))
         assertTrue(text.contains("393.00 × 852.00"))
         assertTrue(text.contains("像素密度 px/dp: 3.00"))
         assertTrue(text.contains("系统字体缩放: 1.00"))
@@ -55,7 +56,9 @@ class NativeDiagnosticsTest {
     }
     @Test fun reportIsAnExplicitNonSensitiveAllowlist() {
         val report = sampleDiagnostics()
-        assertEquals(21, report.entries().size)
+        assertEquals(23, report.entries().size)
+        assertTrue(report.entries().any { it.first == "首页请求观察范围" && it.second.contains("无记录不代表成功") })
+        assertEquals("unavailable", report.entries().last().second)
         val fields = NativeDiagnostics::class.java.declaredFields.map { it.name.lowercase() }
         listOf("account", "device", "model", "manufacturer", "cookie", "token", "credential", "path", "email").forEach { prohibited ->
             assertFalse("Unexpected field: $prohibited", fields.any { it.contains(prohibited) })

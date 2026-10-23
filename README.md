@@ -26,11 +26,13 @@ Minimum Android API 26 (Android 8.0), following the updated user scope. Native p
 
 ## Current development snapshot
 
-## Native image composer: CI21 passed; final documentation gate pending
+## Passive Home diagnostics: CI24 passed; final documentation gate pending
 
-The bounded feed/reply image composer is published in [draft PR #6](https://github.com/Ktclat/c001apk-native/pull/6) at `9f91dfba2e29259c79ef6c734e7ec2510389d211`, tree `7b636fe646aac4dbdbefaeefc282cab92d56bc3d`, targeting the implementation branch. [CI21](https://github.com/Ktclat/c001apk-native/actions/runs/39913364972) passed ordinary debug assembly, **712 tests across 115 XML suites**, zero failures/errors/skips, and lint with **zero errors, 42 warnings and one hint**. Independent artifact review verified the source binding, debug APK/signature, fonts/licenses, real-IO/Main-UI evidence and 25 fresh composer images/metrics. This is the full ordinary workflow, not the earlier ordered focused harness. Final documentation CI and guarded implementation integration remain pending; main is unchanged.
+[Draft PR #7](https://github.com/Ktclat/c001apk-native/pull/7) at `376b65f9cb78d579cbabe643ef954c1587cc944d` adds a bounded, local-only request journal to the existing explicit diagnostics Copy action. [CI24](https://github.com/Ktclat/c001apk-native/actions/runs/39920063354) passed ordinary debug assembly, **723 tests across 118 XML suites**, zero failures/errors/skips, and lint with **zero errors, 42 warnings and one hint**. Independent source-bound artifact and five synthetic readability-frame reviews passed. Final documentation CI and guarded implementation integration remain pending; this is not a 403 fix, diagnostic APK delivery approval or main merge approval.
 
-Image selection remains local until explicit confirmation. The candidate preserves ordered originals, privacy/metadata warnings, account/route ownership and uncertain-delivery safeguards. Actual effective dialog font scaling and the caller-owned CAPTCHA real-IO/Main-UI path have bounded synthetic evidence. HostedScreen/modal-backdrop differences, physical IME/device/TalkBack behavior, live upload/live 403 and full Flutter parity remain unverified. CI17's intermittent pending-reply readiness observation remains an unresolved risk, not repaired by these passing checks. See [composer validation](docs/IMAGE_COMPOSER_VALIDATION_PENDING.md) and [verification details](docs/VERIFICATION.md).
+Composer PR #6 was separately integrated only into implementation as `95eddf65d3e9379822048b40ebefacf36e1dc493` after final CI22 review; post-integration CI23 passed. Main is unchanged. Live 403/upload, physical-device/IME/TalkBack, default composer coroutine-scope and full Flutter-parity acceptance remain open, as does CI17's intermittent reply-readiness risk.
+
+See [current verification](docs/VERIFICATION.md), [local diagnostics scope](docs/LOCAL_DIAGNOSTICS.md) and [composer validation history](docs/IMAGE_COMPOSER_VALIDATION_PENDING.md) for exact evidence and limitations.
 
 ## Historical reader-status validation: CI14
 
