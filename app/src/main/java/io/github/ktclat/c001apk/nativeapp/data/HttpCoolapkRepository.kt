@@ -83,6 +83,30 @@ class HttpCoolapkRepository(
         }
     }
 
+    /** No query/body, no acknowledgement writes. Bind UID + generation and the strict cookie revision. */
+    fun notificationCounts(uid: String, isCurrentAccount: () -> Boolean): NotificationCountsRepository = NotificationCountsRepository {
+        withContext(Dispatchers.IO) io@{
+            if (!isCurrentAccount()) throw CancellationException("Account changed")
+            if (!numeric(uid)) return@io failure(FailureKind.INVALID_ARGUMENT)
+            val captured = requestSession?.invoke() ?: return@io failure(FailureKind.AUTHENTICATION)
+            if (captured.isGuest || captured.isSessionCurrent == null) return@io failure(FailureKind.AUTHENTICATION)
+            if (!isCurrentAccount() || !captured.isCurrent() || !captured.isSessionCurrent.invoke())
+                throw CancellationException("Session changed")
+            val operation = transport.forRequestSession(captured)
+            if (!isCurrentAccount()) throw CancellationException("Account changed")
+            val result = when (val response = operation.get("v6/notification/checkCount")) {
+                is ApiResult.Failure -> response
+                is ApiResult.Success -> withContext(Dispatchers.Default) {
+                    try { ApiResult.Success(decodeNotificationCounts(response.value, uid)) }
+                    catch (e: ApiProblem) { e.failure }
+                }
+            }
+            if (!isCurrentAccount() || !captured.isCurrent() || !operation.isRequestScopeCurrent())
+                throw CancellationException("Session changed")
+            result
+        }
+    }
+
     override suspend fun following(type: FollowType, cursor: PageCursor) = page(type.route, type.title, cursor)
     override suspend fun home(cursor: PageCursor) = list("v6/main/indexV8", cursor, mapOf("firstLaunch" to "1", "installTime" to "$installTimeMillis", "ids" to ""), api2 = true)
     override suspend fun feedDetail(id: String): ApiResult<ContentItem> = withContext(Dispatchers.IO) {

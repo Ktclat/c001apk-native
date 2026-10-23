@@ -20,6 +20,10 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.text.font.FontWeight
 import io.github.ktclat.c001apk.nativeapp.account.AccountState
 import io.github.ktclat.c001apk.nativeapp.domain.OwnProfile
+import io.github.ktclat.c001apk.nativeapp.domain.NotificationCounts
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import io.github.ktclat.c001apk.nativeapp.feature.media.LocalMediaImageLoader
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
@@ -36,11 +40,14 @@ enum class MyPersonalList { FEED, FOLLOW, FAN, RECENT, COLLECTION, LIKE, REPLY }
 fun MyDashboard(accountState: AccountState, scrollState: ScrollState, bottomPadding: Dp,
     onNavigate: (String) -> Unit, onPersonalList: ((MyPersonalList) -> Unit)? = null,
     profile: OwnProfile? = null, profileStatus: String? = null,
-    onRefreshProfile: (() -> Unit)? = null, profileLoading: Boolean = false) {
+    onRefreshProfile: (() -> Unit)? = null, profileLoading: Boolean = false,
+    counts: NotificationCounts? = null, countsStatus: String? = null,
+    onRetryCounts: (() -> Unit)? = null, countsLoading: Boolean = false) {
     val active = accountState.accounts.firstOrNull { it.id == accountState.activeId }
     var unavailable by remember(accountState.activeId, accountState.generation) { mutableStateOf<String?>(null) }
     val loggedIn = personalListAccountId(accountState) != null
     val ownProfile = profile?.takeIf { loggedIn && it.uid == active?.id }
+    val ownCounts = counts?.takeIf { loggedIn && it.uid == active?.id }
     val protectedAction: (String) -> Unit = { route -> onNavigate(if (loggedIn) route else "login") }
     val personal: (MyPersonalList, String) -> Unit = { kind, label ->
         if (!loggedIn) onNavigate("login") else if (onPersonalList != null) onPersonalList(kind) else unavailable = label
@@ -118,11 +125,17 @@ fun MyDashboard(accountState: AccountState, scrollState: ScrollState, bottomPadd
                     }
                 }
             }
-            MyNotice("@我的动态", ProfileIcons.AlternateEmail, Color(0xFF2196F3)) { protectedAction("notifications:MENTIONS") }
-            MyNotice("@我的评论", ProfileIcons.MessageOutlined, Color(0xFF00BCD4)) { protectedAction("notifications:REPLIES") }
-            MyNotice("我收到的赞", ProfileIcons.ThumbUpAltOutlined, Color(0xFF4CAF50)) { protectedAction("notifications:LIKES") }
-            MyNotice("好友关注", ProfileIcons.PersonAddOutlined, Color(0xFFF44336)) { protectedAction("notifications:FOLLOWERS") }
-            MyNotice("私信与信息", ProfileIcons.MailOutline, Color(0xFFFF9800)) { protectedAction("notifications:MESSAGES") }
+            if (loggedIn && countsStatus != null) Surface(shape = RoundedCornerShape(12.dp), color = MaterialTheme.colorScheme.surfaceContainerLow) {
+                Column(Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
+                    Text(countsStatus, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    if (onRetryCounts != null) TextButton(onClick = onRetryCounts, enabled = !countsLoading) { Text("重试未读数量") }
+                }
+            }
+            MyNotice("@我的动态", "MENTIONS", ProfileIcons.AlternateEmail, Color(0xFF2196F3), ownCounts?.atMe, loggedIn) { protectedAction("notifications:MENTIONS") }
+            MyNotice("@我的评论", "REPLIES", ProfileIcons.MessageOutlined, Color(0xFF00BCD4), ownCounts?.atCommentMe, loggedIn) { protectedAction("notifications:REPLIES") }
+            MyNotice("我收到的赞", "LIKES", ProfileIcons.ThumbUpAltOutlined, Color(0xFF4CAF50), ownCounts?.feedLike, loggedIn) { protectedAction("notifications:LIKES") }
+            MyNotice("好友关注", "FOLLOWERS", ProfileIcons.PersonAddOutlined, Color(0xFFF44336), ownCounts?.contactsFollow, loggedIn) { protectedAction("notifications:FOLLOWERS") }
+            MyNotice("私信与信息", "MESSAGES", ProfileIcons.MailOutline, Color(0xFFFF9800), ownCounts?.messagesAndNotifications, loggedIn) { protectedAction("notifications:MESSAGES") }
         }
     }
 }
@@ -133,11 +146,24 @@ fun MyDashboard(accountState: AccountState, scrollState: ScrollState, bottomPadd
         if (status != null) Text(status, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
     }
 }
-@Composable private fun MyNotice(label: String, icon: ImageVector, color: Color, onClick: () -> Unit) {
+@Composable private fun MyNotice(label: String, category: String, icon: ImageVector, color: Color, count: Long?, loggedIn: Boolean, onClick: () -> Unit) {
     Surface(shape = RoundedCornerShape(12.dp), color = MaterialTheme.colorScheme.surfaceContainerLow) {
-        Row(Modifier.fillMaxWidth().heightIn(min = 60.dp).clickable(onClick = onClick).padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
+        Row(Modifier.fillMaxWidth().heightIn(min = 60.dp).testTag("my-notice-$category").clickable(onClick = onClick).semantics {
+            if (loggedIn) stateDescription = when {
+                count == null -> "未读数量未知"
+                count == 0L -> "无未读消息"
+                else -> "$count 条未读"
+            }
+        }.padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
             Surface(shape = CircleShape, color = color, modifier = Modifier.size(40.dp)) { Box(contentAlignment = Alignment.Center) { Icon(icon, null, tint = Color.White) } }
             Text(label, Modifier.weight(1f).padding(horizontal = 10.dp), style = MaterialTheme.typography.bodyLarge)
+            if (count != null && count > 0) Surface(shape = CircleShape, color = MaterialTheme.colorScheme.error,
+                contentColor = MaterialTheme.colorScheme.onError,
+                modifier = Modifier.testTag("my-notice-badge-$category").clearAndSetSemantics {}) {
+                Box(Modifier.defaultMinSize(minWidth = 24.dp, minHeight = 24.dp).padding(horizontal = 6.dp, vertical = 2.dp), contentAlignment = Alignment.Center) {
+                    Text(notificationBadgeText(count)!!, style = MaterialTheme.typography.labelSmall, maxLines = 1)
+                }
+            }
             Icon(ProfileIcons.KeyboardArrowRightOutlined, null, tint = MaterialTheme.colorScheme.outline)
         }
     }
@@ -150,4 +176,11 @@ fun MyDashboard(accountState: AccountState, scrollState: ScrollState, bottomPadd
             textAlign = androidx.compose.ui.text.style.TextAlign.Center)
         Text(label, style = MaterialTheme.typography.bodyMedium, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
     }
+}
+
+/** Compact native presentation; exact counts remain on the single row semantics node. */
+internal fun notificationBadgeText(count: Long?): String? = when {
+    count == null || count <= 0 -> null
+    count > 99 -> "99+"
+    else -> count.toString()
 }
