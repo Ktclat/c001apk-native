@@ -121,7 +121,7 @@ class FullPostNativeAppTest {
                     val message = if (request.header("Cookie").orEmpty().contains("token=synthetic-reader-2")) "FRESH_ACCOUNT_TWO" else fullMessage
                     val detail = feed(request.url.queryParameter("id")!!, if (structuredArticle) "article preview" else message)
                     val fields = detail.toMutableMap()
-                    if (structuredArticle) fields["message_raw_output"] = JsonPrimitive("[{\"type\":\"text\",\"text\":\"STRUCTURED_NOT_RENDERED\"}]")
+                    if (structuredArticle) fields["message_raw_output"] = JsonPrimitive("[{\"type\":\"video\",\"message\":\"STRUCTURED_NOT_RENDERED\"}]")
                     if (number == 1) oldResponseReturned.countDown()
                     buildJsonObject { put("data", JsonObject(fields)) }.toString()
                 }
@@ -257,7 +257,7 @@ class FullPostNativeAppTest {
         structuredArticle = true
         show("feed:42")
         awaitTag("full-post-limit")
-        compose.onNodeWithTag("full-post-limit").assertTextEquals(fullPostLimitMessage(FullPostBodyLimit.STRUCTURED_ARTICLE))
+        compose.onNodeWithTag("full-post-limit").assertTextEquals(fullPostLimitMessage(FullPostBodyLimit.UNSUPPORTED_ARTICLE))
         compose.onAllNodesWithText("STRUCTURED_NOT_RENDERED", substring = true).assertCountEquals(0)
         compose.onNodeWithTag("full-post-progress").assertDoesNotExist()
         compose.onNodeWithText("浏览器打开原文").performScrollTo().assertIsDisplayed()

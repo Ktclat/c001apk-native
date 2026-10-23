@@ -19,6 +19,9 @@ import io.github.ktclat.c001apk.nativeapp.domain.*
 import io.github.ktclat.c001apk.nativeapp.settings.LocalReadingStyles
 
 internal fun fullPostLimitMessage(limit: FullPostBodyLimit, receivedUnits: Int? = null): String = when (limit) {
+    FullPostBodyLimit.MALFORMED_ARTICLE -> "结构化正文格式异常，未将摘要作为完整文章展示。"
+    FullPostBodyLimit.UNSUPPORTED_ARTICLE -> "结构化正文含未知或尚未支持的内容块，未跳过内容后宣称完整。"
+    FullPostBodyLimit.ARTICLE_COMPLEXITY -> "结构化正文超过安全排版上限，未展示不完整文章。"
     FullPostBodyLimit.PARSING_ERROR -> "正文排版失败，尚未展示完整正文；可重新排版或用浏览器打开原文。"
     FullPostBodyLimit.BODY_TOO_LARGE -> "正文超过原生阅读的 262144 个 UTF-16 文本单位上限${receivedUnits?.let { "（收到 $it）" }.orEmpty()}，未载入完整正文。"
     FullPostBodyLimit.MISSING_MESSAGE -> "接口未提供可确认的正文，不能把摘要当作完整正文。"
@@ -64,6 +67,7 @@ internal fun fullPostLimitMessage(limit: FullPostBodyLimit, receivedUnits: Int? 
                 if (value.limit == FullPostBodyLimit.PARSING_ERROR) TextButton(onClick = { if (retained != null) retained.retry() else attempt++ }) { Text("重新排版正文") }
                 openOriginal?.let { TextButton(onClick = it) { Text("浏览器打开原文") } }
             }
+            is PreparedFullPost.Article -> ArticleText(value, retained?.bodyDigest ?: value, pageState, openLink, openOriginal)
             is PreparedFullPost.Ready -> {
                 val current = page.coerceIn(value.pages.indices)
                 val visible = value.pages[current]

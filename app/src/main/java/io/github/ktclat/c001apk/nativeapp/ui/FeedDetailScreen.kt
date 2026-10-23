@@ -59,7 +59,7 @@ import kotlinx.coroutines.launch
         }
         return
     }
-    val ready = prepared?.prepared as? PreparedFullPost.Ready
+    val ready = prepared?.prepared?.takeIf { it.readyPageCount() != null }
     val identity = if (ready != null) ReaderIdentity(owner, id, requireNotNull(prepared?.bodyDigest)) else null
     val bookmark = remember(identity, model.readerPositions.revision) { identity?.let(model.readerPositions::prepare) }
     SideEffect {
@@ -70,7 +70,7 @@ import kotlinx.coroutines.launch
     val replyItems = visibleReplies.distinctBy { "${it.kind}:${it.id}" }
     val restored = remember(bookmark, identity) {
         if (bookmark == null || ready == null) ReaderPosition()
-        else restoredReaderPosition(bookmark.position, ready.pages.size, replyKey) { rowKey ->
+        else restoredReaderPosition(bookmark.position, requireNotNull(ready.readyPageCount()), replyKey, ready.readerPageLimit()) { rowKey ->
             // An old integer index may name a different reply after sorting, refresh or eviction.
             if (!replies.loaded || replies.loading || replies.error != null) null
             else replyItems.indexOfFirst { "reply:${it.kind}:${it.id}" == rowKey }
@@ -89,7 +89,7 @@ import kotlinx.coroutines.launch
                 first?.key as? String, currentReplyKey, currentOrder, currentAuthorOnly))
         }
     }
-    val binding = if (body != null && prepared != null) DetailReaderBinding(body, prepared.prepared, page) { attempt++ } else null
+    val binding = if (body != null && prepared != null) DetailReaderBinding(body, prepared.prepared, page, prepared.bodyDigest) { attempt++ } else null
     CompositionLocalProvider(LocalDetailReaderBinding provides binding) {
         LazyColumn(Modifier.fillMaxSize().testTag("feed-detail-list"), state = list,
             contentPadding = PaddingValues(bottom = 24.dp)) {

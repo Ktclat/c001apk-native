@@ -7,6 +7,8 @@ import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.serialization.json.*
 import okhttp3.*
 import okhttp3.HttpUrl.Companion.toHttpUrl
@@ -89,7 +91,8 @@ class HttpCoolapkRepository(
         val result = when (val response = operation.get("v6/feed/detail", mapOf("id" to id))) {
             is ApiResult.Failure -> response
             is ApiResult.Success -> withContext(Dispatchers.Default) {
-                try { ApiResult.Success(ApiDecoder.feedDetail(response.value)) }
+                val context = currentCoroutineContext()
+                try { ApiResult.Success(ApiDecoder.feedDetail(response.value) { context.ensureActive() }) }
                 catch (e: ApiProblem) { e.failure }
             }
         }

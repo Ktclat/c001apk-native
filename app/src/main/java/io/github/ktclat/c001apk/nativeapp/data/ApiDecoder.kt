@@ -52,24 +52,10 @@ internal object ApiDecoder {
     private class Budget(var remaining: Int = 500)
     fun item(value: JsonElement): ContentItem = decodeItem(value, 0, Budget())
     /** Same endpoint and ContentItem metadata contract; retain the actual detail message separately. */
-    fun feedDetail(value: JsonElement): ContentItem {
+    fun feedDetail(value: JsonElement, checkActive: () -> Unit = {}): ContentItem {
         val obj = value as? JsonObject ?: invalid()
         val preview = item(value)
-        val structured = obj["message_raw_output"]
-        val hasArticle = when (structured) {
-            null, JsonNull -> false
-            is JsonPrimitive -> !structured.contentOrNull.isNullOrBlank() && structured.contentOrNull != "null"
-            else -> true
-        }
-        val message = (obj["message"] as? JsonPrimitive)?.takeIf { it.isString }?.contentOrNull
-        val full = when {
-            hasArticle -> FullPostBody.Unavailable(FullPostBodyLimit.STRUCTURED_ARTICLE)
-            message == null -> FullPostBody.Unavailable(FullPostBodyLimit.MISSING_MESSAGE)
-            message.length > FullPostBodyBounds.MAX_HTML_UNITS ->
-                FullPostBody.Unavailable(FullPostBodyLimit.BODY_TOO_LARGE, message.length)
-            else -> FullPostBody.Available(message)
-        }
-        return preview.copy(fullPostBody = full)
+        return preview.copy(fullPostBody = decodeDetailBody(obj, checkActive))
     }
     fun items(values: JsonArray): List<ContentItem> {
         val budget = Budget()

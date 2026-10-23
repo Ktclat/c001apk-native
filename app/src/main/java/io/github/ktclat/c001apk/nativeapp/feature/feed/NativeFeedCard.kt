@@ -55,6 +55,7 @@ data class FeedCardActions(
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun NativeFeedCard(model: FeedCardModel, actions: FeedCardActions, modifier: Modifier = Modifier, detail: Boolean = false) {
+    val article = detail && model.fullPostBody is io.github.ktclat.c001apk.nativeapp.domain.FullPostBody.Structured
     val palette = MaterialTheme.colorScheme
     var menu by remember(model.id) { mutableStateOf(false) }
     val hasMenu = actions.favorite != null || actions.copy != null || actions.block != null || actions.report != null
@@ -100,7 +101,7 @@ fun NativeFeedCard(model: FeedCardModel, actions: FeedCardActions, modifier: Mod
                 }
             }
             Column(Modifier.fillMaxWidth().then(if (!detail) Modifier.clickable(onClickLabel = "查看动态详情", onClick = actions.openPost) else Modifier).testTag("feed-body:${model.id}")) {
-                if (model.title.isNotBlank()) { Spacer(Modifier.height(5.dp)); Text(model.title.take(600), style = LocalReadingStyles.current.title) }
+                if (!article && model.title.isNotBlank()) { Spacer(Modifier.height(5.dp)); Text(model.title.take(600), style = LocalReadingStyles.current.title) }
                 if (detail && model.fullPostBody != null) {
                     Spacer(Modifier.height(5.dp))
                     key(model.id) { FullPostText(model.fullPostBody, model.body, actions.openLink, actions.openOriginal) }
@@ -109,9 +110,9 @@ fun NativeFeedCard(model: FeedCardModel, actions: FeedCardActions, modifier: Mod
                     if (model.bodyTruncated && !detail) TextButton(onClick = actions.openPost) { Text("加载详情正文") }
                 }
             }
-            if (model.images.isNotEmpty()) { Spacer(Modifier.height(10.dp)); MediaGrid(model.images) }
-            model.forward?.let { Spacer(Modifier.height(10.dp)); ReferenceSurface(it, false, actions) }
-            model.link?.let { link ->
+            if (!article && model.images.isNotEmpty()) { Spacer(Modifier.height(10.dp)); MediaGrid(model.images) }
+            if (!article) model.forward?.let { Spacer(Modifier.height(10.dp)); ReferenceSurface(it, false, actions) }
+            if (!article) model.link?.let { link ->
                 Spacer(Modifier.height(10.dp))
                 Surface(shape = RoundedCornerShape(12.dp), color = palette.surface) {
                     Row(Modifier.fillMaxWidth().heightIn(min = 48.dp).clickable(onClickLabel = "打开${link.title}") { actions.openLink(link.url) }.padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -123,7 +124,7 @@ fun NativeFeedCard(model: FeedCardModel, actions: FeedCardActions, modifier: Mod
                     }
                 }
             }
-            model.hotReply?.let { Spacer(Modifier.height(10.dp)); ReferenceSurface(it, true, actions) }
+            if (!article) model.hotReply?.let { Spacer(Modifier.height(10.dp)); ReferenceSurface(it, true, actions) }
             if (model.unsupportedChildren > 0) {
                 if (detail) Text("另有${model.unsupportedChildren}项嵌套内容尚未支持原生展示", fontSize = 13.sp, color = palette.onSurfaceVariant)
                 else TextButton(onClick = actions.openPost) { Text("查看嵌套内容（${model.unsupportedChildren}）", fontSize = 13.sp) }

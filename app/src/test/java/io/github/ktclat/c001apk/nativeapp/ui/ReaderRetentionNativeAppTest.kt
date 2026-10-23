@@ -116,7 +116,7 @@ class ReaderRetentionNativeAppTest {
         put("id", id); put("entityType", "feed"); put("uid", "9")
         put("username", "Synthetic retention fixture"); put("message", response.html)
         put("replynum", 0); put("likenum", response.likes)
-        if (response.structured) put("message_raw_output", "[{\"type\":\"text\",\"text\":\"STRUCTURED_NOT_RENDERED\"}]")
+        if (response.structured) put("message_raw_output", "[{\"type\":\"video\",\"message\":\"STRUCTURED_NOT_RENDERED\"}]")
     }
 
     @Before fun setup() {
