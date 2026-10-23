@@ -91,6 +91,9 @@ internal object ApiDecoder {
             likeCount = obj.count("likenum") ?: 0,
             targetUrl = obj.text("url").takeIf { it.isNotBlank() },
             children = children,
+            childrenIncomplete = obj["entities"]?.let { raw ->
+                raw !is JsonArray || raw.size > 100 || raw.any { it !is JsonObject } || (depth >= 3 && raw.isNotEmpty())
+            } ?: false,
             tabs = (obj["tabList"] as? JsonArray).orEmpty().take(50).filterIsInstance<JsonObject>().mapNotNull {
                 val url = it.text("url")
                 if (url.isEmpty()) null else ContentTab(it.text("title"), url)
