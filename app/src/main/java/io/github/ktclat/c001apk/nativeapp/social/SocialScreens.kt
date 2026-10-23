@@ -21,7 +21,7 @@ import io.github.ktclat.c001apk.nativeapp.domain.*
 import kotlinx.coroutines.launch
 
 @Composable
-fun MutationStatus(state: DeliveryState, runner: MutationRunner? = null, onCorrect: () -> Unit = {}) {
+fun MutationStatus(state: DeliveryState, runner: MutationRunner? = null, onChallengeRetry: ((PendingCaptcha) -> Unit)? = null, onCorrect: () -> Unit = {}) {
     val retryScope = rememberCoroutineScope()
     if (state == DeliveryState.Ready) return
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -34,7 +34,10 @@ fun MutationStatus(state: DeliveryState, runner: MutationRunner? = null, onCorre
             is WriteOutcome.Rejected -> {
                 Text(result.message, color = MaterialTheme.colorScheme.error)
                 if (result.kind == FailureKind.CAPTCHA) {
-                    if (result.continuation != null && runner != null) CaptchaContinuationUi(result.continuation, runner) { retryScope.launch { runner.resumeChallenge(result.continuation) } }
+                    if (result.continuation != null && runner != null) CaptchaContinuationUi(result.continuation, runner) {
+                        if (onChallengeRetry != null) onChallengeRetry(result.continuation)
+                        else retryScope.launch { runner.resumeChallenge(result.continuation) }
+                    }
                     else {
                         Text("验证码挑战无法继续或已使用，本次不会自动重发")
                         if (runner != null) TextButton(onClick = { runner.abandonRejected() }) { Text("返回编辑") }
@@ -50,25 +53,7 @@ fun MutationStatus(state: DeliveryState, runner: MutationRunner? = null, onCorre
 /** Route owner must key this screen by account generation to discard another account's draft. */
 @Composable
 fun SocialComposerScreen(repository: SocialRepository, generation: Long, initial: ComposerDraft = ComposerDraft(""), showTitle: Boolean = true, onSent: () -> Unit = {}) {
-    key(generation, initial.replyId, initial.targetId, initial.targetType, initial.replyToReply) {
-        var text by remember { mutableStateOf(initial.text) }
-        var option by remember { mutableStateOf(if (initial.replyId == null) initial.selfOnly else initial.replyAndForward) }
-        val runner = remember { MutationRunner() }
-        val state by runner.state.collectAsState()
-        val scope = rememberCoroutineScope()
-        Column(Modifier.fillMaxSize().imePadding().verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            if (showTitle) Text(if (initial.replyId == null) "发布动态" else "回复", style = MaterialTheme.typography.headlineSmall)
-            OutlinedTextField(value = text, onValueChange = { text = it }, label = { Text("内容") },
-                modifier = Modifier.fillMaxWidth().heightIn(min = 160.dp, max = 320.dp), enabled = state == DeliveryState.Ready)
-            Row { Checkbox(checked = option, onCheckedChange = { option = it }, enabled = state == DeliveryState.Ready)
-                Text(if (initial.replyId == null) "仅自己可见" else "回复并转发", modifier = Modifier.padding(top = 12.dp)) }
-            Text("图片上传尚未接入；当前支持文字和系统键盘表情", style = MaterialTheme.typography.bodySmall)
-            MutationStatus(state, runner) { runner.allowCorrection() }
-            Button(enabled = text.isNotBlank() && state == DeliveryState.Ready, onClick = {
-                scope.launch { runner.submit(isCurrent = { repository.isCurrentGeneration(generation) }, onConfirmed = onSent) { repository.publish(initial.copy(text = text, selfOnly = option, replyAndForward = option), expectedGeneration = generation) } }
-            }, modifier = Modifier.fillMaxWidth()) { Text("确认发送") }
-        }
-    }
+    FeedComposerUi(repository, generation, initial, showTitle, onSent)
 }
 
 @Composable

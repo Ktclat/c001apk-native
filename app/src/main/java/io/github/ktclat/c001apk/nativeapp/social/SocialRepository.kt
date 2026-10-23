@@ -11,8 +11,11 @@ import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.*
 
 /** A transport is bound to one immutable account snapshot, never a mutable global cookie jar. */
-class SocialRepository(private val accounts: AccountStore,
-    private val transportFor: (SessionSnapshot) -> CoolapkHttpTransport) {
+class SocialRepository internal constructor(private val accounts: AccountStore,
+    private val transportFor: (SessionSnapshot) -> CoolapkHttpTransport,
+    private val defaultImageUploader: OssImageUploader) {
+    constructor(accounts: AccountStore, transportFor: (SessionSnapshot) -> CoolapkHttpTransport) :
+        this(accounts, transportFor, OssImageUploader())
     private val notificationOwner = Any()
     /** UI intent guard; write entry still verifies the captured generation again on IO. */
     internal fun isCurrentGeneration(generation: Long) = accounts.state.value.generation == generation
@@ -70,20 +73,64 @@ class SocialRepository(private val accounts: AccountStore,
             FollowTarget.PRODUCT -> transport.post("v6/product/changeFollowStatus", mapOf("id" to id, "status" to if (followed) "1" else "0"), multipart = true)
         } }
     }
-    suspend fun publish(draft: ComposerDraft, expectedGeneration: Long? = null): WriteOutcome {
-        if (draft.text.isBlank() || (draft.replyId != null && !validId(draft.replyId))) return badArgument()
-        if (draft.targetType != null && draft.targetType !in setOf("apk", "product", "topic")) return badArgument()
-        if (draft.targetType != null && draft.targetId.isNullOrBlank()) return badArgument()
+    suspend fun publish(draft: ComposerDraft, images: List<SelectedImage> = emptyList(),
+        uploader: OssImageUploader = defaultImageUploader, expectedGeneration: Long? = null): WriteOutcome = withContext(Dispatchers.IO) {
+        val frozenImages = images.toList()
+        if (!withinComposerTextLimit(draft.text) || draft.text.isBlank() || (draft.replyId != null && !validId(draft.replyId))) return@withContext badArgument()
+        if (draft.targetType != null && draft.targetType !in setOf("apk", "product", "topic")) return@withContext badArgument()
+        if (draft.targetType != null && draft.targetId.isNullOrBlank()) return@withContext badArgument()
+        if (frozenImages.isEmpty()) return@withContext write(requireRecord = true, expectedGeneration = expectedGeneration, action = publicationAction(draft))
+        if (!validImageBatch(frozenImages)) return@withContext WriteOutcome.Rejected(FailureKind.INVALID_ARGUMENT, "最多9张图片，单张20MB，总计60MB")
+        val snapshot = accounts.snapshot()
+        if (snapshot.accountId == null) return@withContext WriteOutcome.Rejected(FailureKind.AUTHENTICATION, "请先登录后操作")
+        if (expectedGeneration != null && snapshot.generation != expectedGeneration)
+            return@withContext WriteOutcome.Rejected(FailureKind.AUTHENTICATION, "账号状态已变化，图片尚未上传或发布")
+        if (!verifyImageBatch(frozenImages)) return@withContext WriteOutcome.Rejected(FailureKind.INVALID_ARGUMENT, "附件已失效或内容已变化，尚未上传或发布；请移除后重新选择")
+        val transport = transportFor(snapshot).forSingleOperation()
+        val form = feedPrepareForm(frozenImages)
+        when (val prepared = transport.post("v6/upload/ossUploadPrepare", form, multipart = true)) {
+            is ApiResult.Success -> uploadFeedAndPublish(snapshot, transport, draft, frozenImages, uploader, prepared.value, true)
+            is ApiResult.Failure -> challengeOutcome(snapshot, transport, prepared) retry@{ verifiedTransport ->
+                if (!verifyImageBatch(frozenImages)) return@retry WriteOutcome.Rejected(FailureKind.INVALID_ARGUMENT, "附件已失效；尚未上传或发布，请重新选择")
+                when (val retried = verifiedTransport.post("v6/upload/ossUploadPrepare", form, multipart = true)) {
+                    is ApiResult.Failure -> retried.writeOutcome()
+                    is ApiResult.Success -> uploadFeedAndPublish(snapshot, transport, draft, frozenImages, uploader, retried.value, false)
+                }
+            }
+        }
+    }
+    private fun publicationAction(draft: ComposerDraft, pictures: List<String> = emptyList(), images: List<SelectedImage> = emptyList()): suspend (CoolapkHttpTransport) -> ApiResult<JsonElement> {
+        // Freeze privacy and ordered attachment URLs together, before any challenge can be displayed.
         val form = buildMap {
             put("message", draft.text)
+            if (pictures.isNotEmpty()) put("pic", pictures.joinToString(","))
             if (draft.replyId == null) {
                 put("type", if (draft.targetType == "apk") "comment" else "feed")
                 put("status", "1"); put("publish_status", if (draft.selfOnly) "1" else "0")
                 draft.targetType?.let { put("targetType", it) }; draft.targetId?.let { put("targetId", it) }
             } else put("replyAndForward", if (draft.replyAndForward) "1" else "0")
         }
-        return write(requireRecord = true, expectedGeneration = expectedGeneration) { if (draft.replyId == null) it.post("v6/feed/createFeed", form)
-            else it.post("v6/feed/reply", form, query = mapOf("id" to draft.replyId, "type" to if (draft.replyToReply) "reply" else "feed")) }
+        return action@{ transport ->
+            if (images.isNotEmpty() && !verifyImageBatch(images)) return@action ApiResult.Failure(FailureKind.INVALID_ARGUMENT, "附件已失效或内容已变化；未发布，不会降级为无图发送")
+            if (draft.replyId == null) transport.post("v6/feed/createFeed", form)
+            else transport.post("v6/feed/reply", form, query = mapOf("id" to draft.replyId, "type" to if (draft.replyToReply) "reply" else "feed")) }
+    }
+    private suspend fun uploadFeedAndPublish(snapshot: SessionSnapshot, transport: CoolapkHttpTransport, draft: ComposerDraft,
+        images: List<SelectedImage>, uploader: OssImageUploader, data: JsonElement, allowChallenge: Boolean): WriteOutcome {
+        fun current() = accounts.isCurrent(snapshot) && transport.isRequestScopeCurrent()
+        if (!current()) throw CancellationException("Session changed")
+        val grants = parseFeedImageGrants(data, images, System.currentTimeMillis())
+            ?: return WriteOutcome.Rejected(FailureKind.INVALID_RESPONSE, "动态图片上传授权不符合安全限制；尚未发布")
+        for ((index, grant) in grants.withIndex()) {
+            if (!current()) throw CancellationException("Session changed")
+            when (val uploaded = uploader.upload(grant.upload, images[index], ::current)) {
+                is ApiResult.Success -> Unit
+                is ApiResult.Failure -> return if (uploaded.kind == FailureKind.UNCERTAIN) WriteOutcome.Uncertain("第${index + 1}张图片上传结果未确认；动态尚未发布，不会自动重传")
+                    else WriteOutcome.Rejected(uploaded.kind, "第${index + 1}张图片上传失败；动态尚未发布")
+            }
+        }
+        return scopedWrite(snapshot, transport, publicationAction(draft, grants.map { it.publicationUrl }, images),
+            requireRecord = true, allowChallenge = allowChallenge)
     }
     suspend fun sendText(uid: String, text: String, expectedGeneration: Long? = null): WriteOutcome {
         if (!validId(uid) || text.isBlank()) return badArgument()

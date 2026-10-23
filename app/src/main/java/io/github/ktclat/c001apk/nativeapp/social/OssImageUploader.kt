@@ -25,7 +25,8 @@ internal class OssGrant(val bucket: String, val endpoint: String, val objectName
     override fun toString() = "OssGrant(redacted)"
     val destination: HttpUrl get() = "https://$bucket.$endpoint/".toHttpUrl().newBuilder().addPathSegments(objectName).build()
 }
-internal fun parseOssGrant(value: JsonElement, image: SelectedImage, now: Long): OssGrant? = runCatching {
+internal fun parseOssGrant(value: JsonElement, image: SelectedImage, now: Long, directory: String = "message"): OssGrant? = runCatching {
+    require(directory in setOf("message", "feed"))
     val data = value.jsonObject
     val info = data["uploadPrepareInfo"]!!.jsonObject
     val files = data["fileInfo"]!!.jsonArray
@@ -37,7 +38,7 @@ internal fun parseOssGrant(value: JsonElement, image: SelectedImage, now: Long):
     val bucket = info.text("bucket")
     require(Regex("[a-z0-9][a-z0-9-]{1,61}[a-z0-9]").matches(bucket))
     val objectName = file.text("uploadFileName")
-    require(objectName.startsWith("message/") && objectName.length <= 1024)
+    require(objectName.startsWith("$directory/") && objectName.length <= 1024)
     require(objectName.split('/').none { it.isEmpty() || it == "." || it == ".." })
     require(Regex("[A-Za-z0-9/_.,@+-]+").matches(objectName))
     val expiration = info.text("expiration")
@@ -62,25 +63,33 @@ internal fun ossHeaders(grant: OssGrant, image: SelectedImage, now: Long): Map<S
 }
 
 /** Dedicated credential-free client. API cookies/signatures are never attached to OSS/CDN requests. */
-class OssImageUploader {
-    private val client = OkHttpClient.Builder().cookieJar(CookieJar.NO_COOKIES).followRedirects(false)
+class OssImageUploader internal constructor(client: OkHttpClient) {
+    constructor() : this(OkHttpClient())
+    private val client = client.newBuilder().cookieJar(CookieJar.NO_COOKIES).followRedirects(false)
         .followSslRedirects(false).retryOnConnectionFailure(false).callTimeout(60, TimeUnit.SECONDS).build()
     internal suspend fun upload(grant: OssGrant, image: SelectedImage, isCurrent: () -> Boolean): ApiResult<String> = withContext(Dispatchers.IO) {
         if (!isCurrent()) throw CancellationException("Session changed")
-        if (System.currentTimeMillis() >= grant.expiresAt - 5000 || image.sizeBytes !in 1..MAX_IMAGE_BYTES)
+        if (System.currentTimeMillis() >= grant.expiresAt - 5000 || !verifySelectedImage(image))
             return@withContext ApiResult.Failure(FailureKind.INVALID_ARGUMENT, "图片或上传授权已失效，请重新选择")
+        val expectedSize = image.sizeBytes
         val body = object : RequestBody() {
             override fun contentType() = image.mime.toMediaType()
-            override fun contentLength() = image.sizeBytes
+            override fun contentLength() = expectedSize
             override fun writeTo(sink: BufferedSink) {
-                image.file.source().use { source ->
+                image.file.inputStream().use { input ->
+                    val digest = java.security.MessageDigest.getInstance("MD5")
+                    val bytes = ByteArray(32 * 1024)
                     var sent = 0L
                     while (true) {
                         if (!isCurrent()) throw java.io.IOException("Session changed")
-                        val count = source.read(sink.buffer, 32 * 1024L); if (count < 0) break
-                        sent += count; if (sent > MAX_IMAGE_BYTES) throw java.io.IOException("Image exceeds limit")
-                        sink.emitCompleteSegments()
+                        val count = input.read(bytes); if (count < 0) break
+                        sent += count
+                        if (sent > expectedSize || sent > MAX_IMAGE_BYTES) throw java.io.IOException("Image changed")
+                        digest.update(bytes, 0, count)
+                        sink.write(bytes, 0, count)
                     }
+                    if (sent != expectedSize || digest.digest().toByteString().hex() != image.md5Hex)
+                        throw java.io.IOException("Image changed during upload")
                 }
             }
         }
