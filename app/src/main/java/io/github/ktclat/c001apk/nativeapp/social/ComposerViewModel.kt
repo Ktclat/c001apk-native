@@ -44,6 +44,7 @@ internal class ComposerViewModel(initial: ComposerDraft, private val accountGene
     var option by mutableStateOf(if (initial.replyId == null) initial.selfOnly else initial.replyAndForward); private set
     val images = mutableStateListOf<SelectedImage>()
     var selecting by mutableStateOf(false); private set
+    var awaitingImagePicker by mutableStateOf(false); private set
     var error by mutableStateOf<String?>(null); private set
     var pending by mutableStateOf<FrozenPublication?>(null); private set
     val runner = MutationRunner()
@@ -51,7 +52,7 @@ internal class ComposerViewModel(initial: ComposerDraft, private val accountGene
     private var completionConsumed = false
     private val disposed = AtomicBoolean(false)
     val isAbandoned: Boolean get() = disposed.get()
-    fun editable() = !disposed.get() && !selecting && pending == null && runner.state.value == DeliveryState.Ready
+    fun editable() = !disposed.get() && !selecting && !awaitingImagePicker && pending == null && runner.state.value == DeliveryState.Ready
     fun edit(value: String) { edit(TextFieldValue(value, TextRange(value.length))) }
     fun edit(value: TextFieldValue) {
         if (!editable()) return
@@ -59,9 +60,28 @@ internal class ComposerViewModel(initial: ComposerDraft, private val accountGene
         input = value; characterCount = composerCharacterCount(value.text)
         if (error == COMPOSER_TEXT_TOO_LONG || error == COMPOSER_PASTE_TOO_LARGE) error = null
     }
+    /** Current owner is checked at action time, not only when the dialog was composed. */
+    fun insertTextEmoticon(token: String, repository: SocialRepository): Boolean {
+        if (!editable() || !repository.isCurrentGeneration(accountGeneration) || !TextEmoticons.contains(token)) return false
+        val replacement = insertComposerToken(input.text, input.selection.start, input.selection.end, token)
+        if (replacement == null) { error = COMPOSER_PASTE_TOO_LARGE; return false }
+        edit(replacement)
+        return true
+    }
+    /** Lock editing while the external contract is outstanding, not just during byte staging. */
+    fun beginImagePicker(): Boolean {
+        if (!editable() || images.size >= MAX_FEED_IMAGES) return false
+        awaitingImagePicker = true
+        return true
+    }
+    fun imagePickerLaunchFailed() {
+        awaitingImagePicker = false
+        if (!disposed.get()) error = "无法打开图片选择器，请重试"
+    }
     fun updateOption(value: Boolean) { if (editable()) option = value }
     fun remove(image: SelectedImage) { if (editable() && images.remove(image)) discardImages(listOf(image)) }
     fun select(context: Context, uris: List<Uri>) {
+        awaitingImagePicker = false
         if (!editable() || uris.isEmpty()) return
         selecting = true; error = null
         work = viewModelScope.launch {
@@ -102,7 +122,7 @@ internal class ComposerViewModel(initial: ComposerDraft, private val accountGene
         completionConsumed = true
         runner.dispose()
         val active = work; viewModelScope.cancel()
-        val owned = images.toList(); images.clear(); pending = null; input = TextFieldValue(""); characterCount = 0; error = null
+        val owned = images.toList(); images.clear(); pending = null; awaitingImagePicker = false; input = TextFieldValue(""); characterCount = 0; error = null
         imageCleanup.launch { active?.join(); work = null; owned.forEach { runCatching { it.close() } } }
     }
     override fun onCleared() { abandon(); super.onCleared() }

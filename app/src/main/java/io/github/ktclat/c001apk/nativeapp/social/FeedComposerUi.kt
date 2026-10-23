@@ -75,6 +75,8 @@ internal fun FeedComposerUi(repository: SocialRepository, generation: Long, init
         }
         val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { model.select(context, it) }
         val editable = state == DeliveryState.Ready && model.editable()
+        var showTextEmoticons by rememberSaveable { mutableStateOf(false) }
+        LaunchedEffect(editable) { if (!editable) showTextEmoticons = false }
         val focus = LocalFocusManager.current
         val keyboard = LocalSoftwareKeyboardController.current
         // Preserve the existing HostedScreen route and keyboard avoidance; no synthetic modal backdrop.
@@ -113,9 +115,22 @@ internal fun FeedComposerUi(repository: SocialRepository, generation: Long, init
                         horizontalArrangement = Arrangement.spacedBy(4.dp), verticalArrangement = Arrangement.spacedBy(0.dp)) {
                         TextButton(enabled = editable && model.images.size < MAX_FEED_IMAGES,
                             modifier = Modifier.heightIn(min = 48.dp).testTag("composer-add-images"),
-                            onClick = { if (model.editable()) picker.launch(arrayOf("image/jpeg", "image/png", "image/webp", "image/gif")) }) {
+                            onClick = {
+                                if (model.beginImagePicker()) {
+                                    try { picker.launch(arrayOf("image/jpeg", "image/png", "image/webp", "image/gif")) }
+                                    catch (_: Exception) { model.imagePickerLaunchFailed() }
+                                }
+                            }) {
                             Text("添加图片（${model.images.size}/9）")
                         }
+                        TextButton(enabled = editable, modifier = Modifier.heightIn(min = 48.dp).testTag("composer-open-emoticons"),
+                            onClick = {
+                                if (model.editable() && repository.isCurrentGeneration(generation)) {
+                                    // Hiding IME is a request only; retain the model's TextFieldValue/selection.
+                                    keyboard?.hide()
+                                    showTextEmoticons = true
+                                }
+                            }) { Text("表情文字") }
                         Row(Modifier.heightIn(min = 48.dp).testTag("composer-audience")
                             .toggleable(value = model.option, enabled = editable, role = Role.Checkbox, onValueChange = model::updateOption)
                             .padding(end = 8.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -178,6 +193,9 @@ internal fun FeedComposerUi(repository: SocialRepository, generation: Long, init
                 }
             }
         }
+        if (showTextEmoticons && editable) TextEmoticonPicker(enabled = editable,
+            onInsert = { token -> model.insertTextEmoticon(token, repository) },
+            onClose = { showTextEmoticons = false })
         model.pending?.let { frozen ->
             val audience = when {
                 frozen.draft.replyId != null -> if (frozen.draft.replyAndForward) "发送回复并转发" else "发送回复"

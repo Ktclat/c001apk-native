@@ -87,6 +87,7 @@ class ImageComposerRouteActivity : ComponentActivity() {
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [35], qualifiers = "w393dp-h852dp-420dpi")
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
+@OptIn(ExperimentalTestApi::class)
 class NativeImageComposerRouteTest {
     @get:Rule val compose = createAndroidComposeRule<ComponentActivity>()
 
@@ -691,6 +692,57 @@ class NativeImageComposerRouteTest {
         assertNoWrites()
     }
 
+    @Test fun textEmoticonImagePickerAwaitingSurvivesRealRotationAndCancellationUnlocksSameDraft() {
+        showRoot(recreatableHost = true); typeDraft()
+        compose.onNodeWithTag("composer-editor").performTextInputSelection(androidx.compose.ui.text.TextRange(2))
+        compose.onNodeWithTag("composer-add-images").performScrollTo().performClick()
+        compose.onNodeWithTag("composer-open-emoticons").assertIsNotEnabled()
+        val controller = requireNotNull(recreationController)
+        val original = controller.get()
+        compose.runOnIdle {
+            controller.configurationChange(Configuration(original.resources.configuration).apply {
+                orientation = Configuration.ORIENTATION_LANDSCAPE
+                screenWidthDp = 852; screenHeightDp = 393
+            }).visible()
+        }
+        assertNotSame(original, controller.get()); assertTrue(original.isDestroyed)
+        compose.onNodeWithTag("composer-open-emoticons").performScrollTo().assertIsNotEnabled()
+        compose.onNodeWithTag("composer-editor").assertTextContains(DRAFT).assertIsNotEnabled()
+        compose.runOnIdle { picker.cancel() }
+        compose.onNodeWithTag("composer-editor").performScrollTo().assertIsEnabled().assertTextContains(DRAFT)
+            .assert(SemanticsMatcher.expectValue(androidx.compose.ui.semantics.SemanticsProperties.TextSelectionRange, androidx.compose.ui.text.TextRange(2)))
+        compose.onNodeWithTag("composer-open-emoticons").performScrollTo().assertIsEnabled().performClick()
+        compose.onNodeWithTag("composer-emoticon-[笑哭]").performScrollTo().performClick()
+        compose.onNodeWithTag("composer-emoticon-close").performClick()
+        compose.onNodeWithTag("composer-editor").performScrollTo().assertTextContains(DRAFT.take(2)+"[笑哭]"+DRAFT.drop(2))
+        assertNoWrites()
+    }
+    @Test fun textEmoticonImagePickerLaunchFailureRestoresEditorAndReportsRetry() {
+        showRoot(); typeDraft(); picker.failNextLaunch = true
+        compose.onNodeWithTag("composer-add-images").performScrollTo().performClick()
+        compose.onNodeWithTag("composer-open-emoticons").assertIsEnabled()
+        compose.onNodeWithTag("composer-editor").performScrollTo().assertTextContains(DRAFT).assertIsEnabled()
+        compose.onNodeWithText("无法打开图片选择器，请重试").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithTag("composer-add-images").performScrollTo().performClick()
+        compose.runOnIdle { picker.cancel() }
+        compose.onNodeWithTag("composer-editor").assertIsEnabled()
+        assertNoWrites()
+    }
+    @Test fun textEmoticonLatePickerResultCannotWriteFreshRouteDraft() {
+        showRoot(); typeDraft()
+        compose.onNodeWithTag("composer-add-images").performScrollTo().performClick()
+        compose.runOnUiThread { compose.activity.onBackPressedDispatcher.onBackPressed() }
+        awaitVisible("left old picker owner", hasTestTag("home-publish"))
+        compose.onNodeWithTag("home-publish").performClick()
+        awaitVisible("fresh composer", hasTestTag("composer-editor"))
+        compose.onNodeWithTag("composer-editor").performTextInput("fresh")
+        val late = provider.put("late-owner", IMAGE_BYTES[0])
+        compose.runOnIdle { picker.deliver(listOf(late)) }
+        compose.onNodeWithTag("composer-editor").assertTextContains("fresh").assertIsEnabled()
+        compose.onNodeWithText("添加图片（0/9）").assertExists()
+        assertEquals(0, provider.reads.get()); assertNoWrites()
+    }
+
     /** A content provider serves only files created by this fixture. No content/storage permissions are granted. */
     private class ImageProvider(private val directory: File) : ContentProvider() {
         val reads = AtomicInteger()
@@ -717,10 +769,12 @@ class NativeImageComposerRouteTest {
     /** Captures the system picker launch, then dispatches raw Activity results through the production contract. */
     private class PickerRegistry(private val context: Context) : ActivityResultRegistry() {
         private var requestCode: Int? = null
+        var failNextLaunch = false
         var launchedIntent: Intent? = null
             private set
         override fun <I, O> onLaunch(requestCode: Int, contract: ActivityResultContract<I, O>, input: I,
             options: ActivityOptionsCompat?) {
+            if (failNextLaunch) { failNextLaunch = false; throw android.content.ActivityNotFoundException("Synthetic launch failure") }
             check(this.requestCode == null) { "Picker launched twice without receiving a result" }
             this.requestCode = requestCode
             launchedIntent = contract.createIntent(context, input)
