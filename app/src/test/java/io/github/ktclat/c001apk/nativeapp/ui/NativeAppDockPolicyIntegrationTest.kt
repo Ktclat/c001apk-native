@@ -151,6 +151,7 @@ class NativeAppDockPolicyIntegrationTest {
         rootTab("我的").performClick()
         compose.onNodeWithContentDescription("设置").performClick()
         compose.onNode(hasText("关于") and hasClickAction()).performScrollTo().performClick()
+        compose.onNodeWithTag("about-diagnostics").performScrollTo().performClick()
         for (exploration in listOf(false, true)) {
             setTouchExploration(exploration)
             compose.onNodeWithTag("copy-native-diagnostics").performClick()
