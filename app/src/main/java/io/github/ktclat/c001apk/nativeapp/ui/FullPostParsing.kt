@@ -12,6 +12,7 @@ import kotlinx.coroutines.withContext
 internal data class FullPostPage(val text: String, val links: List<PostLink>)
 internal sealed interface PreparedFullPost {
     data class Ready(val pages: List<FullPostPage>) : PreparedFullPost
+    data class Article(val pages: List<ArticlePage>, val images: List<String?>) : PreparedFullPost
     data class Unavailable(val limit: FullPostBodyLimit, val receivedUnits: Int? = null) : PreparedFullPost
 }
 
@@ -69,6 +70,7 @@ internal fun fullPostMarkupLimit(html: String, checkActive: () -> Unit = {}): Fu
 
 /** Work here is owned by the caller's Job. No networking or UI state is touched by the parser. */
 internal fun prepareFullPost(body: FullPostBody, checkActive: () -> Unit = {}): PreparedFullPost {
+    if (body is FullPostBody.Structured) return prepareArticle(body, checkActive)
     if (body is FullPostBody.Unavailable) return PreparedFullPost.Unavailable(body.reason, body.receivedUnits)
     val html = (body as FullPostBody.Available).html
     if (html.length > FullPostBodyBounds.MAX_HTML_UNITS) return PreparedFullPost.Unavailable(FullPostBodyLimit.BODY_TOO_LARGE, html.length)
@@ -127,4 +129,10 @@ internal suspend fun parseAndPublishFullPost(
         prepared
     }
     withContext(Dispatchers.Main.immediate) { publish(result) }
+}
+
+internal fun PreparedFullPost.readyPageCount(): Int? = when (this) {
+    is PreparedFullPost.Ready -> pages.size
+    is PreparedFullPost.Article -> pages.size
+    is PreparedFullPost.Unavailable -> null
 }

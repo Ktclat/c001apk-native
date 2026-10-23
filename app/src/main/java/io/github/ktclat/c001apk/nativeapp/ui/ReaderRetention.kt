@@ -3,6 +3,8 @@ package io.github.ktclat.c001apk.nativeapp.ui
 
 import androidx.compose.runtime.mutableStateOf
 import io.github.ktclat.c001apk.nativeapp.domain.FullPostBodyBounds
+import io.github.ktclat.c001apk.nativeapp.domain.FullPostBody
+import io.github.ktclat.c001apk.nativeapp.domain.ArticleBodyBounds
 import io.github.ktclat.c001apk.nativeapp.domain.ReplyOrder
 import java.security.MessageDigest
 
@@ -37,7 +39,8 @@ internal class ReaderBookmark(val identity: ReaderIdentity, internal val prepare
 internal const val MAX_READER_BOOKMARKS = 13 // Current route plus the existing 12-entry history.
 internal const val MAX_READER_KEY_UNITS = 256
 // A surrogate-safe page may contain 3999 rather than 4000 UTF-16 units.
-internal const val MAX_READER_PAGES = (FullPostBodyBounds.MAX_HTML_UNITS + FullPostBodyBounds.PAGE_UNITS - 2) / (FullPostBodyBounds.PAGE_UNITS - 1)
+internal const val MAX_ORDINARY_READER_PAGES = (FullPostBodyBounds.MAX_HTML_UNITS + FullPostBodyBounds.PAGE_UNITS - 2) / (FullPostBodyBounds.PAGE_UNITS - 1)
+internal const val MAX_READER_PAGES = ArticleBodyBounds.MAX_SEGMENTS
 
 /** Main-thread presentation state, owned by the generation-scoped BrowseViewModel.
  * Latest position per feed, not per navigation visit. Removed entries are never reinserted by disposal.
@@ -119,8 +122,9 @@ internal fun readerBodyDigest(html: String, checkActive: () -> Unit = {}): Strin
 
 /** Resolve one stable row, not an unchecked old index or a retained copy of the reply hierarchy. */
 internal fun restoredReaderPosition(saved: ReaderPosition, pageCount: Int, replyKey: String,
-    findReplyRow: (String) -> Int?): ReaderPosition {
-    require(pageCount in 1..MAX_READER_PAGES)
+    maximumPages: Int = MAX_READER_PAGES, findReplyRow: (String) -> Int?): ReaderPosition {
+    require(maximumPages in 1..MAX_READER_PAGES)
+    require(pageCount in 1..maximumPages)
     val index = when (saved.rowKey) {
         "post" -> 0
         "comment-controls" -> 1
@@ -129,3 +133,25 @@ internal fun restoredReaderPosition(saved: ReaderPosition, pageCount: Int, reply
     return saved.copy(page = saved.page.coerceIn(0, pageCount - 1), index = index ?: 0,
         offset = if (index == null) 0 else saved.offset.coerceAtLeast(0))
 }
+
+/** Article identity is exact-source, typed and length-framed; ordinary vectors are unchanged. */
+internal fun readerArticleDigest(body: FullPostBody.Structured, checkActive: () -> Unit = {}): String {
+    val units = body.rawOutput.length.toLong() + (body.title?.length ?: 0) + (body.cover?.length ?: 0)
+    require(units <= FullPostBodyBounds.MAX_HTML_UNITS)
+    val digest = MessageDigest.getInstance("SHA-256")
+    digest.update("c001apk:article:v1\u0000".toByteArray(Charsets.US_ASCII))
+    for (field in listOf(body.rawOutput, body.title, body.cover)) {
+        checkActive()
+        val length = field?.length ?: -1
+        for (shift in listOf(24, 16, 8, 0)) digest.update((length ushr shift).toByte())
+        field?.forEachIndexed { index, value ->
+            if (index % 1024 == 0) checkActive()
+            digest.update((value.code ushr 8).toByte()); digest.update(value.code.toByte())
+        }
+    }
+    checkActive()
+    val digits = "0123456789abcdef"
+    return buildString(64) { for (byte in digest.digest()) { append(digits[(byte.toInt() ushr 4) and 15]); append(digits[byte.toInt() and 15]) } }
+}
+
+internal fun PreparedFullPost.readerPageLimit(): Int = if (this is PreparedFullPost.Article) ArticleBodyBounds.MAX_SEGMENTS else MAX_ORDINARY_READER_PAGES

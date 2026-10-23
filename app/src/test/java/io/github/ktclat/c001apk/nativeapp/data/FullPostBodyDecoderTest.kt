@@ -33,14 +33,15 @@ class FullPostBodyDecoderTest {
         assertEquals(FullPostBody.Unavailable(FullPostBodyLimit.BODY_TOO_LARGE, size),
             ApiDecoder.feedDetail(fixture("x".repeat(size))).fullPostBody)
     }
-    @Test fun structuredArticleIsNotACompleteSummaryOrRawJson() {
+    @Test fun structuredArticleUsesTheSourceSchemaAndEmptyListRemainsOrdinary() {
         val raw = """[{"type":"text","message":"article tail"},{"type":"image","url":"https://example.test/image"}]"""
-        for (article in listOf(JsonPrimitive(raw), JsonPrimitive("[]"), JsonPrimitive("malformed"), buildJsonArray { })) {
-            val detail = ApiDecoder.feedDetail(fixture("short summary", article))
-            assertEquals(FullPostBody.Unavailable(FullPostBodyLimit.STRUCTURED_ARTICLE), detail.fullPostBody)
-            assertEquals("short summary", detail.message)
+        val detail = ApiDecoder.feedDetail(fixture("short summary", JsonPrimitive(raw)))
+        assertEquals(raw, (detail.fullPostBody as FullPostBody.Structured).rawOutput)
+        assertEquals("short summary", detail.message)
+        for (article in listOf<JsonElement>(JsonPrimitive("malformed"), buildJsonArray { })) {
+            assertEquals(FullPostBody.Unavailable(FullPostBodyLimit.MALFORMED_ARTICLE), ApiDecoder.feedDetail(fixture("summary", article)).fullPostBody)
         }
-        for (article in listOf(JsonNull, JsonPrimitive("null"), JsonPrimitive(""))) {
+        for (article in listOf(JsonNull, JsonPrimitive("null"), JsonPrimitive(""), JsonPrimitive("[]"))) {
             assertEquals(FullPostBody.Available("message"), ApiDecoder.feedDetail(fixture("message", article)).fullPostBody)
         }
     }

@@ -396,6 +396,7 @@ class ReaderBindingLifecycleTest {
             when (val prepared = result?.prepared) {
                 null -> Text("pending")
                 is PreparedFullPost.Ready -> Text(prepared.pages.joinToString("") { it.text })
+                is PreparedFullPost.Article -> Text("structured article")
                 is PreparedFullPost.Unavailable -> Text(fullPostLimitMessage(prepared.limit, prepared.receivedUnits))
             }
             Text("digest:${result?.bodyDigest ?: "none"}")
