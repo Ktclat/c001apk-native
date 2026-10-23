@@ -10,6 +10,10 @@ import androidx.activity.ComponentActivity
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.*
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.Density
+import androidx.compose.ui.semantics.SemanticsActions
+import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.StateRestorationTester
@@ -92,10 +96,10 @@ class ReaderRetentionNativeAppTest {
     }
 
     /** Only inline anchors: decoded pages have independently constructed exact 4000-unit text. */
-    private fun readerBody(name: String): ReaderBody {
+    private fun readerBody(name: String, pageCount: Int = 4): ReaderBody {
         val pages = mutableListOf<String>()
         val html = buildString {
-            repeat(4) { page ->
+            repeat(pageCount) { page ->
                 val prefix = "${name}_SEGMENT_${page + 1}_START"
                 val suffix = "${name}_SEGMENT_${page + 1}_END"
                 val labels = routeIds.joinToString("") { "打开动态$it" }
@@ -193,7 +197,7 @@ class ReaderRetentionNativeAppTest {
     private fun gateNextDetail(id: String) = DetailGate(id).also { gates += it }
 
     /** Finally encloses setContent too, so assertion/setup failure cannot leave an interceptor blocked. */
-    private fun withRoot(initialRoute: String? = "feed:42", restoration: Boolean = false,
+    private fun withRoot(initialRoute: String? = "feed:42", restoration: Boolean = false, fontScale: Float = 1f,
         block: (StateRestorationTester?) -> Unit) {
         try {
             val restorer = if (restoration) StateRestorationTester(compose) else null
@@ -208,8 +212,10 @@ class ReaderRetentionNativeAppTest {
                     ViewModelProvider(currentOwner, viewModelFactory { initializer { BrowseViewModel(accounts.repository) } })[BrowseViewModel::class.java]
                 }
                 SideEffect { activeModel = model }
+                val density = LocalDensity.current.density
                 MaterialTheme(colorScheme = fixedColorScheme(0, false), typography = appTypography(FontChoice.NOTO_SANS)) {
                     CompositionLocalProvider(LocalContext provides browserContext, LocalViewModelStoreOwner provides currentOwner,
+                        LocalDensity provides Density(density, fontScale),
                         LocalMediaImageLoader provides images.loader,
                         LocalReadingStyles provides readingStyles(ReadingPreset.COMFORTABLE, FontChoice.NOTO_SANS)) {
                         key(state.generation) { NativeApp(model, container,
@@ -233,7 +239,10 @@ class ReaderRetentionNativeAppTest {
             compose.onAllNodesWithTag("feed:$id").fetchSemanticsNodes().size == 1 &&
                 current.size == 1 && current.single().config[SemanticsProperties.Text].single().text == expected
         }
-        compose.onNodeWithTag("full-post-progress").assertTextContains("第 $page/4 段", substring = true)
+        if (body.pages.size > 1) compose.onNodeWithTag("full-post-progress").assertTextEquals("第 $page/${body.pages.size} 段")
+        else compose.onNodeWithTag("full-post-progress").assertDoesNotExist()
+        compose.onNodeWithTag("full-post-pending").assertDoesNotExist()
+        compose.onNodeWithTag("reader-preparing").assertDoesNotExist()
         compose.onNodeWithTag("full-post-page").assertTextEquals(expected)
         compose.waitForIdle()
     }
@@ -269,6 +278,11 @@ class ReaderRetentionNativeAppTest {
     private fun nextPage(id: String, page: Int, body: ReaderBody = original) {
         compose.onNodeWithText("下一段").performScrollTo().assertIsDisplayed().performClick()
         awaitPage(id, page, body)
+        compose.onNodeWithTag("full-post-progress").assertIsDisplayed()
+        val viewport = compose.onNodeWithTag("feed-detail-list").getUnclippedBoundsInRoot()
+        val pageBounds = compose.onNodeWithTag("full-post-page").getUnclippedBoundsInRoot()
+        assertTrue("Segment navigation must reveal the real page beginning",
+            pageBounds.top >= viewport.top && pageBounds.top < viewport.bottom)
     }
     private fun selectPage(id: String, from: Int, to: Int, body: ReaderBody = original) {
         require(to >= from)
@@ -306,7 +320,7 @@ class ReaderRetentionNativeAppTest {
     }
 
     private data class Bounds(val left: Float, val top: Float, val right: Float, val bottom: Float)
-    private data class Viewport(val progress: String, val page: String, val position: Float, val maximum: Float,
+    private data class Viewport(val progress: String?, val page: String, val position: Float, val maximum: Float,
         val viewport: Bounds, val pageBounds: Bounds, val anchors: Map<String, Bounds>)
     private fun bounds(node: SemanticsNodeInteraction): Bounds {
         val value = node.getUnclippedBoundsInRoot()
@@ -322,7 +336,9 @@ class ReaderRetentionNativeAppTest {
             if (node.isDisplayed()) label to bounds(node) else null
         }.toMap()
         assertTrue("At least one actual footer/control must remain visible", anchors.isNotEmpty())
-        return Viewport(text("full-post-progress"), text("full-post-page"), range.value(), range.maxValue(),
+        val progress = compose.onAllNodesWithTag("full-post-progress").fetchSemanticsNodes()
+            .map { it.config[SemanticsProperties.Text].single().text }.singleOrNull()
+        return Viewport(progress, text("full-post-page"), range.value(), range.maxValue(),
             bounds(list), bounds(compose.onNodeWithTag("full-post-page")), anchors)
     }
     private fun assertReallyScrolled(value: Viewport) {
@@ -370,6 +386,64 @@ class ReaderRetentionNativeAppTest {
             val file = File("build/verification/reader-retention/$name.png").apply { parentFile?.mkdirs() }
             file.outputStream().use { check(bitmap.compress(Bitmap.CompressFormat.PNG, 100, it)) }
         } finally { bitmap.recycle() }
+    }
+
+    @Test @Config(qualifiers = "w320dp-h480dp-420dpi")
+    fun singleSegmentWithoutChromeKeepsTailAndExactReturnGeometryAtLargeText() {
+        val single = readerBody("SINGLE", pageCount = 1)
+        responses["42"] = DetailResponse(single.html)
+        withRoot(restoration = true, fontScale = 1.6f) { restorer ->
+            awaitPage("42", 1, single); awaitReplies("42")
+            assertSingleSegmentChromeAbsent()
+            capture("single-segment-compact-large-top")
+            // A one-segment body can still exceed a viewport. Reach its exact last text via
+            // the real footer action, not an injected offset or a fake readiness label.
+            compose.onNodeWithText(linksLabel).performScrollTo().assertIsDisplayed()
+            compose.waitForIdle()
+            val body = compose.onNodeWithTag("full-post-page")
+            val layouts = mutableListOf<TextLayoutResult>()
+            body.performSemanticsAction(SemanticsActions.GetTextLayoutResult) { action -> assertTrue(action(layouts)) }
+            val layout = layouts.single()
+            assertEquals(single.pages.single(), layout.layoutInput.text.text)
+            val marker = "SINGLE_SEGMENT_1_END"
+            val markerStart = layout.layoutInput.text.text.indexOf(marker)
+            assertTrue(markerStart >= 0)
+            val bodyBounds = body.getUnclippedBoundsInRoot()
+            val viewport = compose.onNodeWithTag("feed-detail-list").getUnclippedBoundsInRoot()
+            val density = layout.layoutInput.density.density
+            assertEquals(1.6f, layout.layoutInput.density.fontScale, .001f)
+            assertTrue("Exact tail starts inside the actual viewport",
+                bodyBounds.top.value + layout.getBoundingBox(markerStart).top / density >= viewport.top.value)
+            assertTrue("Exact tail ends inside the actual viewport",
+                bodyBounds.top.value + layout.getBoundingBox(layout.layoutInput.text.length - 1).bottom / density <= viewport.bottom.value)
+            capture("single-segment-compact-large-tail")
+            repeat(2) { round ->
+                val before = enterGuestReplyChild()
+                if (round == 0) toolbarBack() else systemBack()
+                awaitPage("42", 1, single)
+                assertSingleSegmentChromeAbsent(); assertReturned(before)
+            }
+            val beforeRestore = prepareLinkDeparture()
+            requireNotNull(restorer).emulateSavedInstanceStateRestore()
+            awaitPage("42", 1, single)
+            assertSingleSegmentChromeAbsent(); assertReturned(beforeRestore)
+            responses["42"] = DetailResponse(single.html, likes = 1)
+            compose.runOnIdle { activeModel.load("feed:42", refresh = true) }
+            compose.waitUntil(10_000) {
+                compose.onRoot().fetchSemanticsNode()
+                activeModel.states.value["feed:42"]?.let { !it.loading && it.items.single().feed?.likeCount == 1 } == true
+            }
+            awaitPage("42", 1, single)
+            assertSingleSegmentChromeAbsent(); assertReturned(beforeRestore)
+            assertEquals(2, detailCalls("42")); assertEquals(1, replyCalls("42"))
+            capture("single-segment-compact-large-return")
+        }
+    }
+
+    private fun assertSingleSegmentChromeAbsent() {
+        compose.onNodeWithTag("full-post-progress").assertDoesNotExist()
+        for (label in listOf("接口正文已完整载入", "结构化正文已排版", "图片状态见各图", "已到正文末尾", "上一段", "下一段"))
+            compose.onAllNodesWithText(label, substring = true, useUnmergedTree = true).assertCountEquals(0)
     }
 
     @Test fun repeatedGuestReplyChildReturnsSameSegmentAndActualGeometryThroughBothBackPaths() = withRoot(initialRoute = null) {

@@ -60,7 +60,7 @@ internal fun fullPostLimitMessage(limit: FullPostBodyLimit, receivedUnits: Int? 
     }
     Column(Modifier.testTag("full-post-reader"), verticalArrangement = Arrangement.spacedBy(6.dp)) {
         when (val value = prepared) {
-            null -> Text("正在排版详情正文…", style = MaterialTheme.typography.bodySmall)
+            null -> Text("正在排版详情正文…", Modifier.testTag("full-post-pending"), style = MaterialTheme.typography.bodySmall)
             is PreparedFullPost.Unavailable -> {
                 Text(fullPostLimitMessage(value.limit, value.receivedUnits), Modifier.testTag("full-post-limit"), style = MaterialTheme.typography.bodySmall)
                 if (preview.isNotBlank()) PagedPostText(preview, true, openLink)
@@ -71,15 +71,18 @@ internal fun fullPostLimitMessage(limit: FullPostBodyLimit, receivedUnits: Int? 
             is PreparedFullPost.Ready -> {
                 val current = page.coerceIn(value.pages.indices)
                 val visible = value.pages[current]
-                Text(if (visible.text.isEmpty() && value.pages.size == 1) "此动态没有文本正文" else
-                    "接口正文已完整载入 · 分段阅读 · 第 ${current + 1}/${value.pages.size} 段 · 剩余 ${value.pages.size - current - 1} 段",
-                    Modifier.testTag("full-post-progress").bringIntoViewRequester(pageStart), style = MaterialTheme.typography.bodySmall)
+                if (visible.text.isEmpty() && value.pages.size == 1) {
+                    Text("此动态没有文本正文", style = MaterialTheme.typography.bodySmall)
+                } else if (value.pages.size > 1) {
+                    Text("第 ${current + 1}/${value.pages.size} 段",
+                        Modifier.testTag("full-post-progress").bringIntoViewRequester(pageStart), style = MaterialTheme.typography.bodySmall)
+                }
                 SelectionContainer { Text(visible.text, Modifier.testTag("full-post-page"), style = LocalReadingStyles.current.body) }
                 if (value.pages.size > 1) Row {
                     TextButton(enabled = current > 0, onClick = { page = current - 1; linksOpen = false; pageNavigation++ }) { Text("上一段") }
                     TextButton(enabled = current < value.pages.lastIndex, onClick = { page = current + 1; linksOpen = false; pageNavigation++ }) { Text("下一段") }
                 }
-                if (current == value.pages.lastIndex && visible.text.isNotEmpty()) Text("已到正文末尾", style = MaterialTheme.typography.bodySmall)
+                if (value.pages.size > 1 && current == value.pages.lastIndex && visible.text.isNotEmpty()) Text("已到正文末尾", style = MaterialTheme.typography.bodySmall)
                 if (visible.links.isNotEmpty()) TextButton(onClick = { linksOpen = true }) { Text("本段链接（${visible.links.size}）") }
                 if (linksOpen) AlertDialog(onDismissRequest = { linksOpen = false }, title = { Text("本段链接") }, text = {
                     LazyColumn(Modifier.heightIn(max = 360.dp)) {

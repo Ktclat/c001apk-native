@@ -222,7 +222,10 @@ class FullPostNativeAppTest {
         compose.waitUntil(10_000) { compose.onRoot().fetchSemanticsNode(); detailEntered.count == 0L }
         compose.onNodeWithTag("full-post-progress").assertDoesNotExist()
         releaseDetail.countDown()
-        awaitTag("full-post-progress")
+        awaitTag("full-post-page")
+        compose.onNodeWithTag("full-post-page").assertTextEquals(fullMessage.take(4000))
+        compose.onNodeWithTag("full-post-pending").assertDoesNotExist()
+        compose.onNodeWithTag("reader-preparing").assertDoesNotExist()
         compose.onNodeWithTag("feed-detail-loading").assertDoesNotExist()
         val item = activeModel.states.value.getValue("feed:1006").items.single()
         assertEquals(12_000, item.message.length)

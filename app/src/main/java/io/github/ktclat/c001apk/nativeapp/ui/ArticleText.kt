@@ -34,7 +34,7 @@ import io.github.ktclat.c001apk.nativeapp.settings.LocalReadingStyles
     LaunchedEffect(identity, navigation) { if (navigation > 0) pageStart.bringIntoView() }
     val links = remember(visible) { visible.fragments.flatMap { (it as? ArticleFragment.RichText)?.links.orEmpty() } }
     Column(verticalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.testTag("article-page")) {
-        Text("结构化正文已排版 · 第 ${current + 1}/${article.pages.size} 段 · 图片状态见各图",
+        if (article.pages.size > 1) Text("第 ${current + 1}/${article.pages.size} 段",
             Modifier.testTag("full-post-progress").bringIntoViewRequester(pageStart), style = MaterialTheme.typography.bodySmall)
         visible.fragments.forEachIndexed { part, fragment ->
             key(identity, current, part) {
@@ -76,7 +76,7 @@ import io.github.ktclat.c001apk.nativeapp.settings.LocalReadingStyles
             TextButton(enabled = current > 0, onClick = { page = current - 1; navigation++ }) { Text("上一段") }
             TextButton(enabled = current < article.pages.lastIndex, onClick = { page = current + 1; navigation++ }) { Text("下一段") }
         }
-        if (current == article.pages.lastIndex) Text("已到结构化正文末尾", style = MaterialTheme.typography.bodySmall)
+        if (article.pages.size > 1 && current == article.pages.lastIndex) Text("已到结构化正文末尾", style = MaterialTheme.typography.bodySmall)
         if (links.isNotEmpty()) TextButton(onClick = { linksOpen = true }) { Text("本段链接（${links.size}）") }
     }
     if (linksOpen) AlertDialog(onDismissRequest = { linksOpen = false }, title = { Text("本段链接") }, text = {

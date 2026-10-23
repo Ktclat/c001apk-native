@@ -245,6 +245,13 @@ class StructuredArticleNativeAppTest {
         }
     }
     private fun toolbarBack() = compose.onNodeWithContentDescription("返回").performClick()
+    private fun assertSingleSegmentChromeAbsent() {
+        compose.onNodeWithTag("full-post-progress").assertDoesNotExist()
+        compose.onNodeWithTag("full-post-pending").assertDoesNotExist()
+        compose.onNodeWithTag("reader-preparing").assertDoesNotExist()
+        for (label in listOf("结构化正文已排版", "图片状态见各图", "已到结构化正文末尾", "上一段", "下一段"))
+            compose.onAllNodesWithText(label, substring = true, useUnmergedTree = true).assertCountEquals(0)
+    }
     private fun progress() = compose.onNodeWithTag("full-post-progress").fetchSemanticsNode().config[SemanticsProperties.Text].single().text
     private fun listPosition() = compose.onNodeWithTag("feed-detail-list").fetchSemanticsNode().config[SemanticsProperties.VerticalScrollAxisRange].value()
     private fun openInlineLink(label: String, count: Int) {
@@ -317,7 +324,7 @@ class StructuredArticleNativeAppTest {
             compose.onNodeWithTag("article-media-$index-loading").assertDoesNotExist()
             compose.onNodeWithTag("article-media-$index-unavailable").assertDoesNotExist()
         }
-        assertTrue(progress().contains("第 1/1 段"))
+        assertSingleSegmentChromeAbsent()
         compose.onNodeWithTag("article-text--1").assertTextEquals("合成结构化文章 标题")
         compose.onNodeWithTag("article-text-3").assertTextEquals("文章末尾 ARTICLE_EXACT_TAIL")
         val sourceOrder = listOf("article-media-slot-0", "article-text--1", "article-text-0", "article-media-slot-1", "article-share-2", "article-text-3")
@@ -350,7 +357,7 @@ class StructuredArticleNativeAppTest {
             put("tailIsIndependentFrame", !sameState && !samePng)
             put("tailDuplicateOf", if (sameState || samePng) JsonPrimitive("$name-top.png") else JsonNull)
             put("scrollUnits", "Compose LazyColumn semantic axis units, not pixel offsets")
-            put("referenceCaveat", "Same source/viewport only; native chrome, safety progress, layout and palette algorithm are not pixel-parity claims")
+            put("referenceCaveat", "Same source/viewport only; native chrome, accessible controls, layout and palette algorithm are not pixel-parity claims")
         }.toString())
     }
 
@@ -371,9 +378,10 @@ class StructuredArticleNativeAppTest {
         val axis = compose.onNodeWithTag("feed-detail-list").fetchSemanticsNode().config[SemanticsProperties.VerticalScrollAxisRange]
         return buildJsonObject {
             put("scrollAxisValue", axis.value()); put("scrollAxisMax", axis.maxValue())
+            put("singleSegmentChromeAbsent", compose.onAllNodesWithTag("full-post-progress").fetchSemanticsNodes().isEmpty())
             put("boundsFormat", "unclipped [left, top, right, bottom] dp in NativeApp root")
             put("boundsDp", buildJsonObject {
-                for (tag in listOf("feed-detail-list", "article-page", "full-post-progress", "article-media-slot-0",
+                for (tag in listOf("feed-detail-list", "article-page", "article-media-slot-0",
                     "article-text--1", "article-text-0", "article-media-slot-1", "article-media-block-1", "article-share-2", "article-text-3")) {
                     put(tag, bounds(compose.onNodeWithTag(tag)))
                 }
@@ -421,7 +429,7 @@ class StructuredArticleNativeAppTest {
         compose.onNodeWithTag("article-page").assertDoesNotExist()
         assertTrue(imageRequests.isEmpty())
         parserRelease.countDown(); awaitTag("article-page"); awaitTag("article-media-0-ready")
-        compose.onNodeWithTag("full-post-progress").assertTextEquals("结构化正文已排版 · 第 1/1 段 · 图片状态见各图")
+        assertSingleSegmentChromeAbsent()
         compose.onNodeWithTag("article-text--1").assertTextEquals("合成结构化文章 标题")
         compose.onNodeWithTag("article-text-3").assertTextEquals("文章末尾 ARTICLE_EXACT_TAIL")
         compose.onNodeWithText("合成图片说明，不能作为 HTML 处理。").assertExists()
@@ -530,7 +538,8 @@ class StructuredArticleNativeAppTest {
         val beforeArticle = compose.onNodeWithTag("article-page").getUnclippedBoundsInRoot()
         val beforePosition = listPosition()
         val beforeRange = compose.onNodeWithTag("feed-detail-list").fetchSemanticsNode().config[SemanticsProperties.VerticalScrollAxisRange].maxValue()
-        assertFalse(progress().contains("全部")); assertFalse(progress().contains("完整载入"))
+        assertSingleSegmentChromeAbsent()
+        compose.onNodeWithTag("article-media-0-loading").assertTextEquals("加载中 · 点击查看")
         gate.complete(Unit); awaitTag("article-media-0-ready"); compose.waitForIdle()
         assertEquals(before, compose.onNodeWithTag("article-media-slot-0").getUnclippedBoundsInRoot())
         assertEquals(beforeBlock, compose.onNodeWithTag("article-media-block-0").getUnclippedBoundsInRoot())
@@ -561,7 +570,8 @@ class StructuredArticleNativeAppTest {
             compose.onNodeWithTag("article-media-0-retry").assertDoesNotExist()
             compose.onNodeWithTag("article-media-0-ready").assertDoesNotExist()
             compose.onNodeWithTag("article-media-0-details-close").performClick()
-            assertFalse(progress().contains("完整载入"))
+            assertSingleSegmentChromeAbsent()
+            compose.onNodeWithTag("article-media-0-unavailable").assertExists()
         }
         val before = imageRequests.size
         responses["42"] = mediaArticle("https://untrusted.example/image.jpg")
