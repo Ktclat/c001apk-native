@@ -66,7 +66,8 @@ enum class SettingsSection(val title: String, val description: String) {
                 }
                 if (wide) VerticalDivider()
                 if (wide || selected != null) Box(Modifier.weight(1f).fillMaxHeight(), contentAlignment = Alignment.TopCenter) {
-                    LazyColumn(Modifier.widthIn(max = 760.dp).fillMaxSize(), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    // A different category starts a fresh detail list, matching Flutter's keyed page.
+                    key(detail) { LazyColumn(Modifier.widthIn(max = 760.dp).fillMaxSize(), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         if (wide) item { Text(detail.title, style = MaterialTheme.typography.titleLarge, modifier = Modifier.padding(bottom = 8.dp)) }
                         when(detail) {
                             SettingsSection.APPEARANCE -> {
@@ -115,7 +116,7 @@ enum class SettingsSection(val title: String, val description: String) {
                                 item { NavigationSetting("本地诊断", "版本、界面与脱敏首页请求摘要；仅手动复制，不含账号凭据", ProfileIcons.InfoOutline) { onNavigate("native-diagnostics") } }
                             }
                         }
-                    }
+                    } }
                 }
             }
         }
