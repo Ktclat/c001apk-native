@@ -1,0 +1,1 @@
+{"entityType": "card", "id": "icons", "entityTemplate": "iconLinkGridCard", "entities": [{"entityType": "iconLink", "id": "icon-1", "title": "入口一", "url": "/t/入口一", "pic": "https://fixture.invalid/icon-1.png"}]}

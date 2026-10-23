@@ -334,6 +334,7 @@ fun NativeApp(model: BrowseViewModel, container: AppContainer, settings: AppSett
                         val rawState = states[key] ?: BrowseState(loading = true)
                         val blacklist = (localLoad as? LocalLoadState.Ready)?.value?.blacklist
                         val visibleState = remember(rawState, blacklist, localLoad) { if (blacklist == null) rawState.copy(items = emptyList(), error = if (localLoad == LocalLoadState.Failed) "本地过滤设置无法读取，未展示未过滤内容" else "正在读取本地过滤设置") else rawState.copy(items = filterBlocked(rawState.items, blacklist)) }
+                        CompositionLocalProvider(LocalPreviewGeometryStore provides model.previewGeometry) {
                         ContentList(visibleState, key, accounts, accountState,
                             listState = browseListStates[key] ?: rememberLazyListState(),
                             retry = { model.load(key, refresh = true) }, more = { model.load(key, more = true) },
@@ -341,6 +342,7 @@ fun NativeApp(model: BrowseViewModel, container: AppContainer, settings: AppSett
                                 try { container.local.favorite(item) } catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
                                 catch (_: Exception) { localError = "收藏保存失败，请重试" }
                             } })
+                        }
                     }
                 }
                 root == 0 && homeTab == 0 -> holder.SaveableStateProvider("apps") { InstalledAppsScreen(listState = browseListStates["apps"] ?: rememberLazyListState()) { navigate("app:$it") } }
@@ -402,8 +404,10 @@ private fun ContentCard(item: ContentItem, navigate: (String) -> Unit, openLink:
         return
     }
     if (item.kind == "feed_reply") { InteractiveFeedReplyRow(item, accounts, accountState, navigate, openLink, onChanged); return }
+    if (item.entityTemplate == "iconLinkGridCard") { IconLinkGridCard(item, openLink); return }
     Card(Modifier.fillMaxWidth()) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            if (item.children.isNotEmpty() || item.childrenIncomplete || !item.entityTemplate.isNullOrBlank()) Text("此卡片的模板或嵌套内容暂不支持")
             if (item.userName.isNotBlank()) Text(item.userName, style = MaterialTheme.typography.labelLarge,
                 modifier = Modifier.clickable(enabled = item.userId.isNotBlank()) { navigate("user:${item.userId}") })
             if (item.title.isNotBlank()) Text(item.title, style = LocalReadingStyles.current.title)

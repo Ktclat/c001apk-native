@@ -14,6 +14,7 @@ data class BrowseState(val items: List<ContentItem> = emptyList(), val loading: 
     val error: String? = null, val next: PageCursor? = null, val loaded: Boolean = false)
 
 class BrowseViewModel(private val repository: CoolapkRepository = HttpCoolapkRepository()) : ViewModel() {
+    internal val previewGeometry = PreviewGeometryStore()
     internal val readerPositions = ReaderPositionStore()
     private val mutable = MutableStateFlow<Map<String, BrowseState>>(emptyMap())
     val states = mutable.asStateFlow()
@@ -81,7 +82,7 @@ class BrowseViewModel(private val repository: CoolapkRepository = HttpCoolapkRep
             requests.remove(key)
         }
     }
-    override fun onCleared() { readerPositions.clear(); super.onCleared() }
+    override fun onCleared() { previewGeometry.close(); readerPositions.clear(); super.onCleared() }
 }
 private fun ApiResult<ContentItem>.asPage(): ApiResult<Page<ContentItem>> = when (this) {
     is ApiResult.Success -> ApiResult.Success(Page(listOf(value), null))

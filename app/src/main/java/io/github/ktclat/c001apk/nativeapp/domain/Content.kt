@@ -15,6 +15,8 @@ data class ContentItem(
     val likeCount: Int = 0,
     val targetUrl: String? = null,
     val children: List<ContentItem> = emptyList(),
+    /** Decoder hit a child bound or encountered malformed entries; never claim a complete grid. */
+    val childrenIncomplete: Boolean = false,
     val tabs: List<ContentTab> = emptyList(),
     val packageName: String? = null,
     val publishedAtSeconds: Long = 0,
