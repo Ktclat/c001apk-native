@@ -219,6 +219,16 @@ fun NativeApp(model: BrowseViewModel, container: AppContainer, settings: AppSett
         }; return
     }
     when (route) {
+        "native-about" -> {
+            SideEffect { savedKeys.add("native-about") }
+            holder.SaveableStateProvider("native-about") {
+                NativeAboutScreen(goBack, { navigate("native-diagnostics") }, { navigate("native-updates") }, { navigate("native-bundled-notices") })
+            }; return
+        }
+        "native-bundled-notices" -> {
+            SideEffect { savedKeys.add("native-bundled-notices") }
+            holder.SaveableStateProvider("native-bundled-notices") { NativeBundledNoticesScreen(goBack) }; return
+        }
         "native-updates" -> { NativeUpdateScreen(goBack, container.nativeUpdates, onOpenDiagnostics = { navigate("native-diagnostics") }); return }
         "native-diagnostics" -> { NativeDiagnosticsScreen(settings.floatingNavigation, accessibility, goBack, accounts.repository.homeDiagnostics); return }
         "app-updates" -> { InstalledAppUpdatesScreen(container.appUpdates, goBack) { navigate("app:$it") }; return }
