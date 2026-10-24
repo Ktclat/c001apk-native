@@ -39,94 +39,102 @@ import kotlin.coroutines.coroutineContext
     scrollState: ScrollState, bottomPadding: Dp, onNavigate: (String) -> Unit,
     onPersonalList: (MyPersonalList) -> Unit, countsRepository: NotificationCountsRepository? = null) {
     val uid = personalListAccountId(accountState)
-    key(uid, accountState.generation, repository) {
-        var result by remember { mutableStateOf<ApiResult<OwnProfile>?>(null) }
-        var refresh by remember { mutableIntStateOf(0) }
-        LaunchedEffect(repository, refresh) {
-            result = null
-            if (repository != null && uid != null) {
-                try {
-                    val loaded = repository.load()
-                    // Even a repository that returns after cancellation must not publish stale content.
-                    coroutineContext.ensureActive()
-                    result = loaded
-                } catch (e: CancellationException) {
-                    // A strict cookie revision can cancel a request without replacing this UI key.
-                    // Release loading/retry state here; on key disposal this mutates only the old state.
-                    result = ApiResult.Failure(FailureKind.UNCERTAIN, "个人资料加载已取消，请重试")
-                    throw e
-                } catch (_: Exception) {
-                    result = ApiResult.Failure(FailureKind.NETWORK, "个人资料加载失败，请重试")
-                }
+    key(uid, accountState.generation, repository, countsRepository) {
+        val profile = rememberDashboardRead(repository, uid, "个人资料", reloadOnResume = false) { repository!!.load() }
+        val counts = rememberDashboardRead(countsRepository, uid, "未读数量") { countsRepository!!.load() }
+        var aggregate by remember { mutableStateOf<Pair<Int, Int>?>(null) }
+        // Derive the indicator from the admitted pair, rather than an effect that can miss
+        // immediate completions coalesced into one composition. Later resource-only retries
+        // have another epoch and must never revive an old aggregate indicator.
+        val refreshing = aggregate?.let { (profileEpoch, countsEpoch) ->
+            (profile.loading && profile.refreshEpoch == profileEpoch) ||
+                (counts.loading && counts.refreshEpoch == countsEpoch)
+        } == true
+        val refreshAll: (() -> Unit)? = if (uid == null || repository == null || countsRepository == null) null else ({
+            // Reserve both slots synchronously. A second gesture/action cannot queue another pair.
+            if (profile.canRefresh() && counts.canRefresh()) {
+                profile.refresh()
+                counts.refresh()
+                aggregate = profile.refreshEpoch to counts.refreshEpoch
             }
-        }
-        val counts = rememberNotificationCounts(countsRepository, uid)
+        })
+        val countValue = counts.value
         MyDashboard(accountState, scrollState, bottomPadding, onNavigate, onPersonalList,
-            profile = (result as? ApiResult.Success)?.value,
-            profileStatus = when {
-                uid == null -> null
-                result == null -> "正在加载个人资料"
-                result is ApiResult.Failure -> (result as ApiResult.Failure).message
-                else -> null
-            }, onRefreshProfile = { refresh++ }, profileLoading = uid != null && result == null,
-            counts = counts.value, countsStatus = counts.status,
-            onRetryCounts = counts.retry, countsLoading = counts.loading)
+            profile = profile.value, profileStatus = profile.status,
+            onRefreshProfile = if (repository != null && uid != null) profile::refresh else null,
+            profileLoading = profile.loading,
+            counts = countValue, countsStatus = counts.status ?: if (countValue?.hasUnknown == true) "部分未读数量暂不可用" else null,
+            onRetryCounts = if (countsRepository != null && uid != null) counts::refresh else null,
+            countsLoading = counts.loading, onRefreshAll = refreshAll, refreshing = refreshing,
+            refreshEnabled = profile.canRefresh() && counts.canRefresh())
     }
 }
 
-private data class NotificationCountsState(val value: NotificationCounts?, val status: String?,
-    val loading: Boolean, val retry: (() -> Unit)?)
+/** Each resource owns its result and retry; the aggregate action only coordinates admission. */
+private class DashboardRead<T>(val enabled: Boolean, val lifecycle: Lifecycle, val label: String) {
+    var result by mutableStateOf<ApiResult<T>?>(null)
+    var loading by mutableStateOf(enabled)
+    var refreshEpoch by mutableIntStateOf(0)
+    val value: T? get() = (result as? ApiResult.Success)?.value
+    val status: String? get() = when {
+        !enabled -> null
+        loading && result !is ApiResult.Success -> "正在加载$label"
+        result is ApiResult.Failure -> (result as ApiResult.Failure).message
+        else -> null
+    }
+    fun canRefresh() = enabled && !loading && lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)
+    fun refresh() {
+        if (canRefresh()) {
+            loading = true
+            refreshEpoch++
+        }
+    }
+}
 
-/** One lifecycle gate covers first entry, resume and explicit retry; no polling or saved snapshot. */
-@Composable private fun rememberNotificationCounts(repository: NotificationCountsRepository?, uid: String?): NotificationCountsState {
+/** Pause/disposal cancels both reads. Counts reload on resume; completed profiles stay independent. */
+@Composable private fun <T> rememberDashboardRead(repository: Any?, uid: String?, label: String,
+    reloadOnResume: Boolean = true, load: suspend () -> ApiResult<T>): DashboardRead<T> {
     val lifecycle = LocalLifecycleOwner.current.lifecycle
-    var result by remember(repository, uid) { mutableStateOf<ApiResult<NotificationCounts>?>(null) }
-    var loading by remember(repository, uid) { mutableStateOf(false) }
-    var refresh by remember(repository, uid) { mutableIntStateOf(0) }
-    LaunchedEffect(repository, uid, lifecycle) {
-        if (repository == null || uid == null) return@LaunchedEffect
-        var token = 0L
+    val state = remember(repository, uid, lifecycle) { DashboardRead<T>(repository != null && uid != null, lifecycle, label) }
+    LaunchedEffect(state) {
+        if (!state.enabled) return@LaunchedEffect
         lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) {
+            var completed = state.result != null && !state.loading
+            // A lifecycle-triggered read is a new admission too. Never reuse an old
+            // aggregate epoch when only counts (or an interrupted profile) resumes.
+            if (reloadOnResume || !completed) state.refreshEpoch++
             try {
-                // snapshotFlow emits once on each resume, rather than a second initial launch.
-                snapshotFlow { refresh }.collect {
-                    val expectedToken = ++token
-                    result = null
-                    loading = true
+                snapshotFlow { state.refreshEpoch }.collect {
+                    // A completed profile need not refetch merely because counts resumed.
+                    if (!reloadOnResume && !state.loading && state.result != null) return@collect
+                    // Keep this owner's last success while refreshing, so avatars, badges
+                    // and row geometry do not jump. A failure below replaces it explicitly.
+                    completed = false
+                    if (state.result !is ApiResult.Success) state.result = null
+                    state.loading = true
                     try {
-                        val loaded = repository.load()
+                        val loaded = load()
                         coroutineContext.ensureActive()
-                        if (expectedToken == token) result = loaded
+                        state.result = loaded
                     } catch (e: CancellationException) {
-                        // Revision mismatch can cancel just this operation, not the lifecycle job.
+                        // A strict revision cancellation can leave the lifecycle job active.
                         coroutineContext.ensureActive()
-                        if (expectedToken == token) result = ApiResult.Failure(FailureKind.UNCERTAIN, "未读数量加载已取消，请重试")
+                        state.result = ApiResult.Failure(FailureKind.UNCERTAIN, "${label}加载已取消，请重试")
                     } catch (_: Exception) {
                         coroutineContext.ensureActive()
-                        if (expectedToken == token) result = ApiResult.Failure(FailureKind.NETWORK, "未读数量加载失败，请重试")
+                        state.result = ApiResult.Failure(FailureKind.NETWORK, "${label}加载失败，请重试")
                     } finally {
-                        if (coroutineContext.isActive && expectedToken == token) loading = false
+                        if (coroutineContext.isActive) {
+                            state.loading = false
+                            completed = true
+                        }
                     }
                 }
             } finally {
-                token++
-                result = null
-                loading = false
+                if (reloadOnResume || !completed) state.result = null
+                state.loading = false
             }
         }
     }
-    val value = (result as? ApiResult.Success)?.value
-    val enabled = uid != null && repository != null
-    return NotificationCountsState(value, when {
-        !enabled -> null
-        loading -> "正在加载未读数量"
-        result is ApiResult.Failure -> (result as ApiResult.Failure).message
-        value?.hasUnknown == true -> "部分未读数量暂不可用"
-        else -> null
-    }, loading, if (!enabled) null else ({
-        if (!loading && lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)) {
-            loading = true // Close the repeated-click window before the effect consumes the retry.
-            refresh++
-        }
-    }))
+    return state
 }

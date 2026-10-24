@@ -250,7 +250,7 @@ class CoolapkHttpTransport(
                     acceptChallengeResponse(session, url, response.headers.values("Set-Cookie"), boundRecord)
                     return@withContext ApiResult.Success(JsonPrimitive(bytes.toByteString().base64()))
                 }
-                val decoded = try { ApiDecoder.envelope(source.readUtf8()) } catch (problem: ApiProblem) {
+                val decoded = try { ApiDecoder.envelope(source.readUtf8(), requestPath = path) } catch (problem: ApiProblem) {
                     val challenge = problem.failure.challenge
                     if (challenge != null && replay == null && path !in setOf("v6/account/requestValidate", "v6/account/captchaImage")) {
                         if (session?.isCurrent?.invoke() == false || (operationScoped && session?.isSessionCurrent?.invoke() == false)) throw CancellationException("Session changed")
