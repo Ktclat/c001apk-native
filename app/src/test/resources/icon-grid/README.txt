@@ -1,0 +1,1 @@
+Original geometric artwork generated locally for synthetic fixtures only. No licensed third-party artwork. Ordered labels 入口一 through 入口十; local topic links; all image URLs must be intercepted without network. Counts 1,4,5,6,10.

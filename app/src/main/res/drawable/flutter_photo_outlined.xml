@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Generated from Flutter MaterialIcons-Regular.otf, glyph U+F29E. Do not redraw.
+     Copyright 2019 Google LLC. CC-BY-4.0; see assets/licenses/FlutterMaterialIcons-NOTICE.txt. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp" android:height="24dp"
+    android:viewportWidth="24" android:viewportHeight="24"
+    android:autoMirrored="false">
+    <path android:fillColor="#FF000000" android:fillType="nonZero"
+        android:pathData="M18.984375 5.015625V18.984375H5.015625V5.015625H18.984375ZM18.984375 3.0H5.015625C3.890625 3.0 3.0 3.890625 3.0 5.015625V18.984375C3.0 20.109375 3.890625 21.0 5.015625 21.0H18.984375C20.109375 21.0 21.0 20.109375 21.0 18.984375V5.015625C21.0 3.890625 20.109375 3.0 18.984375 3.0ZM14.15625 11.859375 11.15625 15.75 9.0 13.125 6.0 17.015625H18.0L14.15625 11.859375Z" />
+</vector>

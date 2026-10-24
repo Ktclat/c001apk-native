@@ -1,0 +1,14 @@
+Flutter Material icon vectors
+
+Material Icons: Copyright 2019 Google LLC. All Rights Reserved.
+Source: MaterialIcons-Regular.otf shipped with Flutter 3.24.5, SDK commit dec2ee5c1f98f8e84a7d5380c05eb8a3d0a81668.
+Pinned Flutter font artifact: flutter_infra_release/flutter/fonts/3012db47f3130e62f7cc0beabff968a33cbec8d8/fonts.zip
+https://storage.googleapis.com/flutter_infra_release/flutter/fonts/3012db47f3130e62f7cc0beabff968a33cbec8d8/fonts.zip
+Font SHA-256: d9865b671a09d683d13a863089d8825e0f61a37696ce5d7d448bc8023aa62453
+License: Creative Commons Attribution 4.0 International, as supplied alongside this exact SDK font. Full unmodified text: FlutterMaterialIcons-CC-BY-4.0.txt.
+License URL: https://creativecommons.org/licenses/by/4.0/
+
+Changes: Selected original glyph outlines were mechanically converted from font units to Android VectorDrawable paths, using the font's 512-unit em, ascent, descent, and advance; coordinates were scaled to a 24-unit viewport and the Y axis inverted at the font baseline. Original curves, winding, and metrics are preserved. XML names and Kotlin accessors were added. No approximate replacement contours or different icon families were substituted.
+
+Flutter IconData name/codepoint mapping: Copyright 2014 The Flutter Authors. All rights reserved. From packages/flutter/lib/src/material/icons.dart. Flutter's unmodified BSD license is in Flutter-BSD.txt.
+https://github.com/flutter/flutter/blob/dec2ee5c1f98f8e84a7d5380c05eb8a3d0a81668/packages/flutter/lib/src/material/icons.dart

@@ -1,0 +1,61 @@
+name: Native Android checks
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: native-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  debug:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: gradle
+      - name: Install required official Android SDK components
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Official runner SDK is present but its command-line tools are not necessarily on PATH.
+          # https://github.com/actions/runner-images/blob/main/images/ubuntu/Ubuntu2404-Readme.md
+          sdk_manager="$(find "${ANDROID_HOME:?}/cmdline-tools" -type f -path '*/bin/sdkmanager' -print | sort -V | tail -n 1)"
+          test -n "$sdk_manager" && test -x "$sdk_manager"
+          "$sdk_manager" --sdk_root="$ANDROID_HOME" 'platforms;android-36' 'build-tools;36.0.0'
+      - name: Test and prepare pinned font resources
+        run: |
+          python3 -m unittest discover -s app/tools -p 'test_fetch_fonts.py' -v
+          python3 app/tools/fetch_fonts.py
+          python3 app/tools/fetch_fonts.py --offline
+      - name: Verify local source provenance privacy and determinism
+        shell: bash
+        run: |
+          set -euo pipefail
+          out="$(mktemp -d)"
+          trap 'rm -rf "$out"' EXIT
+          javac -d "$out" buildSrc/src/main/java/io/github/ktclat/build/NativeBuildProvenance.java buildSrc/src/test/java/io/github/ktclat/build/NativeBuildProvenanceSelfTest.java
+          java -cp "$out" io.github.ktclat.build.NativeBuildProvenanceSelfTest
+      - name: Build debug, synthetic tests, and lint
+        run: ./gradlew --no-daemon :app:assembleDebug :app:testDebugUnitTest :app:lintDebug
+      - name: Preserve debug APK and explicitly synthetic verification artifacts
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: native-debug-and-synthetic-checks-not-device-validation
+          path: |
+            app/build/outputs/apk/debug/*.apk
+            app/build/reports/tests/
+            app/build/test-results/
+            app/build/reports/lint-results-debug.*
+            app/build/verification/
+          if-no-files-found: warn
+          retention-days: 7

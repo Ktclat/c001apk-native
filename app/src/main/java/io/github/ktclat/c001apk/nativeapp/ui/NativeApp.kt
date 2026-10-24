@@ -1,0 +1,465 @@
+package io.github.ktclat.c001apk.nativeapp.ui
+
+import android.provider.Settings
+import android.content.Context
+import android.view.accessibility.AccessibilityManager
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.tween
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
+import androidx.compose.ui.input.nestedscroll.NestedScrollSource
+import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.platform.LocalDensity
+import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.ScrollState
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyListState
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.outlined.Refresh
+import androidx.compose.material.icons.outlined.Search
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.saveable.rememberSaveableStateHolder
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.unit.Constraints
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.text.rememberTextMeasurer
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.viewmodel.compose.viewModel
+import io.github.ktclat.c001apk.nativeapp.feature.media.MediaGrid
+import androidx.compose.ui.platform.testTag
+import kotlinx.coroutines.flow.first
+import io.github.ktclat.c001apk.nativeapp.domain.ApiResult
+import io.github.ktclat.c001apk.nativeapp.domain.FailureKind
+import io.github.ktclat.c001apk.nativeapp.account.*
+import io.github.ktclat.c001apk.nativeapp.social.*
+import io.github.ktclat.c001apk.nativeapp.AppContainer
+import io.github.ktclat.c001apk.nativeapp.settings.*
+import io.github.ktclat.c001apk.nativeapp.local.*
+import kotlinx.coroutines.launch
+import androidx.compose.material.icons.outlined.Home
+import androidx.compose.material.icons.outlined.FavoriteBorder
+import androidx.compose.material.icons.outlined.Person
+import io.github.ktclat.c001apk.nativeapp.domain.ContentItem
+import io.github.ktclat.c001apk.nativeapp.platform.*
+import io.github.ktclat.c001apk.nativeapp.diagnostics.NativeDiagnosticsScreen
+
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
+@Composable
+fun NativeApp(model: BrowseViewModel, container: AppContainer, settings: AppSettings, accounts: AccountRuntime, accountState: AccountState, initialRoute: String? = null, myScrollState: ScrollState = rememberScrollState(), browseListStates: Map<String, LazyListState> = emptyMap()) {
+    val scope = rememberCoroutineScope()
+    var localError by remember { mutableStateOf<String?>(null) }
+    var root by rememberSaveable { mutableIntStateOf(0) }
+    var homeTab by rememberSaveable { mutableIntStateOf(1) }
+    var route by rememberSaveable { mutableStateOf<String?>(if (accountState.recoveryRequired) "accounts" else initialRoute) }
+    var routeHistory by rememberSaveable { mutableStateOf(listOf<String>()) }
+    val navigate: (String) -> Unit = { next -> if (next != route) { route?.let { routeHistory = (routeHistory + it).takeLast(12) }; route = next } }
+    val goBack: () -> Unit = { route = routeHistory.lastOrNull(); routeHistory = routeHistory.dropLast(1) }
+    var searchOpen by rememberSaveable { mutableStateOf(false) }
+    var query by rememberSaveable { mutableStateOf("") }
+    val states by model.states.collectAsStateWithLifecycle()
+    val localLoad by remember(container) { container.local.loadStates() }.collectAsStateWithLifecycle(LocalLoadState.Loading)
+    val holder = rememberSaveableStateHolder()
+    SideEffect {
+        model.readerPositions.retainRoutes(ReaderOwner(accountState.activeId, accountState.generation),
+            routeHistory + listOfNotNull(route))
+    }
+    val context = LocalContext.current
+    val openLink: (String) -> Unit = { raw -> when (val link = parseAppLink(raw)) {
+        is AppLink.Internal -> navigate(link.route)
+        is AppLink.External -> try { openWebLink(context, link.url, settings.openInBrowser) } catch (_: android.content.ActivityNotFoundException) { localError = "未找到可打开此链接的浏览器" }
+        AppLink.Unsupported -> { localError = "此链接暂不支持，未打开外部地址" }
+    } }
+    NativeUpdatePrompt(container.nativeUpdates) { navigate("native-updates") }
+    val accessibility = rememberSystemAccessibility()
+    val reduceMotion = accessibility.reduceMotion
+    var dockVisible by remember { mutableStateOf(true) }
+    val keyboardOpen = WindowInsets.ime.getBottom(LocalDensity.current) > 0
+    val configuration = androidx.compose.ui.platform.LocalConfiguration.current
+    // Floating mode remains a bottom overlay in every window orientation, including phones in landscape.
+    val useRail = route == null && !settings.floatingNavigation && (configuration.screenWidthDp >= 600 || configuration.screenWidthDp > configuration.screenHeightDp)
+    val floatingRoot = route == null && settings.floatingNavigation
+    val observeDockScroll = shouldObserveFloatingDockScroll(floatingRoot, keyboardOpen, searchOpen)
+    val density = LocalDensity.current
+    val layoutDirection = androidx.compose.ui.platform.LocalLayoutDirection.current
+    val drawingInsets = WindowInsets.safeDrawing
+    // Scaffold already consumes visual insets. Add only any remaining gesture-safe delta, once.
+    val dockExtraLeft = with(density) { (WindowInsets.systemGestures.getLeft(density, layoutDirection) - drawingInsets.getLeft(density, layoutDirection)).coerceAtLeast(0).toDp() }
+    val dockExtraRight = with(density) { (WindowInsets.systemGestures.getRight(density, layoutDirection) - drawingInsets.getRight(density, layoutDirection)).coerceAtLeast(0).toDp() }
+    val dockExtraBottom = with(density) { (maxOf(WindowInsets.mandatorySystemGestures.getBottom(density), WindowInsets.tappableElement.getBottom(density)) - drawingInsets.getBottom(density)).coerceAtLeast(0).toDp() }
+    val dockBottomGap = if (configuration.screenHeightDp < 600) 8.dp else 12.dp
+    val floatingTail = if (floatingRoot && !keyboardOpen) floatingNavigationHeight() + dockBottomGap + 12.dp + dockExtraBottom else 0.dp
+    val hideDistance = with(density) { 28.dp.toPx() }
+    val showDistance = with(density) { 20.dp.toPx() }
+    val dockScroll = remember(root, homeTab, route, settings.followType, settings.secretFollow, accountState.generation, hideDistance, showDistance, keyboardOpen, searchOpen) {
+        FloatingDockScrollState(hideDistance, showDistance)
+    }
+    val recoveryEnabled = shouldOfferFloatingDockRecovery(floatingRoot, keyboardOpen, searchOpen, dockVisible)
+    val currentRecoveryEnabled by rememberUpdatedState(recoveryEnabled)
+    val currentDockScroll by rememberUpdatedState(dockScroll)
+    val revealDock: (() -> Boolean)? = if (recoveryEnabled) ({
+        // Recheck eligibility if an accessibility service invokes an action after the UI changed.
+        if (currentRecoveryEnabled && currentDockScroll === dockScroll) {
+            dockScroll.reset()
+            dockVisible = true
+            true
+        } else false
+    }) else null
+    val reselectEvents = remember { kotlinx.coroutines.flow.MutableSharedFlow<Boolean>(extraBufferCapacity = 1) }
+    val selectRoot: (Int) -> Unit = { index ->
+        dockScroll.reset()
+        dockVisible = true
+        if (root == index && index in 0..1) reselectEvents.tryEmit(!reduceMotion)
+        root = index
+    }
+    val scrollObserver = remember(dockScroll, observeDockScroll) {
+        object : NestedScrollConnection {
+            private val enabled get() = observeDockScroll
+            override fun onPostScroll(consumed: Offset, available: Offset, source: NestedScrollSource): Offset {
+                if (enabled) dockVisible = dockScroll.consume(consumed.y, source == NestedScrollSource.UserInput)
+                return Offset.Zero
+            }
+            override suspend fun onPreFling(available: androidx.compose.ui.unit.Velocity): androidx.compose.ui.unit.Velocity {
+                if (enabled) dockScroll.beginFling(available.x, available.y)
+                return androidx.compose.ui.unit.Velocity.Zero
+            }
+            override suspend fun onPostFling(consumed: androidx.compose.ui.unit.Velocity, available: androidx.compose.ui.unit.Velocity): androidx.compose.ui.unit.Velocity {
+                dockScroll.endFling()
+                return androidx.compose.ui.unit.Velocity.Zero
+            }
+        }
+    }
+    LaunchedEffect(dockScroll) { dockScroll.reset(); dockVisible = true }
+    val entrance = remember { Animatable(1f) }
+    LaunchedEffect(root, homeTab, route, reduceMotion, settings.floatingNavigation) {
+        dockVisible = true
+        if (reduceMotion) entrance.snapTo(1f)
+        else { entrance.snapTo(0f); entrance.animateTo(1f, tween(160)) }
+    }
+    val tabs = listOf("应用", "动态", "热门", "话题", "数码", "酷图")
+    val keys = listOf("apps", "home", "hot", "topics", "products", "pictures")
+    val key = route ?: if (root == 1 && accountState.activeId != null && !settings.secretFollow) "following:${settings.followType}" else keys[homeTab]
+    val savedKeys = remember { mutableSetOf<String>() }
+    LaunchedEffect(routeHistory, route) {
+        val retain = keys.toSet() + routeHistory + listOfNotNull(route)
+        savedKeys.filterNot { it in retain }.toList().forEach { holder.removeState(it); savedKeys.remove(it) }
+    }
+    BackHandler(route != null || searchOpen || root != 0) {
+        when { searchOpen -> searchOpen = false; route != null -> goBack(); else -> root = 0 }
+    }
+    val detail = states[key]?.items?.firstOrNull()
+    LaunchedEffect(key, detail?.id, settings.recordHistory) {
+        if (key.startsWith("feed:") && detail != null) try { container.local.record(detail, settings.recordHistory) }
+        catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
+        catch (_: Exception) { localError = "无法保存浏览历史，原有数据未重置" }
+    }
+    if (localError != null) AlertDialog(onDismissRequest = { localError = null }, title = { Text("提示") }, text = { Text(localError!!) }, confirmButton = { TextButton(onClick = { localError = null }) { Text("知道了") } })
+    if (route?.startsWith("chat:") == true) {
+        val values = route!!.split(":", limit = 3)
+        HostedScreen("私信", goBack) { ChatScreen(accounts.socialRepository, accountState.generation, android.net.Uri.decode(values[1]), values[2], favorites = {
+            when (val saved = container.local.loadStates().first { it != LocalLoadState.Loading }) {
+                is LocalLoadState.Ready -> ApiResult.Success(saved.value.favorites.map { FeedShareItem(it.id, it.summary) })
+                else -> ApiResult.Failure(FailureKind.INVALID_RESPONSE, "本地收藏无法读取，原有数据未被覆盖")
+            }
+        }) }; return
+    }
+    if (route?.startsWith("mylist:") == true || route?.startsWith("mycollection:") == true) {
+        val request = parsePersonalListRoute(route)
+        val authenticatedId = personalListAccountId(accountState)
+        val personalLists = remember(accounts.repository, authenticatedId, accountState.generation) {
+            val expectedId = authenticatedId
+            val expectedGeneration = accountState.generation
+            accounts.repository.personalLists {
+                val current = accounts.store.state.value
+                expectedId != null && personalListAccountId(current) == expectedId && current.generation == expectedGeneration
+            }
+        }
+        if (request == null) HostedScreen("我的内容", goBack) { Notice("我的内容", "此列表暂不支持") }
+        else PersonalListScreen(personalLists, request, authenticatedId, accountState.generation, goBack, navigate, openLink)
+        return
+    }
+    if (route?.startsWith("notifications:") == true) {
+        val initialCategory = NoticeCategory.entries.firstOrNull { it.name == route!!.substringAfter(':') }
+        HostedScreen("消息", goBack) {
+            if (initialCategory == null) Notice("消息分类", "此消息分类暂不支持")
+            else if (accountState.activeId == null) Column(Modifier.padding(24.dp)) {
+                Text("登录后查看消息")
+                Button(onClick = { navigate("login") }) { Text("登录") }
+            } else NotificationScreen(accounts.socialRepository, accountState.generation,
+                onConversation = { conversation, uid -> navigate("chat:${android.net.Uri.encode(conversation)}:$uid") },
+                initialCategory = initialCategory)
+        }
+        return
+    }
+    replyDraftForRoute(route)?.let { draft ->
+        HostedScreen("回复", goBack) {
+            if (accountState.activeId == null) Column(Modifier.fillMaxSize().padding(24.dp)) {
+                Text("登录后回复")
+                Button(onClick = { navigate("login") }) { Text("登录") }
+            } else SocialComposerScreen(accounts.socialRepository, accountState.generation, draft, showTitle = false, onSent = {
+                routeHistory.lastOrNull()?.let { previous ->
+                    if (previous.startsWith("feed:")) model.invalidateReplies(previous.substringAfter(':'))
+                    model.load(previous, refresh = true)
+                }; goBack()
+            })
+        }; return
+    }
+    when (route) {
+        "native-about" -> {
+            SideEffect { savedKeys.add("native-about") }
+            holder.SaveableStateProvider("native-about") {
+                NativeAboutScreen(goBack, { navigate("native-diagnostics") }, { navigate("native-updates") }, { navigate("native-bundled-notices") })
+            }; return
+        }
+        "native-bundled-notices" -> {
+            SideEffect { savedKeys.add("native-bundled-notices") }
+            holder.SaveableStateProvider("native-bundled-notices") { NativeBundledNoticesScreen(goBack) }; return
+        }
+        "native-updates" -> { NativeUpdateScreen(goBack, container.nativeUpdates, onOpenDiagnostics = { navigate("native-diagnostics") }); return }
+        "native-diagnostics" -> { NativeDiagnosticsScreen(settings.floatingNavigation, accessibility, goBack, accounts.repository.homeDiagnostics); return }
+        "app-updates" -> { InstalledAppUpdatesScreen(container.appUpdates, goBack) { navigate("app:$it") }; return }
+        "accounts" -> { HostedScreen("账号", goBack) { AccountManager(accounts.store, { navigate("login") }) }; return }
+        "login" -> { HostedScreen("登录", goBack) { PasswordLogin(accounts.loginCoordinator, accounts.loginTransport, goBack) }; return }
+        "notifications" -> { HostedScreen("消息", goBack) { NotificationScreen(accounts.socialRepository, accountState.generation, { conversation, uid -> navigate("chat:${android.net.Uri.encode(conversation)}:$uid") }) }; return }
+        "compose" -> { HostedScreen("发布动态", goBack) { SocialComposerScreen(accounts.socialRepository, accountState.generation, showTitle = false, onSent = { model.load("home", refresh = true); goBack() }) }; return }
+
+        "settings" -> { SettingsScreen(settings, { updated -> scope.launch { try { container.settings.update { updated } } catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled } catch (_: Exception) { localError = "设置保存失败，请重试" } } }, goBack,
+            { navigate("library:${it.name}") }, { navigate("blacklist") }, { navigate("local-follows") }, onNavigate = navigate,
+            isLoggedIn = accountState.activeId != null, accountCount = accountState.accounts.size); return }
+        "library:FAVORITES", "library:HISTORY" -> { LocalLibraryScreen(container.local, LibraryKind.valueOf(route!!.substringAfter(":")), goBack, { navigate("feed:$it") }); return }
+        "local-follows" -> { LocalFollowsScreen(container.local, goBack, { navigate("user:$it") }); return }
+        "blacklist" -> { BlacklistScreen(container.local, goBack); return }
+    }
+    if (route?.startsWith("feed:") == true) {
+        HostedScreen("动态", goBack) {
+            val blacklist = (localLoad as? LocalLoadState.Ready)?.value?.blacklist
+            if (blacklist == null) Notice("本地过滤设置", if (localLoad == LocalLoadState.Failed) "无法读取过滤规则，原有数据未被覆盖" else "正在读取过滤规则")
+            else FeedDetailScreen(route!!.substringAfter(':'), model, accounts, accountState, blacklist, navigate, openLink) { item ->
+                scope.launch { try { container.local.favorite(item) } catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled } catch (_: Exception) { localError = "收藏保存失败，请重试" } }
+            }
+        }
+        return
+    }
+    val safeTopDp = drawingInsets.getTop(density) / density.density
+    val safeBottomDp = drawingInsets.getBottom(density) / density.density
+    val headerEstimate = safeTopDp + if (root == 0 && route == null) {
+        maxOf(48f, with(density) { 20.sp.toDp().value } + 25f)
+    } else maxOf(64f, with(density) { MaterialTheme.typography.titleLarge.lineHeight.toDp().value })
+    var measuredHeaderHeight by remember(root, route == null, configuration.screenWidthDp, density.fontScale, safeTopDp, searchOpen) {
+        mutableFloatStateOf(headerEstimate)
+    }
+    val actionLabel = when {
+        root == 2 -> "私信与信息"
+        root == 1 && (accountState.activeId == null || settings.secretFollow) -> "管理本地关注（0）"
+        else -> "重试"
+    }
+    val actionWidthPx = (with(density) { configuration.screenWidthDp.dp.toPx() } -
+        drawingInsets.getLeft(density, layoutDirection) - drawingInsets.getRight(density, layoutDirection) -
+        with(density) { 48.dp.toPx() }).toInt().coerceAtLeast(1)
+    val actionText = rememberTextMeasurer().measure(actionLabel, style = MaterialTheme.typography.labelLarge,
+        constraints = Constraints(maxWidth = actionWidthPx))
+    val minimumActionDp = maxOf(48f, actionText.size.height / density.density + 16f)
+    val scrollRootHeader = floatingRoot && rootHeaderMustScroll(
+        windowHeightDp = configuration.screenHeightDp.toFloat(), fixedHeaderHeightDp = measuredHeaderHeight,
+        safeBottomDp = safeBottomDp + dockExtraBottom.value,
+        dockHeightDp = if (keyboardOpen) 0f else floatingNavigationHeight().value,
+        dockGapDp = if (keyboardOpen) 0f else dockBottomGap.value, actionHeightDp = minimumActionDp,
+    )
+    val rootHeader: @Composable () -> Unit = {
+        Column(Modifier.testTag(if (scrollRootHeader) "root-scrollable-header" else "root-fixed-header")
+            .onSizeChanged { size ->
+                // The same header consumes top insets only in Scaffold's topBar. Inside content,
+                // Scaffold has consumed them already. Store one comparable full-height budget.
+                measuredHeaderHeight = size.height / density.density + if (scrollRootHeader) safeTopDp else 0f
+            }) {
+            if (root == 0 && route == null) {
+                // Source Home owns one app-bar row: tabs and search, not a second app title.
+                Surface(color = MaterialTheme.colorScheme.surface) {
+                    Row(Modifier.fillMaxWidth().windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal)), verticalAlignment = Alignment.CenterVertically) {
+                        HomeCategoryTabs(tabs, homeTab, { i ->
+                            if (homeTab == i) reselectEvents.tryEmit(!reduceMotion) else homeTab = i
+                        }, Modifier.weight(1f))
+                        if (homeTab == 1) IconButton(
+                            onClick = { navigate(if (accountState.activeId == null) "login" else "compose") },
+                            modifier = Modifier.size(48.dp).testTag("home-publish")) {
+                            Icon(FlutterMaterialIcons.Add, "发布动态")
+                        }
+                        IconButton(onClick = { searchOpen = !searchOpen }, modifier = Modifier.floatingDockRecovery(revealDock)) { Icon(FlutterMaterialIcons.Search, "搜索") }
+                    }
+                }
+            } else {
+            TopAppBar(title = { Text(if (route != null) "浏览" else listOf("c001apk Native", "关注", "我的")[root]) },
+                navigationIcon = { if (route != null) IconButton(onClick = goBack) { Icon(FlutterMaterialIcons.ArrowBack, "返回") } },
+                actions = {
+                    if (root == 2 && route == null) {
+                        IconButton(onClick = { navigate("accounts") }) { Icon(ProfileIcons.SwitchAccountOutlined, "账号管理") }
+                        IconButton(onClick = { navigate("settings") }, modifier = Modifier.floatingDockRecovery(revealDock)) { Icon(ProfileIcons.SettingsOutlined, "设置") }
+                    } else IconButton(onClick = { searchOpen = !searchOpen }, modifier = Modifier.floatingDockRecovery(revealDock)) { Icon(FlutterMaterialIcons.Search, "搜索") }
+                    if (root == 0 || route != null) IconButton(onClick = { model.load(key, refresh = true) }) { Icon(FlutterMaterialIcons.Refresh, "刷新") }
+                })
+            }
+            if (searchOpen) Row(Modifier.padding(horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically) {
+                OutlinedTextField(query, { query = it }, Modifier.weight(1f), singleLine = true, label = { Text("搜索动态") })
+                TextButton(onClick = { if (query.isNotBlank()) { navigate("search:${query.trim()}"); searchOpen = false } }) { Text("搜索") }
+            }
+
+        }
+    }
+    Scaffold(contentWindowInsets = WindowInsets.safeDrawing, topBar = {
+        if (!scrollRootHeader) rootHeader()
+    }, bottomBar = {
+        if (route == null && !settings.floatingNavigation && !keyboardOpen && !useRail) NavigationBar {
+            val icons = (0..2).map { rootNavigationIcon(it, it == root) }
+            listOf("首页", "关注", "我的").forEachIndexed { index, label -> NavigationBarItem(root == index, { selectRoot(index) }, icon = { Icon(icons[index], null) }, label = { Text(label) }) }
+        }
+    }) { padding ->
+        CompositionLocalProvider(LocalRootReselect provides reselectEvents, LocalFloatingBottomSpace provides floatingTail, LocalFloatingDockReveal provides revealDock,
+            LocalScrollableRootHeader provides if (scrollRootHeader) rootHeader else null) {
+        Row(Modifier.fillMaxSize().padding(padding).consumeWindowInsets(padding).imePadding()) {
+        if (useRail && !keyboardOpen) NavigationRail(Modifier.width(if (LocalDensity.current.fontScale > 1.3f) 96.dp else 80.dp).verticalScroll(rememberScrollState()).testTag("navigation-rail")) {
+            val icons = (0..2).map { rootNavigationIcon(it, it == root) }
+            listOf("首页", "关注", "我的").forEachIndexed { index, label -> NavigationRailItem(root == index, { selectRoot(index) }, icon = { Icon(icons[index], null) }, label = { Text(label) }) }
+        }
+        Box(Modifier.weight(1f).fillMaxHeight()) {
+        Box(Modifier.fillMaxSize().nestedScroll(scrollObserver).graphicsLayer { alpha = entrance.value; translationY = (1f - entrance.value) * 4.dp.toPx() }) {
+            when {
+                route != null || (root == 0 && homeTab != 0) || (root == 1 && accountState.activeId != null && !settings.secretFollow) -> {
+                    LaunchedEffect(key) { model.load(key) }
+                    SideEffect { savedKeys.add(key) }
+                    holder.SaveableStateProvider(key) {
+                        val rawState = states[key] ?: BrowseState(loading = true)
+                        val blacklist = (localLoad as? LocalLoadState.Ready)?.value?.blacklist
+                        val visibleState = remember(rawState, blacklist, localLoad) { if (blacklist == null) rawState.copy(items = emptyList(), error = if (localLoad == LocalLoadState.Failed) "本地过滤设置无法读取，未展示未过滤内容" else "正在读取本地过滤设置") else rawState.copy(items = filterBlocked(rawState.items, blacklist)) }
+                        CompositionLocalProvider(LocalPreviewGeometryStore provides model.previewGeometry) {
+                        ContentList(visibleState, key, accounts, accountState,
+                            listState = browseListStates[key] ?: rememberLazyListState(),
+                            retry = { model.load(key, refresh = true) }, more = { model.load(key, more = true) },
+                            navigate = navigate, openLink = openLink, favorite = { item -> scope.launch {
+                                try { container.local.favorite(item) } catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
+                                catch (_: Exception) { localError = "收藏保存失败，请重试" }
+                            } })
+                        }
+                    }
+                }
+                root == 0 && homeTab == 0 -> holder.SaveableStateProvider("apps") { InstalledAppsScreen(listState = browseListStates["apps"] ?: rememberLazyListState()) { navigate("app:$it") } }
+                root == 1 -> holder.SaveableStateProvider("root-local-follow") { LocalFollowFeedScreen(container.local, accounts.repository, { navigate("feed:$it") }, { navigate("user:$it") }, { navigate("local-follows") }, listState = browseListStates["root-local-follow"] ?: rememberLazyListState()) }
+                else -> holder.SaveableStateProvider("root-my") {
+                    OwnProfileDashboard(accounts, accountState, myScrollState, floatingTail, onNavigate = navigate,
+                        onPersonalList = { navigate(personalListRoute(it)) })
+                }
+            }
+        }
+        if (shouldShowFloatingDock(floatingRoot, keyboardOpen, searchOpen, dockVisible)) {
+            BoxWithConstraints(Modifier.align(Alignment.BottomCenter).fillMaxWidth().absolutePadding(left = dockExtraLeft, right = dockExtraRight, top = 12.dp, bottom = dockBottomGap + dockExtraBottom), contentAlignment = Alignment.Center) {
+                val sideGap = if (maxWidth >= 186.dp) 16.dp else 8.dp
+                FloatingNavigation(root, reduceMotion, onSelect = selectRoot, modifier = Modifier.padding(horizontal = sideGap))
+            }
+        }
+        }
+        }
+        }
+    }
+}
+
+@Composable
+private fun Notice(title: String, message: String) {
+    Column(Modifier.fillMaxSize().padding(24.dp), verticalArrangement = Arrangement.Center) {
+        Text(title, style = MaterialTheme.typography.titleLarge)
+        Spacer(Modifier.height(12.dp)); Text(message, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    }
+}
+
+@Composable
+private fun ContentList(state: BrowseState, key: String, accounts: AccountRuntime, accountState: AccountState, retry: () -> Unit, more: () -> Unit, navigate: (String) -> Unit, openLink: (String) -> Unit, favorite: (ContentItem) -> Unit, listState: LazyListState = rememberLazyListState()) {
+    ObserveRootReselect(listState)
+    val rootHeader = LocalScrollableRootHeader.current
+    val displayItems = remember(state.items) { state.items.distinctBy { "${it.kind}:${it.id}:${it.title}" } }
+    LazyColumn(modifier = Modifier.fillMaxSize().testTag("content-list").floatingDockRecovery(LocalFloatingDockReveal.current), state = listState, contentPadding = PaddingValues(start = 10.dp, top = 10.dp, end = 10.dp, bottom = 10.dp + LocalFloatingBottomSpace.current), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        rootHeader?.let { header -> item(key = "root-header") { header() } }
+        if (key.startsWith("replies:")) item { TextButton(onClick = { navigate("compose-reply:feed:${key.removePrefix("replies:")}") }) { Text("回复动态") } }
+        if (state.error != null) item {
+            Card { Column(Modifier.padding(16.dp)) { Text(state.error); TextButton(onClick = retry) { Text("重试") } } }
+        }
+        if (state.loaded && state.items.isEmpty() && state.error == null && !state.loading) item { Text("暂无内容") }
+        itemsIndexed(displayItems, key = { index, item -> if (item.id.isNotBlank()) "${item.kind}:${item.id}:${item.title}" else "anonymous:$index:${item.kind}" }) { _, item ->
+            ContentCard(item, navigate, openLink, favorite, accounts, accountState, retry, isDetail = key == "feed:${item.id}")
+        }
+        if (key.startsWith("feed:") && state.items.isNotEmpty()) item {
+            Button(onClick = { navigate("replies:${key.removePrefix("feed:")}") }) { Text("查看评论") }
+        }
+        if (state.loading) item { Box(Modifier.fillMaxWidth().padding(24.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator() } }
+        else if (state.next != null) item { TextButton(onClick = more, modifier = Modifier.fillMaxWidth()) { Text("加载更多") } }
+    }
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun ContentCard(item: ContentItem, navigate: (String) -> Unit, openLink: (String) -> Unit, favorite: (ContentItem) -> Unit, accounts: AccountRuntime, accountState: AccountState, onChanged: () -> Unit, isDetail: Boolean) {
+    if (item.kind == "feed") {
+        InteractiveFeedCard(item, accounts, accountState, navigate, openLink, favorite, onChanged, detail = isDetail)
+        return
+    }
+    if (item.kind == "feed_reply") { InteractiveFeedReplyRow(item, accounts, accountState, navigate, openLink, onChanged); return }
+    if (item.entityTemplate == "iconLinkGridCard") { IconLinkGridCard(item, openLink); return }
+    Card(Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            if (item.children.isNotEmpty() || item.childrenIncomplete || !item.entityTemplate.isNullOrBlank()) Text("此卡片的模板或嵌套内容暂不支持")
+            if (item.userName.isNotBlank()) Text(item.userName, style = MaterialTheme.typography.labelLarge,
+                modifier = Modifier.clickable(enabled = item.userId.isNotBlank()) { navigate("user:${item.userId}") })
+            if (item.title.isNotBlank()) Text(item.title, style = LocalReadingStyles.current.title)
+            if (item.message.isNotBlank()) PagedPostText(item.message, item.bodyTruncated, openLink)
+            if (item.imageUrls.isNotEmpty()) MediaGrid(item.imageUrls)
+            item.targetUrl?.takeIf { it.isNotBlank() }?.let { url -> TextButton(onClick = { openLink(url) }) { Text("打开内容链接") } }
+            if (item.kind == "feed" && item.id.isNotBlank()) FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                if (!isDetail) TextButton(onClick = { navigate("feed:${item.id}") }) { Text("查看动态 · ${item.replyCount} 评论") }
+                else TextButton(onClick = { navigate("compose-reply:feed:${item.id}") }) { Text("回复动态") }
+                TextButton(onClick = { favorite(item) }) { Text("收藏到本机") }
+            }
+            if (item.kind == "feed_reply" && item.id.isNotBlank()) FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                TextButton(onClick = { navigate("compose-reply:reply:${item.id}") }) { Text("回复评论") }
+                TextButton(onClick = { navigate("thread:${item.id}") }) { Text("查看楼中楼") }
+            }
+            if (item.kind == "topic" && item.title.isNotBlank()) TextButton(onClick = { navigate("topic:${item.title}") }) { Text("查看话题") }
+            if (item.kind == "product" && item.id.isNotBlank()) TextButton(onClick = { navigate("product:${item.id}") }) { Text("查看产品") }
+            if (item.kind == "apk" && item.id.isNotBlank()) TextButton(onClick = { navigate("app:${item.id}") }) { Text("查看应用") }
+            item.tabs.forEach { tab -> TextButton(onClick = { navigate("page:${tab.url}") }) { Text(tab.title) } }
+        }
+    }
+}
+
+internal fun filterBlocked(items: List<ContentItem>, blacklist: Blacklist): List<ContentItem> = items
+    .filterNot { blacklist.blocks(it.userId, it.topicTags, it.topicTitle, it.firstRelationTitle) }
+    .map { item -> item.copy(children = filterBlocked(item.children, blacklist), replies = filterBlocked(item.replies, blacklist),
+        feed = item.feed?.let { feed -> feed.copy(
+            forward = feed.forward?.takeUnless { blacklist.blocks(it.authorId, emptyList(), "", "") },
+            hotReply = feed.hotReply?.takeUnless { blacklist.blocks(it.authorId, emptyList(), "", "") },
+        ) }) }
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun HostedScreen(title: String, back: () -> Unit, content: @Composable () -> Unit) {
+    Scaffold(topBar = { TopAppBar(title = { Text(title) }, navigationIcon = { IconButton(onClick = back) { Icon(FlutterMaterialIcons.ArrowBack, "返回") } }) }) { padding ->
+        Box(Modifier.fillMaxSize().padding(padding)) { content() }
+    }
+}
+
+/** Explicit source target kind; a comment id must never be posted as a feed id. */
+internal fun replyDraftForRoute(route: String?): ComposerDraft? {
+    val parts = route?.split(":", limit = 3) ?: return null
+    if (parts.size != 3 || parts[0] != "compose-reply" || parts[1] !in setOf("feed", "reply") || parts[2].isBlank() || parts[2].any { it !in '0'..'9' }) return null
+    return ComposerDraft("", replyId = parts[2], replyToReply = parts[1] == "reply")
+}

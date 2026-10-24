@@ -1,0 +1,22 @@
+{
+  "description": "Shared offline original PNG bytes; synthetic labeled art, not user photos. Edge markers expose cropping; source app icon retains identity.",
+  "images": [
+    "fixtures/portrait.png",
+    "fixtures/landscape.png"
+  ],
+  "text": "分享两张测试图片：竖图在前，横图在后。\n仅用于离线界面对照，不会上传。",
+  "imageDetails": [
+    {
+      "path": "fixtures/portrait.png",
+      "width": 480,
+      "height": 720,
+      "sha256": "45b09d6ec2b55b33e2d4acedbe4e5684b62c302fc66269548e1133a854558e03"
+    },
+    {
+      "path": "fixtures/landscape.png",
+      "width": 720,
+      "height": 480,
+      "sha256": "b27d4467a37da97ec1c66debe001686d16d3c2a08cd788a52c1211da70199191"
+    }
+  ]
+}
