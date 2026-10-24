@@ -8,6 +8,9 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
+import androidx.compose.material3.pulltorefresh.*
+import androidx.compose.ui.semantics.CustomAccessibilityAction
+import androidx.compose.ui.semantics.customActions
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -36,13 +39,17 @@ import coil.compose.LocalImageLoader
  */
 enum class MyPersonalList { FEED, FOLLOW, FAN, RECENT, COLLECTION, LIKE, REPLY }
 
+internal const val REFRESH_MY_ACTION = "刷新个人资料和未读数量"
+
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MyDashboard(accountState: AccountState, scrollState: ScrollState, bottomPadding: Dp,
     onNavigate: (String) -> Unit, onPersonalList: ((MyPersonalList) -> Unit)? = null,
     profile: OwnProfile? = null, profileStatus: String? = null,
     onRefreshProfile: (() -> Unit)? = null, profileLoading: Boolean = false,
     counts: NotificationCounts? = null, countsStatus: String? = null,
-    onRetryCounts: (() -> Unit)? = null, countsLoading: Boolean = false) {
+    onRetryCounts: (() -> Unit)? = null, countsLoading: Boolean = false,
+    onRefreshAll: (() -> Unit)? = null, refreshing: Boolean = false, refreshEnabled: Boolean = true) {
     val active = accountState.accounts.firstOrNull { it.id == accountState.activeId }
     var unavailable by remember(accountState.activeId, accountState.generation) { mutableStateOf<String?>(null) }
     val loggedIn = personalListAccountId(accountState) != null
@@ -56,7 +63,17 @@ fun MyDashboard(accountState: AccountState, scrollState: ScrollState, bottomPadd
         title = { Text(unavailable!!) },
         text = { Text("原生版尚未接入此账号列表。没有用本地记录替代，也不会显示虚假的统计。") },
         confirmButton = { TextButton(onClick = { unavailable = null }) { Text("知道了") } })
-    Column(Modifier.fillMaxSize().testTag("my-root-list").floatingDockRecovery(LocalFloatingDockReveal.current).verticalScroll(scrollState)
+    val pullState = rememberPullToRefreshState()
+    val revealDock = LocalFloatingDockReveal.current
+    val canPull = loggedIn && onRefreshAll != null && refreshEnabled && !refreshing
+    Box(Modifier.fillMaxSize().pullToRefresh(isRefreshing = refreshing, state = pullState,
+        enabled = canPull, onRefresh = { onRefreshAll?.invoke() })) {
+    Column(Modifier.fillMaxSize().testTag("my-root-list").semantics {
+        customActions = buildList {
+            revealDock?.let { add(CustomAccessibilityAction(SHOW_FLOATING_DOCK_ACTION, it)) }
+            if (canPull) add(CustomAccessibilityAction(REFRESH_MY_ACTION) { onRefreshAll?.invoke(); true })
+        }
+    }.verticalScroll(scrollState)
         .padding(bottom = 10.dp + bottomPadding)) {
         LocalScrollableRootHeader.current?.invoke()
         Box(Modifier.fillMaxWidth().padding(vertical = 10.dp).heightIn(min = 48.dp), contentAlignment = Alignment.Center) {
@@ -137,6 +154,10 @@ fun MyDashboard(accountState: AccountState, scrollState: ScrollState, bottomPadd
             MyNotice("好友关注", "FOLLOWERS", ProfileIcons.PersonAddOutlined, Color(0xFFF44336), ownCounts?.contactsFollow, loggedIn) { protectedAction("notifications:FOLLOWERS") }
             MyNotice("私信与信息", "MESSAGES", ProfileIcons.MailOutline, Color(0xFFFF9800), ownCounts?.messagesAndNotifications, loggedIn) { protectedAction("notifications:MESSAGES") }
         }
+    }
+    if (loggedIn && onRefreshAll != null) PullToRefreshDefaults.Indicator(
+        state = pullState, isRefreshing = refreshing, modifier = Modifier.align(Alignment.TopCenter)
+            .testTag(if (refreshing) "my-refresh-active" else "my-refresh-idle"))
     }
 }
 @Composable private fun MyShortcut(label: String, icon: ImageVector, modifier: Modifier, status: String? = null, onClick: () -> Unit) {

@@ -49,7 +49,12 @@ class NativeFeedCardTest {
             openPost = {}, openAuthor = null, openComments = {}, openLink = {}, openReference = {}, toggleLike = { toggles++ })) } }
         compose.onNodeWithTag("feed-like:synthetic").performClick()
         assertEquals(1, toggles)
-        compose.waitUntil(10_000) { compose.onAllNodesWithText("热评作者：嵌套热评", substring = true).fetchSemanticsNodes().isNotEmpty() }
+        // Each reference parses independently on Dispatchers.Default; hot-reply readiness
+        // does not imply that the forwarded body has also been published to semantics.
+        compose.waitUntil(10_000) {
+            compose.onAllNodesWithText("@转发作者：嵌套转发", substring = true).fetchSemanticsNodes().isNotEmpty() &&
+                compose.onAllNodesWithText("热评作者：嵌套热评", substring = true).fetchSemanticsNodes().isNotEmpty()
+        }
         compose.onNodeWithText("@转发作者：嵌套转发", substring = true).assertExists()
         compose.onNodeWithText("热评作者：嵌套热评", substring = true).assertExists()
     }

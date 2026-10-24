@@ -8,7 +8,7 @@ import kotlinx.serialization.json.*
 internal class ApiProblem(val failure: ApiResult.Failure) : Exception()
 internal object ApiDecoder {
     private val json = Json { ignoreUnknownKeys = true }
-    fun envelope(body: String): JsonElement {
+    fun envelope(body: String, requestPath: String? = null): JsonElement {
         // Reject extreme nesting/node counts before the recursive JSON parser allocates a tree.
         if (!boundedJsonEnvelope(body)) throw ApiProblem(failure(FailureKind.INVALID_RESPONSE).copy(
             message = "响应结构超过安全读取上限，未展示不完整正文"))
@@ -30,7 +30,13 @@ internal object ApiDecoder {
                 "rate_limit" in clues || "频繁" in clues || code == 429 -> FailureKind.RATE_LIMIT
                 else -> FailureKind.BUSINESS
             }
-            throw ApiProblem(failure(kind).copy(challenge = if (kind == FailureKind.CAPTCHA) challenge(root) else null))
+            // Upstream apk/detail -2 is endpoint-specific, not a global meaning for -2.
+            // Keep access/security failures above authoritative and never echo server text.
+            val unavailableApp = kind == FailureKind.BUSINESS && requestPath == "v6/apk/detail" &&
+                status == -2 && root.text("message").let { "应用不存在" in it || "未上架" in it }
+            throw ApiProblem(failure(kind).let {
+                if (unavailableApp) it.copy(message = "该应用未在酷安上架") else it
+            }.copy(challenge = if (kind == FailureKind.CAPTCHA) challenge(root) else null))
         }
         return root["data"] ?: invalid()
     }

@@ -59,6 +59,8 @@ class MyRootRequestRoutingTest {
     private val clients = mutableListOf<OkHttpClient>()
     private lateinit var accounts: AccountRuntime
     private lateinit var container: AppContainer
+    @Volatile private var delayedMyRefresh: CountDownLatch? = null
+    @Volatile private var failRefreshCounts = false
     @Volatile private var delayedFirstCollection: CountDownLatch? = null
     private val firstCollectionReturned = CountDownLatch(1)
     private val notices = listOf(
@@ -110,6 +112,9 @@ class MyRootRequestRoutingTest {
             val isCounts = request.url.encodedPath == "/v6/notification/checkCount"
             // Independently verify both My side reads; destination assertions below stay exact.
             if (isProfile) profileRequests += request else if (isCounts) countsRequests += request else requests += request
+            if ((isProfile || isCounts) && delayedMyRefresh?.await(30, TimeUnit.SECONDS) == false)
+                throw IOException("Synthetic My refresh gate timed out")
+            if (isCounts && failRefreshCounts) throw IOException("Synthetic counts refresh failure")
             var body = """{"data":[]}"""
             if (isCounts) {
                 if (request.url.query != null || request.body != null ||
@@ -156,6 +161,7 @@ class MyRootRequestRoutingTest {
         accounts = ctor.newInstance(store, login, LoginCoordinator(store, login, "synthetic-device"), repository, social)
     }
     @After fun cleanup() {
+        delayedMyRefresh?.countDown()
         images.close()
         compose.runOnUiThread {
             androidx.core.view.ViewCompat.setOnApplyWindowInsetsListener(compose.activity.window.decorView, null)
@@ -351,6 +357,123 @@ class MyRootRequestRoutingTest {
         capture("native-my-unread-$label-tail-reported-insets-synthetic.png")
         verifyLastActionAboveVisibleDock("unread-$label-reported-insets")
     }
+    @Test @Config(qualifiers = "w369dp-h822dp-520dpi")
+    fun pullRefreshReportedViewportFramesAndExactRequestPair() {
+        showMy(widthPx = 1200, heightPx = 2670, floating = true)
+        val fixtureInsets = androidx.core.view.WindowInsetsCompat.Builder()
+            .setInsets(androidx.core.view.WindowInsetsCompat.Type.statusBars(), androidx.core.graphics.Insets.of(0, 140, 0, 0))
+            .setInsets(androidx.core.view.WindowInsetsCompat.Type.navigationBars(), androidx.core.graphics.Insets.NONE)
+            .setInsets(androidx.core.view.WindowInsetsCompat.Type.systemGestures(), androidx.core.graphics.Insets.of(0, 179, 0, 0))
+            .setInsets(androidx.core.view.WindowInsetsCompat.Type.ime(), androidx.core.graphics.Insets.NONE)
+            .setVisible(androidx.core.view.WindowInsetsCompat.Type.statusBars(), true)
+            .setVisible(androidx.core.view.WindowInsetsCompat.Type.navigationBars(), false).build()
+        compose.runOnUiThread {
+            val decor = compose.activity.window.decorView
+            androidx.core.view.ViewCompat.setOnApplyWindowInsetsListener(decor) { view, _ -> androidx.core.view.ViewCompat.onApplyWindowInsets(view, fixtureInsets) }
+            androidx.core.view.ViewCompat.dispatchApplyWindowInsets(decor, fixtureInsets)
+        }
+        compose.waitForIdle(); assertViewport(1200, 2670, 3.25f)
+        assertEquals(Triple(140, 179, 0), reportedInsets)
+        assertPopulatedHeader()
+        capture("native-my-refresh-normal-reported-insets-synthetic.png")
+        val root = compose.onNodeWithTag("my-root-list")
+        val visibleActions = root.fetchSemanticsNode().config[androidx.compose.ui.semantics.SemanticsActions.CustomActions]
+        compose.onNodeWithTag("floating-navigation").assertIsDisplayed()
+        assertFalse("A visible dock needs no recovery action", visibleActions.any { it.label == SHOW_FLOATING_DOCK_ACTION })
+        assertTrue(visibleActions.any { it.label == REFRESH_MY_ACTION })
+        // The tall fixture can fit all rows. Its top pull is valid even without enough
+        // consumed scroll to hide the dock; the short landscape case verifies recovery.
+        val rowTags = listOf("MENTIONS", "REPLIES", "LIKES", "FOLLOWERS", "MESSAGES")
+        val rowsBeforeRefresh = rowTags.associateWith { category ->
+            compose.onNodeWithTag("my-notice-$category").getUnclippedBoundsInRoot()
+        }
+        val profilesBefore = profileRequests.size; val countsBefore = countsRequests.size
+        val gate = CountDownLatch(1)
+        delayedMyRefresh = gate
+        try {
+            // Keep the real pointer down for the pulling frame. No read starts before release.
+            root.performTouchInput {
+                down(androidx.compose.ui.geometry.Offset(centerX, height * .12f))
+                moveTo(androidx.compose.ui.geometry.Offset(centerX, height * .65f), delayMillis = 600)
+            }
+            capture("native-my-refresh-pulling-reported-insets-synthetic.png")
+            assertEquals(profilesBefore, profileRequests.size); assertEquals(countsBefore, countsRequests.size)
+            root.performTouchInput { up() }
+            compose.waitUntil(5_000) { profileRequests.size == profilesBefore + 1 && countsRequests.size == countsBefore + 1 }
+            compose.onNodeWithTag("my-refresh-active").assertExists()
+            compose.onNodeWithText("synthetic profile 1").assertExists()
+            compose.onNodeWithContentDescription("头像").assertExists()
+            compose.onNodeWithText("Lv.7").assertExists()
+            compose.onNodeWithText("25/100").assertExists()
+            listOf("12", "34", "56").forEach { compose.onNodeWithText(it).assertExists() }
+            compose.onNodeWithText("正在加载个人资料").assertDoesNotExist()
+            compose.onNodeWithText("正在加载未读数量").assertDoesNotExist()
+            for (category in rowTags) {
+                assertEquals("Refreshing must not shift $category", rowsBeforeRefresh.getValue(category),
+                    compose.onNodeWithTag("my-notice-$category").getUnclippedBoundsInRoot())
+            }
+            compose.onNodeWithTag("my-notice-MENTIONS").assert(SemanticsMatcher.expectValue(
+                androidx.compose.ui.semantics.SemanticsProperties.StateDescription, "1 条未读"))
+            compose.onNodeWithTag("my-notice-badge-MENTIONS", useUnmergedTree = true).assertExists()
+            capture("native-my-refresh-loading-reported-insets-synthetic.png")
+            // A second actual pull cannot create another pair while the first is pending.
+            root.performTouchInput { swipeDown() }
+            assertEquals(profilesBefore + 1, profileRequests.size); assertEquals(countsBefore + 1, countsRequests.size)
+            gate.countDown(); delayedMyRefresh = null
+            awaitOwnProfile(profilesBefore); awaitCounts(countsBefore)
+            compose.onNodeWithTag("my-refresh-active").assertDoesNotExist()
+            capture("native-my-refresh-completed-reported-insets-synthetic.png")
+        } finally { gate.countDown(); delayedMyRefresh = null }
+        val errorProfileBefore = profileRequests.size; val errorCountsBefore = countsRequests.size
+        failRefreshCounts = true
+        root.performTouchInput { swipeDown() }
+        awaitOwnProfile(errorProfileBefore)
+        compose.waitUntil(5_000) { compose.onAllNodesWithText("重试未读数量").fetchSemanticsNodes().isNotEmpty() }
+        compose.onNodeWithTag("my-refresh-active").assertDoesNotExist()
+        compose.onNodeWithText("synthetic profile 1").assertExists()
+        val failedRequest = countsRequests.drop(errorCountsBefore).single()
+        assertAccount(failedRequest, "1")
+        assertEquals("/v6/notification/checkCount", failedRequest.url.encodedPath)
+        assertNull(failedRequest.url.query); assertNull(failedRequest.body)
+        verifiedCountsRequests++
+        compose.onNodeWithText("重试未读数量").performScrollTo().assertIsEnabled()
+        capture("native-my-refresh-partial-error-reported-insets-synthetic.png")
+    }
+
+    @Test @Config(qualifiers = "w800dp-h420dp-160dpi")
+    fun pullRefreshShortLandscapeLargeTextKeepsLastActionReachable() {
+        compose.runOnUiThread {
+            previousSystemFontScale = org.robolectric.RuntimeEnvironment.getFontScale()
+            org.robolectric.RuntimeEnvironment.setFontScale(2f)
+        }
+        showMy(fontScale = 2f, dark = true, widthPx = 800, heightPx = 420, floating = true)
+        assertViewport(800, 420, 1f)
+        capture("native-my-refresh-short-landscape-font200-top-synthetic.png")
+        val root = compose.onNodeWithTag("my-root-list")
+        val hideThresholdPx = 28f * compose.activity.resources.displayMetrics.density
+        assertTrue("Measure actual scroll extent before exercising dock hiding: max=${myScroll.maxValue}, threshold=$hideThresholdPx",
+            myScroll.maxValue >= hideThresholdPx)
+        // Recovery is intentionally offered only after real consumed scrolling hides the dock.
+        // Exercise that state rather than incorrectly expecting it while the dock is visible.
+        root.performTouchInput { swipeUp() }
+        compose.onNodeWithTag("floating-navigation").assertDoesNotExist()
+        val hiddenActions = root.fetchSemanticsNode().config[androidx.compose.ui.semantics.SemanticsActions.CustomActions]
+        assertTrue(hiddenActions.any { it.label == SHOW_FLOATING_DOCK_ACTION })
+        assertTrue(hiddenActions.any { it.label == REFRESH_MY_ACTION })
+        compose.runOnIdle { assertTrue(hiddenActions.single { it.label == SHOW_FLOATING_DOCK_ACTION }.action()) }
+        compose.onNodeWithTag("floating-navigation").assertIsDisplayed()
+        compose.runOnIdle { kotlinx.coroutines.runBlocking { myScroll.scrollTo(0) } }
+        compose.onNodeWithText("synthetic profile 1").assertIsDisplayed()
+        val profilesBefore = profileRequests.size; val countsBefore = countsRequests.size
+        compose.onNodeWithTag("my-root-list").performTouchInput {
+            swipe(androidx.compose.ui.geometry.Offset(centerX, height * .05f), androidx.compose.ui.geometry.Offset(centerX, height * .95f), 600)
+        }
+        awaitOwnProfile(profilesBefore); awaitCounts(countsBefore)
+        val last = compose.onNodeWithTag("my-notice-MESSAGES").performScrollTo().assertIsDisplayed().assertIsEnabled()
+        assertTrue(last.fetchSemanticsNode().boundsInRoot.height >= 48f)
+        capture("native-my-refresh-short-landscape-font200-tail-synthetic.png")
+    }
+
     @Test fun unknownHeaderNeverInventsCountsOrLevel() {
         unknownProfile = true
         showMy()
@@ -520,6 +643,14 @@ class MyRootRequestRoutingTest {
         awaitOwnProfile(profilesBefore)
         awaitCounts(countsBefore)
     }
+    /** Retained success is display continuity, not evidence that a new read has completed. */
+    private fun myRefreshReady(): Boolean {
+        // Always synchronize actual UI first, even if no new wire request has arrived yet.
+        val actions = compose.onNodeWithTag("my-root-list").fetchSemanticsNode().config
+            .getOrNull(androidx.compose.ui.semantics.SemanticsActions.CustomActions).orEmpty()
+        val hasActiveIndicator = compose.onAllNodesWithTag("my-refresh-active").fetchSemanticsNodes().isNotEmpty()
+        return actions.any { it.label == REFRESH_MY_ACTION } && !hasActiveIndicator
+    }
     private fun awaitOwnProfile(before: Int) {
         assertEquals("No unaccounted profile request between root entries", verifiedProfileRequests, before)
         val uid = personalListAccountId(accounts.store.state.value)
@@ -529,7 +660,9 @@ class MyRootRequestRoutingTest {
             return
         }
         compose.waitUntil(5_000) {
-            compose.onAllNodesWithText("synthetic profile $uid").fetchSemanticsNodes().isNotEmpty()
+            val ready = myRefreshReady()
+            val hasProfile = compose.onAllNodesWithText("synthetic profile $uid").fetchSemanticsNodes().isNotEmpty()
+            profileRequests.size > before && ready && hasProfile
         }
         compose.waitForIdle()
         val request = profileRequests.drop(before).single()
@@ -548,8 +681,10 @@ class MyRootRequestRoutingTest {
             return
         }
         compose.waitUntil(5_000) {
-            compose.onAllNodes(hasTestTag("my-notice-MENTIONS") and SemanticsMatcher.expectValue(
+            val ready = myRefreshReady()
+            val hasCounts = compose.onAllNodes(hasTestTag("my-notice-MENTIONS") and SemanticsMatcher.expectValue(
                 androidx.compose.ui.semantics.SemanticsProperties.StateDescription, "1 条未读")).fetchSemanticsNodes().size == 1
+            countsRequests.size > before && ready && hasCounts
         }
         compose.waitForIdle()
         val request = countsRequests.drop(before).single()
