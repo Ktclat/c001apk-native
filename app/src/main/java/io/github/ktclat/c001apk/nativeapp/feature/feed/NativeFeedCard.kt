@@ -163,8 +163,16 @@ private fun ReferenceSurface(reference: FeedReference, hotReply: Boolean, action
         Column(Modifier.fillMaxWidth().heightIn(min = 48.dp).clickable(enabled = reference.destination() != null, onClickLabel = if (hotReply) "查看热评" else "查看转发动态") { actions.openReference(reference) }.padding(10.dp)) {
             if (reference.deleted) Text("原动态已删除", fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
             else {
-                val body by produceState<String?>(null, reference.body, hotReply) {
-                    value = withContext(Dispatchers.Default) { Html.fromHtml(reference.body.take(if (hotReply) 1200 else 4000), Html.FROM_HTML_MODE_LEGACY).toString().trim() }
+                val text = remember(reference.body, hotReply) { classifyReferenceText(reference.body, hotReply) }
+                // Plain bounded text never enters a coroutine or a temporary pending state.
+                val body = when (text) {
+                    is ReferenceText.Immediate -> text.text
+                    ReferenceText.Html -> {
+                        val parsed by produceState<String?>(null, reference.body, hotReply) {
+                            value = withContext(Dispatchers.Default) { Html.fromHtml(reference.body.take(if (hotReply) 1200 else 4000), Html.FROM_HTML_MODE_LEGACY).toString().trim() }
+                        }
+                        parsed
+                    }
                 }
                 if (reference.title.isNotBlank()) Text(reference.title.take(300), style = LocalReadingStyles.current.title)
                 val authorColor = MaterialTheme.colorScheme.primary
