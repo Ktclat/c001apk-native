@@ -6,6 +6,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createComposeRule
 import io.github.ktclat.c001apk.nativeapp.platform.InstalledAppsScreen
+import io.github.ktclat.c001apk.nativeapp.platform.NativeUpdatePreference
 import io.github.ktclat.c001apk.nativeapp.platform.NativeUpdateService
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.runBlocking
@@ -62,12 +63,51 @@ class SettingsParityUiTest {
         val service = NativeUpdateService(context).apply { enabled = true }
         compose.setContent { MaterialTheme { NativeAutomaticUpdateSetting(service) } }
         compose.onNodeWithText("自动检查 c001apk 原生版更新").assertIsOn().performClick()
-        compose.waitUntil(5_000) { !service.enabled }
-        compose.waitForIdle()
-        compose.onNodeWithText("自动检查 c001apk 原生版更新").assertIsOff()
+        awaitAutomaticUpdateOffAndEnabled()
+        compose.onNodeWithText("自动检查 c001apk 原生版更新").assertIsOff().assertIsEnabled()
+        compose.onNodeWithText("无法确认更新检查设置已保存", substring = true).assertDoesNotExist()
+        assertFalse(service.enabled)
         assertFalse(NativeUpdateService(context).enabled)
         assertEquals(io.github.ktclat.c001apk.nativeapp.platform.NativeUpdateResult.Suppressed,
             runBlocking { NativeUpdateService(context).check("0.1.0-dev", automatic = true) })
+    }
+    @Test fun effectivePreferenceChangeDoesNotMeanPersistenceUiIsReadyAndPendingClicksStaySingleFlight() {
+        val completion = CompletableDeferred<Unit>()
+        val preference = object : NativeUpdatePreference {
+            override var enabled = true
+            var writes = 0
+            override suspend fun setEnabledAndPersist(value: Boolean) {
+                writes++
+                enabled = value
+                completion.await()
+            }
+        }
+        compose.setContent { MaterialTheme { NativeAutomaticUpdateSetting(preference) } }
+        val toggle = compose.onNodeWithText("自动检查 c001apk 原生版更新")
+        toggle.assertIsOn().assertIsEnabled().performClick()
+        try {
+            // Reproduce the old readiness predicate: the effective value can change while the
+            // suspending durable write has not returned. Compose idleness alone cannot join it.
+            compose.waitUntil(5_000) { !preference.enabled }
+            compose.waitForIdle()
+            toggle.assertIsOn().assertIsNotEnabled()
+            toggle.performTouchInput { repeat(3) { click() } }
+            compose.runOnIdle { assertEquals(1, preference.writes) }
+            completion.complete(Unit)
+            awaitAutomaticUpdateOffAndEnabled()
+            toggle.assertIsOff().assertIsEnabled()
+            compose.runOnIdle { assertFalse(preference.enabled); assertEquals(1, preference.writes) }
+            compose.onNodeWithText("无法确认更新检查设置已保存", substring = true).assertDoesNotExist()
+        } finally {
+            completion.complete(Unit)
+        }
+    }
+    private fun awaitAutomaticUpdateOffAndEnabled() {
+        // Wait for the user-visible completion, not SharedPreferences' earlier in-memory value.
+        compose.waitUntil(5_000) {
+            compose.onAllNodes(hasText("自动检查 c001apk 原生版更新") and isOff() and isEnabled())
+                .fetchSemanticsNodes().size == 1
+        }
     }
     @Test fun failedDurableWriteDisplaysActualEffectiveValueAndRetryCanPersist() {
         val preference = object : io.github.ktclat.c001apk.nativeapp.platform.NativeUpdatePreference {
