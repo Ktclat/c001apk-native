@@ -51,6 +51,9 @@ internal fun fullPostLimitMessage(limit: FullPostBodyLimit, receivedUnits: Int? 
     val prepared = if (retained != null) retained.prepared else rememberFullPost(body, parser, attempt).value
     val pageState = retained?.page ?: rememberSaveable(body) { mutableIntStateOf(0) }
     var page by pageState
+    val sourceMode = retained?.sourceMode ?: remember(body) { mutableStateOf(false) }
+    val sourcePage = retained?.sourcePage ?: remember(body) { mutableIntStateOf(0) }
+    val sourcePages = (prepared as? PreparedFullPost.Article)?.sourcePages
     var linksOpen by remember(body) { mutableStateOf(false) }
     val pageStart = remember(body) { BringIntoViewRequester() }
     var pageNavigation by remember(body) { mutableIntStateOf(0) }
@@ -59,7 +62,13 @@ internal fun fullPostLimitMessage(limit: FullPostBodyLimit, receivedUnits: Int? 
         if (pageNavigation > 0) pageStart.bringIntoView()
     }
     Column(Modifier.testTag("full-post-reader"), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        when (val value = prepared) {
+        if (retained == null && sourcePages != null) TextButton(
+            onClick = { sourceMode.value = !sourceMode.value }, modifier = Modifier.testTag("detail-source-toggle")) {
+            Text(if (sourceMode.value) "格式化显示" else "查看原文")
+        }
+        if (sourceMode.value && sourcePages != null) {
+            RawDetailText(sourcePages, sourcePage, retained?.bodyDigest ?: body)
+        } else when (val value = prepared) {
             null -> Text("正在排版详情正文…", Modifier.testTag("full-post-pending"), style = MaterialTheme.typography.bodySmall)
             is PreparedFullPost.Unavailable -> {
                 Text(fullPostLimitMessage(value.limit, value.receivedUnits), Modifier.testTag("full-post-limit"), style = MaterialTheme.typography.bodySmall)
@@ -94,6 +103,41 @@ internal fun fullPostLimitMessage(limit: FullPostBodyLimit, receivedUnits: Int? 
                     }
                 }, confirmButton = { TextButton(onClick = { linksOpen = false }) { Text("关闭") } })
             }
+        }
+    }
+}
+
+/** Literal paged source. No link handlers, normalization, image loading, or saved-state source. */
+@OptIn(ExperimentalFoundationApi::class)
+@Composable private fun RawDetailText(pages: List<FullPostPage>, page: MutableIntState, identity: Any) {
+    val current = page.intValue.coerceIn(pages.indices)
+    val visible = pages[current]
+    val start = remember(identity) { BringIntoViewRequester() }
+    var navigation by remember(identity) { mutableIntStateOf(0) }
+    LaunchedEffect(identity, navigation) { if (navigation > 0) start.bringIntoView() }
+    Column(Modifier.testTag("detail-source-reader"), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Text(visible.sourceLabel ?: "原始正文", Modifier.bringIntoViewRequester(start), style = MaterialTheme.typography.labelLarge)
+        Text("原始文本，仅显示，不执行链接或加载图片。", style = MaterialTheme.typography.bodySmall)
+        if (pages.size > 1) Text("第 ${current + 1}/${pages.size} 段", style = MaterialTheme.typography.bodySmall)
+        SelectionContainer { Text(visible.text, Modifier.testTag("detail-source-page"), style = LocalReadingStyles.current.body) }
+        if (pages.size > 1) Row {
+            TextButton(enabled = current > 0, onClick = { page.intValue = current - 1; navigation++ }) { Text("上一段") }
+            TextButton(enabled = current < pages.lastIndex, onClick = { page.intValue = current + 1; navigation++ }) { Text("下一段") }
+        }
+    }
+}
+
+/** Persistent detail toolbar action, mirroring upstream without moving the reader to its header. */
+@Composable internal fun DetailSourceMenu(control: DetailSourceControl) {
+    var open by remember(control.mode) { mutableStateOf(false) }
+    Box {
+        IconButton(onClick = { open = true }, modifier = Modifier.testTag("detail-source-menu")) {
+            Icon(FlutterMaterialIcons.MoreVert, "正文显示选项")
+        }
+        DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
+            DropdownMenuItem(text = { Text(if (control.mode.value) "格式化显示" else "查看原文") },
+                onClick = { open = false; control.toggle() },
+                modifier = Modifier.testTag("detail-source-toggle"))
         }
     }
 }

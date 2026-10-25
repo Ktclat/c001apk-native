@@ -19,7 +19,7 @@ internal enum class ArticleTextRole { BODY, TITLE }
 internal sealed interface ArticleFragment {
     val sourceIndex: Int
     data class RichText(val value: AnnotatedString, val links: List<PostLink>, val role: ArticleTextRole,
-        override val sourceIndex: Int) : ArticleFragment
+        override val sourceIndex: Int, val markdownStyle: MarkdownStyle = MarkdownStyle()) : ArticleFragment
     data class Image(val url: String?, val caption: String, val imageIndex: Int,
         override val sourceIndex: Int) : ArticleFragment
     data class Share(val url: String?, val title: String, override val sourceIndex: Int) : ArticleFragment
@@ -27,7 +27,7 @@ internal sealed interface ArticleFragment {
 internal data class ArticlePage(val fragments: List<ArticleFragment>, val textUnits: Int)
 private class ArticleLimit(val reason: FullPostBodyLimit, val units: Int? = null) : RuntimeException()
 private class ArticleBudget(val active: () -> Unit) {
-    var tags = 0; var links = 0; var runs = 0; var decoded = 0
+    var tags = 0; var links = 0; var runs = 0; var decoded = 0; var markdown = false
     fun text(units: Int) {
         if (units > FullPostBodyBounds.MAX_HTML_UNITS - decoded) throw ArticleLimit(FullPostBodyLimit.BODY_TOO_LARGE, decoded + units)
         decoded += units
@@ -150,21 +150,33 @@ internal fun prepareArticle(body: FullPostBody.Structured, checkActive: () -> Un
             fragments.add(fragment); textUnits += units; if (image) pageImages++
         }
         fun text(raw: String, role: ArticleTextRole, sourceIndex: Int) {
-            val rich = richArticleText(raw, role, sourceIndex, budget)
-            var start = 0
-            do {
-                checkActive()
-                // Prefer remaining space so a short article has one natural ordered surface.
-                if (fragments.size >= ArticleBodyBounds.MAX_FRAGMENTS_PER_SEGMENT || textUnits >= FullPostBodyBounds.PAGE_UNITS) flush()
-                var end = (start + FullPostBodyBounds.PAGE_UNITS - textUnits).coerceAtMost(rich.value.length)
-                if (end > start && end < rich.value.length && rich.value[end - 1].isHighSurrogate() && rich.value[end].isLowSurrogate()) end--
-                if (end == start && start < rich.value.length) { flush(); continue }
-                val links = rich.links.filter { it.start < end && it.end > start }.map {
-                    it.copy(start = (it.start - start).coerceAtLeast(0), end = (it.end - start).coerceAtMost(end - start))
+            val markdown = if (role == ArticleTextRole.BODY) prepareMarkdownText(raw, role, sourceIndex, checkActive) else null
+            val richParts = markdown?.fragments ?: listOf(richArticleText(raw, role, sourceIndex, budget))
+            if (markdown != null) {
+                budget.markdown = true
+                for (rich in richParts) {
+                    budget.text(rich.value.length)
+                    repeat(rich.links.size) { budget.link() }
+                    budget.runs += rich.value.spanStyles.size + rich.value.getStringAnnotations(0, rich.value.length).size
+                    if (budget.runs > FullPostBodyBounds.MAX_MARKUP_TAGS) throw ArticleLimit(FullPostBodyLimit.MARKUP_COMPLEXITY)
                 }
-                append(rich.copy(value = rich.value.subSequence(start, end), links = links), end - start)
-                start = end
-            } while (start < rich.value.length)
+            }
+            for (rich in richParts) {
+                var start = 0
+                do {
+                    checkActive()
+                    // Prefer remaining space so a short article has one natural ordered surface.
+                    if (fragments.size >= ArticleBodyBounds.MAX_FRAGMENTS_PER_SEGMENT || textUnits >= FullPostBodyBounds.PAGE_UNITS) flush()
+                    var end = (start + FullPostBodyBounds.PAGE_UNITS - textUnits).coerceAtMost(rich.value.length)
+                    if (end > start && end < rich.value.length && rich.value[end - 1].isHighSurrogate() && rich.value[end].isLowSurrogate()) end--
+                    if (end == start && start < rich.value.length) { flush(); continue }
+                    val links = rich.links.filter { it.start < end && it.end > start }.map {
+                        it.copy(start = (it.start - start).coerceAtLeast(0), end = (it.end - start).coerceAtMost(end - start))
+                    }
+                    append(rich.copy(value = rich.value.subSequence(start, end), links = links), end - start)
+                    start = end
+                } while (start < rich.value.length)
+            }
         }
         fun image(url: String?, caption: String, sourceIndex: Int) {
             if (images.size >= ArticleBodyBounds.MAX_IMAGES || caption.length > ArticleBodyBounds.MAX_LABEL_UNITS) throw ArticleLimit(FullPostBodyLimit.ARTICLE_COMPLEXITY)
@@ -189,7 +201,8 @@ internal fun prepareArticle(body: FullPostBody.Structured, checkActive: () -> Un
             }
         }
         flush(); checkActive()
-        return PreparedFullPost.Article(pages.toList(), images.toList())
+        return PreparedFullPost.Article(pages.toList(), images.toList(),
+            sourcePages = if (budget.markdown) rawDetailPages(body, checkActive) else null)
     } catch (limit: ArticleLimit) {
         return PreparedFullPost.Unavailable(limit.reason, limit.units)
     }

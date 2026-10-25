@@ -2,6 +2,15 @@
 package io.github.ktclat.c001apk.nativeapp.ui
 
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.border
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.stateDescription
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
@@ -48,12 +57,28 @@ import io.github.ktclat.c001apk.nativeapp.settings.LocalReadingStyles
                                 }
                             }.toAnnotatedString()
                         }
-                        val style = if (fragment.role == ArticleTextRole.TITLE) LocalReadingStyles.current.articleTitle else LocalReadingStyles.current.articleBody
-                        SelectionContainer {
-                            ClickableText(text, Modifier.fillMaxWidth().testTag("article-text-${fragment.sourceIndex}"),
-                                style = style.copy(color = palette.onSurface.copy(alpha = 0.92f)), onClick = { offset ->
-                                    text.getStringAnnotations("article-url", offset, offset).firstOrNull()?.let { openLink(it.item) }
-                                })
+                        val reading = LocalReadingStyles.current
+                        val base = if (fragment.role == ArticleTextRole.TITLE) reading.articleTitle
+                            else if (article.ordinaryTypography) reading.body else reading.articleBody
+                        val style = markdownTextStyle(base, fragment.markdownStyle)
+                        val decoration = fragment.markdownStyle
+                        decoration.notice?.let { Text(it, Modifier.testTag("markdown-source-fallback"), style = MaterialTheme.typography.bodySmall) }
+                        val inset = ((decoration.listDepth - 1).coerceAtLeast(0) * 12 + decoration.quoteDepth * 8).coerceAtMost(48)
+                        val decorated = Modifier.fillMaxWidth().padding(start = inset.dp).then(
+                            if (decoration.quoteDepth > 0) Modifier.border(1.dp, palette.outlineVariant, RoundedCornerShape(4.dp)).padding(8.dp)
+                            else Modifier)
+                        Box(decorated) {
+                            val textModifier = if (decoration.code) Modifier.horizontalScroll(rememberScrollState()).padding(8.dp)
+                                else Modifier.fillMaxWidth()
+                            SelectionContainer {
+                                ClickableText(text, textModifier.testTag("article-text-${fragment.sourceIndex}").semantics {
+                                    if (decoration.heading > 0) heading()
+                                    decoration.taskChecked?.let { stateDescription = if (it) "已完成（只读）" else "未完成（只读）" }
+                                },
+                                    style = style.copy(color = palette.onSurface.copy(alpha = 0.92f)), onClick = { offset ->
+                                        text.getStringAnnotations("article-url", offset, offset).firstOrNull()?.let { openLink(it.item) }
+                                    })
+                            }
                         }
                     }
                     is ArticleFragment.Image -> ArticleMedia(fragment.url, fragment.caption, fragment.imageIndex,
@@ -88,4 +113,14 @@ import io.github.ktclat.c001apk.nativeapp.settings.LocalReadingStyles
             }
         }
     }, confirmButton = { TextButton(onClick = { linksOpen = false }) { Text("关闭") } })
+}
+
+/** Inherit selected font and reading preset; only code intentionally uses monospace. */
+internal fun markdownTextStyle(base: TextStyle, markdown: MarkdownStyle): TextStyle = when {
+    markdown.code -> base.copy(fontFamily = FontFamily.Monospace)
+    markdown.heading in 1..6 -> {
+        val factor = listOf(1.55f, 1.4f, 1.25f, 1.15f, 1.05f, 1f)[markdown.heading - 1]
+        base.copy(fontSize = base.fontSize * factor, lineHeight = base.lineHeight * factor, fontWeight = FontWeight.Bold)
+    }
+    else -> base
 }
