@@ -245,10 +245,13 @@ fun NativeApp(model: BrowseViewModel, container: AppContainer, settings: AppSett
         "blacklist" -> { BlacklistScreen(container.local, goBack); return }
     }
     if (route?.startsWith("feed:") == true) {
-        HostedScreen("动态", goBack) {
+        val sourceMenu = remember(accountState.activeId, accountState.generation, route) { DetailSourceMenuState() }
+        DisposableEffect(sourceMenu) { onDispose { sourceMenu.dispose() } }
+        HostedScreen("动态", goBack, actions = { sourceMenu.control?.let { DetailSourceMenu(it) } }) {
             val blacklist = (localLoad as? LocalLoadState.Ready)?.value?.blacklist
             if (blacklist == null) Notice("本地过滤设置", if (localLoad == LocalLoadState.Failed) "无法读取过滤规则，原有数据未被覆盖" else "正在读取过滤规则")
-            else FeedDetailScreen(route!!.substringAfter(':'), model, accounts, accountState, blacklist, navigate, openLink) { item ->
+            else FeedDetailScreen(route!!.substringAfter(':'), model, accounts, accountState, blacklist, navigate, openLink,
+                sourceMenu = sourceMenu) { item ->
                 scope.launch { try { container.local.favorite(item) } catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled } catch (_: Exception) { localError = "收藏保存失败，请重试" } }
             }
         }
@@ -451,8 +454,8 @@ internal fun filterBlocked(items: List<ContentItem>, blacklist: Blacklist): List
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun HostedScreen(title: String, back: () -> Unit, content: @Composable () -> Unit) {
-    Scaffold(topBar = { TopAppBar(title = { Text(title) }, navigationIcon = { IconButton(onClick = back) { Icon(FlutterMaterialIcons.ArrowBack, "返回") } }) }) { padding ->
+private fun HostedScreen(title: String, back: () -> Unit, actions: @Composable RowScope.() -> Unit = {}, content: @Composable () -> Unit) {
+    Scaffold(topBar = { TopAppBar(title = { Text(title) }, navigationIcon = { IconButton(onClick = back) { Icon(FlutterMaterialIcons.ArrowBack, "返回") } }, actions = actions) }) { padding ->
         Box(Modifier.fillMaxSize().padding(padding)) { content() }
     }
 }

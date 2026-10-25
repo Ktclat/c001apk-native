@@ -9,10 +9,11 @@ import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
 
-internal data class FullPostPage(val text: String, val links: List<PostLink>)
+internal data class FullPostPage(val text: String, val links: List<PostLink>, val sourceLabel: String? = null)
 internal sealed interface PreparedFullPost {
     data class Ready(val pages: List<FullPostPage>) : PreparedFullPost
-    data class Article(val pages: List<ArticlePage>, val images: List<String?>) : PreparedFullPost
+    data class Article(val pages: List<ArticlePage>, val images: List<String?>,
+        val sourcePages: List<FullPostPage>? = null, val ordinaryTypography: Boolean = false) : PreparedFullPost
     data class Unavailable(val limit: FullPostBodyLimit, val receivedUnits: Int? = null) : PreparedFullPost
 }
 
@@ -75,6 +76,10 @@ internal fun prepareFullPost(body: FullPostBody, checkActive: () -> Unit = {}): 
     val html = (body as FullPostBody.Available).html
     if (html.length > FullPostBodyBounds.MAX_HTML_UNITS) return PreparedFullPost.Unavailable(FullPostBodyLimit.BODY_TOO_LARGE, html.length)
     checkActive()
+    prepareMarkdownText(html, ArticleTextRole.BODY, 0, checkActive)?.let { markdown ->
+        return PreparedFullPost.Article(packMarkdownFragments(markdown.fragments, checkActive), emptyList(),
+            sourcePages = rawDetailPages(body, checkActive), ordinaryTypography = true)
+    }
     val normalized = normalizePostMarkup(html)
     fullPostMarkupLimit(normalized, checkActive)?.let { return PreparedFullPost.Unavailable(it) }
     checkActive()

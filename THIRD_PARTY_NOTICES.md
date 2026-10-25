@@ -17,3 +17,9 @@ Launcher foreground, monochrome reference and dynamic color resources are reused
 ## Text emoticon tokens
 
 The text-only Composer picker derives exact token names, order and three groups from Ktclat/c001apk AGPL-3.0 source, itself based on TG-Twilight/c001apk. Provenance and adaptation are recorded in `app/src/main/assets/licenses/TextEmoticons-NOTICE.txt`. No emoji artwork, image asset mappings or artwork license claims are included.
+
+## Native detail Markdown
+
+CommonMark core and GFM strikethrough are pinned to `org.commonmark` version **0.24.0** from Maven Central. Copyright (c) 2015 Robin Stocker; BSD 2-Clause. The complete upstream license is bundled as `app/src/main/assets/licenses/CommonMark-BSD-2-Clause.txt` and exposed in the offline notices page. No HTML renderer, WebView, remote image renderer, autolink/email extension, or global document cache is used.
+
+Dependency/API reference: [commonmark-java 0.24.0](https://github.com/commonmark/commonmark-java/tree/commonmark-parent-0.24.0). Detection and source-view behavior are adapted from [TG-Twilight/c001apk Markdown increment 98526cc](https://github.com/TG-Twilight/c001apk/commit/98526cc30cc6ed5d96fc4bed32ee03dfc92b7024), under the existing AGPL-3.0 source lineage. This is a deliberately smaller native subset, not a full Dart Markdown implementation.

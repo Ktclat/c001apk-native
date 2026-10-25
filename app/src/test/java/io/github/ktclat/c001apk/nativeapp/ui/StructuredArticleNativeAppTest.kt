@@ -11,8 +11,13 @@ import android.view.View
 import androidx.activity.ComponentActivity
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.*
-import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.*
+import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.text.AnnotatedString
+import androidx.core.graphics.Insets
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.text.TextLayoutResult
@@ -89,6 +94,22 @@ class StructuredArticleNativeAppTest {
     private var browserUnavailable = false
     private var detailSetCookie: String? = null
     private var fontScale = 1f
+    private var dark = false
+    private var selectionProbe = false
+    private var copiedSelection: AnnotatedString? = null
+    private var copySelection: (() -> Unit)? = null
+    private val selectionClipboard = object : ClipboardManager {
+        override fun setText(annotatedString: AnnotatedString) { copiedSelection = annotatedString }
+        override fun getText(): AnnotatedString? = copiedSelection
+    }
+    private val selectionToolbar = object : TextToolbar {
+        override var status = TextToolbarStatus.Hidden
+        override fun showMenu(rect: Rect, onCopyRequested: (() -> Unit)?, onPasteRequested: (() -> Unit)?,
+            onCutRequested: (() -> Unit)?, onSelectAllRequested: (() -> Unit)?) {
+            status = TextToolbarStatus.Shown; copySelection = onCopyRequested
+        }
+        override fun hide() { status = TextToolbarStatus.Hidden }
+    }
     private var imagePlan: suspend (String) -> ArticleImageResult = { readyImage() }
     private val parser: (FullPostBody, () -> Unit) -> PreparedFullPost = { input, active ->
         assertNotSame("Actual root parsing must not run on Main", Looper.getMainLooper(), Looper.myLooper())
@@ -209,9 +230,12 @@ class StructuredArticleNativeAppTest {
             }
             SideEffect { activeModel = model }
             val density = LocalDensity.current.density
-            MaterialTheme(colorScheme = fixedColorScheme(0, false), typography = appTypography(FontChoice.NOTO_SANS)) {
+            MaterialTheme(colorScheme = fixedColorScheme(0, dark), typography = appTypography(FontChoice.NOTO_SANS)) {
                 CompositionLocalProvider(LocalContext provides browserContext, LocalViewModelStoreOwner provides owner,
-                    LocalDensity provides Density(density, fontScale), LocalMediaImageLoader provides ordinaryImages.loader,
+                    LocalDensity provides Density(density, fontScale),
+                    LocalTextToolbar provides if (selectionProbe) selectionToolbar else LocalTextToolbar.current,
+                    LocalClipboardManager provides if (selectionProbe) selectionClipboard else LocalClipboardManager.current,
+                    LocalMediaImageLoader provides ordinaryImages.loader,
                     LocalArticleImageLoader provides articleImages, LocalFullPostParser provides parser,
                     LocalReadingStyles provides readingStyles(ReadingPreset.COMFORTABLE, FontChoice.NOTO_SANS)) {
                     key(state.generation) { NativeApp(model, container,
@@ -773,5 +797,211 @@ class StructuredArticleNativeAppTest {
         compose.onAllNodesWithText("本段链接（1）").assertCountEquals(0)
         assertEquals(0, detailCalls("43")); assertTrue(browserIntents.isEmpty())
     }
+
+    private fun toggleMarkdownSource(expectedLabel: String) {
+        compose.onNodeWithTag("detail-source-menu").assertIsDisplayed().performClick()
+        compose.onNodeWithTag("detail-source-toggle").assertTextEquals(expectedLabel).performClick()
+    }
+
+    @Test fun markdownInlineMenuRetainsIndependentPagesAndExactSourceWithoutRequests() {
+        val raw = "# 标题\r\n\r\n" + (1..12).joinToString("\n\n") { "**第 $it 段** " + "文".repeat(950) } + "\n<!--break-->EXACT_RAW_TAIL"
+        responses["42"] = base("42", raw)
+        show(); awaitTag("article-page")
+        compose.onNodeWithText("下一段").performScrollTo().performClick()
+        val formattedProgress = progress()
+        compose.onNodeWithTag("feed-detail-list").performTouchInput { swipeUp() }
+        val formattedOffset = listPosition()
+        assertTrue("Nonzero formatted scroll is the toggle precondition", formattedOffset > 0f)
+        toggleMarkdownSource("查看原文"); awaitTag("detail-source-reader")
+        compose.onNodeWithTag("article-page").assertDoesNotExist()
+        compose.onNodeWithTag("detail-source-page").assertTextEquals(raw.take(4000))
+        compose.onNodeWithText("下一段").performScrollTo().performClick()
+        compose.onNodeWithTag("detail-source-page").assertTextEquals(raw.substring(4000, 8000))
+        compose.onNodeWithTag("feed-detail-list").performTouchInput { swipeUp() }
+        val rawOffset = listPosition()
+        assertTrue("Nonzero raw scroll is an independent toggle precondition", rawOffset > 0f)
+        toggleMarkdownSource("格式化显示"); awaitTag("article-page")
+        assertEquals(formattedProgress, progress())
+        assertEquals(formattedOffset, listPosition(), .001f)
+        toggleMarkdownSource("查看原文"); awaitTag("detail-source-reader")
+        compose.onNodeWithTag("detail-source-page").assertTextEquals(raw.substring(4000, 8000))
+        assertEquals(rawOffset, listPosition(), .001f)
+        assertEquals(1, detailCalls("42")); assertEquals(1, parserCalls.get())
+        assertTrue(imageRequests.isEmpty()); assertTrue(browserIntents.isEmpty())
+        assertEquals(raw, (activeModel.states.value["feed:42"]!!.items.single().fullPostBody as FullPostBody.Available).html)
+    }
+
+    @Test fun markdownRawModeSurvivesEqualRefreshButResetsForChangedBodyAndAccount() {
+        accounts.store.switchTo("1")
+        responses["42"] = base("42", "# ACCOUNT_ONE\n**SOURCE_ONE**")
+        show(); awaitTag("article-page")
+        toggleMarkdownSource("查看原文"); awaitTag("detail-source-reader")
+        responses["42"] = JsonObject(responses.getValue("42") + ("likenum" to JsonPrimitive(1)))
+        refresh42AndAwait()
+        compose.onNodeWithTag("detail-source-page").assertTextEquals("# ACCOUNT_ONE\n**SOURCE_ONE**")
+        assertEquals(1, parserCalls.get())
+        responses["42"] = base("42", "# CHANGED\n**SOURCE_NEW**")
+        refresh42AndAwait(); awaitTag("article-page")
+        compose.onNodeWithTag("detail-source-reader").assertDoesNotExist()
+        toggleMarkdownSource("查看原文"); awaitTag("detail-source-reader")
+        responses["42"] = base("42", "# ACCOUNT_TWO\n**NEW_OWNER**")
+        compose.runOnIdle { accounts.store.switchTo("2") }
+        awaitText("NEW_OWNER"); awaitTag("article-page")
+        compose.onNodeWithTag("detail-source-reader").assertDoesNotExist()
+        compose.onAllNodesWithText("SOURCE_ONE", substring = true).assertCountEquals(0)
+        compose.onAllNodesWithText("SOURCE_NEW", substring = true).assertCountEquals(0)
+        assertTrue(imageRequests.isEmpty())
+    }
+
+    @Test fun markdownNavigationBackKeepsFormattedBookmarkButDoesNotLeakRawModeToChild() {
+        responses["42"] = base("42", "# PARENT\n\n[CHILD_LINK](/feed/43)\n\n**BOLD**")
+        responses["43"] = base("43", "# CHILD\n\n**CHILD_TEXT**")
+        show(); awaitTag("article-page")
+        toggleMarkdownSource("查看原文"); awaitTag("detail-source-reader")
+        toggleMarkdownSource("格式化显示"); awaitTag("article-page")
+        openInlineLink("CHILD_LINK", 1); awaitText("CHILD_TEXT")
+        compose.onNodeWithTag("detail-source-reader").assertDoesNotExist()
+        toolbarBack(); awaitText("PARENT")
+        compose.onNodeWithTag("detail-source-reader").assertDoesNotExist()
+        assertEquals(1, detailCalls("42")); assertEquals(1, detailCalls("43"))
+    }
+
+    @Test fun markdownSourceMenuIsAbsentForPlainHtmlAndImageSyntaxNeverFetches() {
+        responses["42"] = base("42", "PLAIN_BODY")
+        show(); awaitTag("full-post-page")
+        compose.onNodeWithTag("detail-source-menu").assertDoesNotExist()
+        compose.onNodeWithTag("detail-source-toggle").assertDoesNotExist()
+        responses["42"] = base("42", "# 图片\n\n![ALT](https://image.coolapk.com/markdown-no-fetch.jpg)")
+        refresh42AndAwait(); awaitText("图片未加载：ALT")
+        assertTrue(imageRequests.isEmpty()); assertTrue(ordinaryImages.loadedUrls.isEmpty())
+        toggleMarkdownSource("查看原文"); awaitTag("detail-source-reader")
+        assertTrue(imageRequests.isEmpty()); assertTrue(browserIntents.isEmpty())
+    }
+
+    @Test fun markdownAccountReplacementCancelsOldParserBeforeSourcePublication() {
+        gateFirstParser = true; accounts.store.switchTo("1")
+        responses["42"] = base("42", "# OLD_OWNER\n**OLD_SOURCE**")
+        show(); awaitGate(parserEntered); awaitTag("reader-preparing")
+        responses["42"] = base("42", "# CURRENT_OWNER\n**CURRENT_SOURCE**")
+        compose.runOnIdle { accounts.store.switchTo("2") }
+        awaitText("CURRENT_SOURCE")
+        parserRelease.countDown(); awaitGate(parserReturned); compose.waitForIdle()
+        compose.onAllNodesWithText("OLD_SOURCE", substring = true).assertCountEquals(0)
+        toggleMarkdownSource("查看原文"); awaitTag("detail-source-reader")
+        compose.onNodeWithTag("detail-source-page").assertTextEquals("# CURRENT_OWNER\n**CURRENT_SOURCE**")
+        assertTrue(imageRequests.isEmpty()); assertEquals(2, detailCalls("42"))
+    }
+
+    @Test fun markdownToolbarAndOpenMenuDisappearWhenBodyBecomesUnavailable() {
+        responses["42"] = base("42", "# ACTIVE\n**VISIBLE**")
+        show(); awaitTag("detail-source-menu")
+        compose.onNodeWithTag("detail-source-menu").performClick()
+        compose.onNodeWithTag("detail-source-toggle").assertExists()
+        responses["42"] = base("42", "<img src='https://image.coolapk.com/unsupported-inline.jpg'>")
+        refresh42AndAwait(); awaitTag("full-post-limit")
+        compose.onNodeWithTag("detail-source-menu").assertDoesNotExist()
+        compose.onNodeWithTag("detail-source-toggle").assertDoesNotExist()
+        compose.onNodeWithTag("detail-source-reader").assertDoesNotExist()
+        compose.onAllNodesWithText("VISIBLE", substring = true).assertCountEquals(0)
+        assertTrue(imageRequests.isEmpty())
+    }
+
+    @Test fun markdownToolbarIsAbsentDuringInitialParseAndAfterBackCancelsIt() {
+        gateFirstParser = true
+        responses["42"] = base("42", "# PENDING\n**NOT_YET_READY**")
+        show(); awaitGate(parserEntered); awaitTag("reader-preparing")
+        compose.onNodeWithTag("detail-source-menu").assertDoesNotExist()
+        toolbarBack(); awaitTag("content-list")
+        parserRelease.countDown(); awaitGate(parserReturned); compose.waitForIdle()
+        compose.onNodeWithTag("detail-source-menu").assertDoesNotExist()
+        compose.onNodeWithTag("detail-source-reader").assertDoesNotExist()
+        compose.onAllNodesWithText("NOT_YET_READY", substring = true).assertCountEquals(0)
+    }
+
+    private fun markdownFixture(): String = "# 原生 Markdown 阅读\n\n" +
+        "**重点** *强调* ~~删除~~ 与 [关联动态](/feed/43)\n\n" +
+        "> 引用说明：正文沿用阅读字号与字体。\n\n" +
+        "- [x] 已完成任务\n- [ ] 等待处理\n\n" +
+        "```text\nLONG_CODE_BEGIN " + "long_value ".repeat(35) + "END\n  keep  spaces\n```\n\n" +
+        "末尾正文，代码可横向滚动，任务只读。"
+
+    private fun markdownInsets(observedMetrics: Boolean) {
+        compose.runOnUiThread {
+            val density = compose.activity.resources.displayMetrics.density
+            WindowCompat.setDecorFitsSystemWindows(compose.activity.window, false)
+            ViewCompat.dispatchApplyWindowInsets(compose.activity.window.decorView, WindowInsetsCompat.Builder()
+                .setInsets(WindowInsetsCompat.Type.statusBars(), Insets.of(0, if (observedMetrics) 140 else (24 * density).toInt(), 0, 0))
+                .setInsets(WindowInsetsCompat.Type.navigationBars(), Insets.of(0, 0, 0, if (observedMetrics) 0 else (24 * density).toInt()))
+                .setInsets(WindowInsetsCompat.Type.systemGestures(), Insets.of(0, if (observedMetrics) 179 else 0, 0, 0))
+                .setVisible(WindowInsetsCompat.Type.statusBars() or WindowInsetsCompat.Type.navigationBars(), true).build())
+        }
+        compose.waitForIdle()
+    }
+
+    private fun captureMarkdownViewport(scale: Float, night: Boolean, name: String, observedMetrics: Boolean = false) {
+        fontScale = scale; dark = night; selectionProbe = true
+        val raw = markdownFixture()
+        responses["42"] = base("42", raw)
+        show(widthPx = 1200, heightPx = 2670)
+        awaitTag("article-page"); awaitTag("detail-source-menu"); markdownInsets(observedMetrics)
+        val view = compose.activity.findViewById<View>(android.R.id.content)
+        val density = compose.activity.resources.displayMetrics.density
+        assertEquals(1200, view.width); assertEquals(2670, view.height); assertEquals(3.25f, density, .001f)
+        compose.onNodeWithText("原生 Markdown 阅读").assert(SemanticsMatcher.keyIsDefined(SemanticsProperties.Heading))
+        compose.onNodeWithText("☑ 已完成任务").assert(SemanticsMatcher.expectValue(SemanticsProperties.StateDescription, "已完成（只读）"))
+            .assert(SemanticsMatcher.keyNotDefined(SemanticsProperties.ToggleableState))
+        compose.onNodeWithText("☐ 等待处理").assert(SemanticsMatcher.expectValue(SemanticsProperties.StateDescription, "未完成（只读）"))
+        capture("markdown-$name-formatted-top")
+        val codeText = "LONG_CODE_BEGIN " + "long_value ".repeat(35) + "END\n  keep  spaces\n"
+        val code = compose.onNodeWithText(codeText)
+        code.performScrollTo().assertIsDisplayed()
+        val before = code.fetchSemanticsNode().config[SemanticsProperties.HorizontalScrollAxisRange]
+        assertTrue("Actual long code must be horizontally scrollable", before.maxValue() > 0f)
+        code.performSemanticsAction(SemanticsActions.ScrollBy) { it(300f, 0f) }
+        compose.waitForIdle()
+        val after = code.fetchSemanticsNode().config[SemanticsProperties.HorizontalScrollAxisRange]
+        assertTrue(after.value() > 0f)
+        capture("markdown-$name-code-scrolled")
+        code.performTouchInput { longClick() }
+        compose.runOnIdle {
+            assertEquals(TextToolbarStatus.Shown, selectionToolbar.status)
+            requireNotNull(copySelection).invoke()
+            assertTrue(!copiedSelection?.text.isNullOrBlank() && codeText.contains(copiedSelection!!.text))
+        }
+        toggleMarkdownSource("查看原文"); awaitTag("detail-source-reader")
+        compose.onNodeWithTag("detail-source-page").assertTextEquals(raw)
+        assertTrue(imageRequests.isEmpty()); assertTrue(browserIntents.isEmpty())
+        val menuBounds = compose.onNodeWithTag("detail-source-menu").getUnclippedBoundsInRoot()
+        File("build/verification/structured-article/markdown-$name-window.json").writeText(buildJsonObject {
+            put("contentScrollX", view.scrollX); put("contentScrollY", view.scrollY)
+            put("contentTop", view.top); put("contentTranslationY", view.translationY)
+            put("decorScrollY", compose.activity.window.decorView.scrollY)
+            put("menuBoundsDp", menuBounds.toString())
+        }.toString())
+        compose.onNodeWithTag("detail-source-menu").assertIsDisplayed()
+        assertTrue("Persistent source toolbar remains in viewport after raw toggle", menuBounds.top.value >= 0f && menuBounds.bottom.value < view.height / density)
+        capture("markdown-$name-raw")
+        File("build/verification/structured-article/markdown-$name.metrics.json").writeText(buildJsonObject {
+            put("provenance", "Actual NativeApp with synthetic offline feed, not a physical-device screenshot or Flutter pixel-parity acceptance")
+            put("sourceDigest", readerBodyDigest(raw)); put("widthPx", view.width); put("heightPx", view.height)
+            put("density", density); put("logicalWidthDp", view.width / density); put("logicalHeightDp", view.height / density)
+            put("fontScale", scale); put("dark", night)
+            put("insetFixture", if (observedMetrics) "Observed Xiaomi metrics injected into synthetic Android shadow window, NOT device execution" else "Synthetic 24dp top/bottom safety case, NOT observed Xiaomi insets")
+            put("statusInsetPx", if (observedMetrics) 140 else 78); put("navigationInsetPx", if (observedMetrics) 0 else 78)
+            put("topSystemGestureInsetPx", if (observedMetrics) 179 else 0)
+            put("codeHorizontalOffset", after.value()); put("selectionCopied", !copiedSelection?.text.isNullOrBlank())
+            put("imageRequests", imageRequests.size); put("browserIntents", browserIntents.size)
+        }.toString())
+    }
+
+    @Test @Config(qualifiers = "w369dp-h822dp-520dpi", shadows = [PreviewMagnifierShadow::class])
+    fun markdownAtUserViewportFormattedCodeAndRawFrames() = captureMarkdownViewport(1f, false, "user1200x2670-font1-light")
+
+    @Test @Config(qualifiers = "w369dp-h822dp-520dpi", shadows = [PreviewMagnifierShadow::class])
+    fun markdownAtUserViewportDarkTwoHundredPercentText() = captureMarkdownViewport(2f, true, "user1200x2670-font2-dark")
+
+    @Test @Config(qualifiers = "w369dp-h822dp-520dpi", shadows = [PreviewMagnifierShadow::class])
+    fun markdownAtExactObservedXiaomiMetricsInSyntheticWindow() =
+        captureMarkdownViewport(1f, false, "observed-metrics1200x2670-top140-gesture179-bottom0", observedMetrics = true)
 
 }

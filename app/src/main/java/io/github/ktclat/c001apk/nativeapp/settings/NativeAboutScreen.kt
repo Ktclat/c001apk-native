@@ -44,6 +44,7 @@ internal object NativeAboutLinks {
 
 internal data class BundledNotice(val file: String, val title: String)
 internal val bundledNativeNotices = listOf(
+    BundledNotice("CommonMark-BSD-2-Clause.txt", "CommonMark 0.24.0 · BSD 2-Clause"),
     BundledNotice("Flutter-BSD.txt", "Flutter · BSD 许可"),
     BundledNotice("FlutterLauncher-NOTICE.txt", "c001apk 标志与启动图标声明"),
     BundledNotice("FlutterMaterialIcons-CC-BY-4.0.txt", "Flutter Material 图标 · CC BY 4.0"),
@@ -53,7 +54,7 @@ internal val bundledNativeNotices = listOf(
     BundledNotice("PiliPlus-GPL-3.0.txt", "PiliPlus 配色来源 · GPL-3.0"),
     BundledNotice("TextEmoticons-NOTICE.txt", "文字表情来源声明"),
 )
-internal const val BUNDLED_NOTICE_SCOPE = "这里只展示本项目已打包的 8 份许可与来源声明，不代表完整依赖许可审计。项目源码的 AGPL-3.0 与第三方材料各自的许可并不相互替代。"
+internal const val BUNDLED_NOTICE_SCOPE = "这里只展示本项目已打包的 9 份许可与来源声明，不代表完整依赖许可审计。项目源码的 AGPL-3.0 与第三方材料各自的许可并不相互替代。"
 
 /** Reads local identity only. An external page opens solely after an explicit row click. */
 @Composable
@@ -95,7 +96,7 @@ internal fun NativeAboutScreen(
             item(key = "project") { AboutRow("项目地址", NativeAboutLinks.PROJECT, ImageVector.vectorResource(R.drawable.flutter_code), "about-project") { open(NativeAboutLinks.PROJECT) } }
             item(key = "updates") { AboutRow("原生客户端更新", "打开更新设置；仅手动检查或沿用已有启动检查设置", FlutterMaterialIcons.Update, "about-updates", onOpenUpdates) }
             item(key = "license") { AboutRow("项目许可证 · AGPL-3.0", "查看 Native 仓库保留的完整 GNU AGPL-3.0 文本", ImageVector.vectorResource(R.drawable.flutter_gavel_outlined), "about-license") { open(NativeAboutLinks.LICENSE) } }
-            item(key = "bundled") { AboutRow("已打包许可与声明", "离线查看 8 份声明；不是完整依赖许可审计", ImageVector.vectorResource(R.drawable.flutter_source_outlined), "about-bundled", onOpenNotices) }
+            item(key = "bundled") { AboutRow("已打包许可与声明", "离线查看 9 份声明；不是完整依赖许可审计", ImageVector.vectorResource(R.drawable.flutter_source_outlined), "about-bundled", onOpenNotices) }
             item { HorizontalDivider() }
             item(key = "issues") { AboutRow("问题反馈", "在 Native 项目仓库查看或提交问题，不会自动发送反馈", ImageVector.vectorResource(R.drawable.flutter_bug_report_outlined), "about-issues") { open(NativeAboutLinks.ISSUES) } }
             item(key = "flutter") { AboutRow("Flutter 来源", NativeAboutLinks.FLUTTER_SOURCE, ImageVector.vectorResource(R.drawable.flutter_code), "about-flutter") { open(NativeAboutLinks.FLUTTER_SOURCE) } }
