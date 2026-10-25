@@ -1,6 +1,15 @@
 # Native implementation status and parity gaps
 
-## Current main baseline — 2026-10-25
+## Current increment: Markdown and raw detail — 2026-10-25
+
+[PR #15](https://github.com/Ktclat/c001apk-native/pull/15) was integrated into main as `4564943997e2065f92bd5b78e331bd3ffbae0153` after clean [CI47](https://github.com/Ktclat/c001apk-native/actions/runs/40181700101) and independent source, artifact and UI review. Post-merge [CI48](https://github.com/Ktclat/c001apk-native/actions/runs/40183283419) also passed: **950 tests / 144 suites, zero failures/errors/skips**, debug assembly, and lint with **44 warnings / one hint / zero errors**. The two additional warnings are CommonMark update advisories.
+
+- Common Markdown detail text and the explicit **查看原文 / 格式化显示** menu now use bounded parsing and owner-scoped, independent reading positions. Original structured fields remain literal in raw view; no new Markdown image requests are made. This is not full GFM, preview, export or Flutter parity.
+- Code tree: `528cfe00a598ad4e12a7246f3a220d1fe405bf12`; the 203-input build fingerprint is `3e2eb50e30dd1e5f90b9cb9ecf353e573aa1f753f788f425686bfedf03535f0a`. CI48 APK: 17,941,884 bytes; SHA-256 `dcec158dfe9cce88c4e6ea4a523349ddb22504a0a07176a404efec6c822879ec`. Three pinned fonts, nine license files, icon, signature and absence of observer instrumentation were verified.
+- **Android 8 / API26 remains the native minimum.** The separate Flutter SDK migration's Android7 minimum does not apply to this native package. Physical-device/API26/TalkBack/IME/performance and live Home403 acceptance remain open. Debug signing still does not guarantee overwrite installation; retain existing app data on signature conflicts.
+- The original local 950-test gate had one preview-readiness failure. Its cause remains unexplained; subsequent observation runs were non-reproductions. Clean CI47/48 justify this limited increment, **not a causal scheduler fix**. Full details and unsupported formats are in the Markdown parity record.
+
+## Earlier main baseline — 2026-10-25
 
 `main` now contains the tested Android-native development baseline, not only the license. It was fast-forwarded from `0886d0851065b2a869c2d200f32f3216fca9c551` to `49c225942e1a9c966304902f323c884c3345bd5c`, preserving all 43 development commits. [PR #1](https://github.com/Ktclat/c001apk-native/pull/1) is now merged. New work may be pushed directly after independent review and the applicable test/build gates; a new PR is not required for this personal repository.
 

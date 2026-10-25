@@ -1,6 +1,6 @@
-# Native detail Markdown: bounded candidate
+# Native detail Markdown: bounded increment
 
-Status: implementation candidate on `implementation/native-markdown-detail`, based on native foundation `49c225942e1a9c966304902f323c884c3345bd5c`. No merge, release, live-provider, physical-device, or full-parity acceptance is implied. Validation results must be added after the serialized build/test/lint and independent review gates actually run.
+Status: integrated into main `4564943997e2065f92bd5b78e331bd3ffbae0153` after clean CI47 and independent limited-increment review; post-merge CI48 passed. Minimum Android8/API26 is unchanged. No release-signing, live-provider, physical-device, causal scheduler-fix or full-parity acceptance is implied. The original local candidate was based on foundation `49c225942e1a9c966304902f323c884c3345bd5c`; its failed gate remains recorded below.
 
 ## Upstream and dependency contract
 
@@ -57,3 +57,14 @@ The assembled debug APK is 17,941,884 bytes, SHA-256 `c48975539a77ced26e572b1080
 A separately reviewed observational overlay then ran the exact seven-class, 90-test suffix once: all tests passed, with frozen source unchanged. Actual class and method order matched the original suffix, but earlier full-suite history was absent. The exact preview trace showed one slot/effect, Default parsing, Main publication and the same slot rendering normally (approximately 0.83 ms parsing and 6.32 ms effect-to-render). The 2,000-event cap was not reached (maximum 156 events across 27 trace files); dumps are weakly consistent and instrumentation can perturb timing. This non-reproduction does not identify the original cause or clear the failed gate. The overlay is separate and is not included in the candidate; no production fix or second diagnostic run was inferred.
 
 Remaining gates: diagnose the failed preview-readiness case, obtain a coherent passing assembly/unit/lint result, final independent review, and physical-device/API-26/TalkBack checks. Synthetic tests do not establish live Coolapk HTTP 403 behavior or device smoothness. This status update changes documentation only after the failed gate; tested product and test bytes remain unchanged.
+
+
+## Subsequent full observation and clean CI disposition
+
+A separately authorized full-suite observational run also passed all 950 tests in 144 suites, with unchanged instrumented source and the same class/method order as the failed run. It produced 27 fresh trace files, at most 156 events each (cap 2,000); the exact main preview parsed and published to the same slot normally. This still did not reproduce or explain the original incident, and no guessed production preview fix was made. Both observational overlays were excluded from the published candidate.
+
+Clean uninstrumented CI47 verified candidate `8e2a8b4ae67bde0f3bc19f6684c34f72688130db` via synthetic checkout `682e7a86379b4cd5c5772d179583b9b4d79c2d18`; its tree exactly equals `528cfe00a598ad4e12a7246f3a220d1fe405bf12`. Actual XML retained all 950 original test identities with zero failures/errors/skips; assembly and lint completed. Independent review inspected all nine actual Markdown frames and the formerly failing preview frame. Positive independent offsets, owner cancellation, stale toolbar controls, literal source, selection/copy, bounded code scrolling and zero Markdown image requests were exercised. Review approved only this bounded increment.
+
+After integration, [CI48](https://github.com/Ktclat/c001apk-native/actions/runs/40183283419) verified clean main `4564943997e2065f92bd5b78e331bd3ffbae0153`: 950/144 pass, identical test identities and lint XML (44 warnings, one hint, zero errors), exact 203-input fingerprint, fonts, nine licenses, icon and no observer symbols. APK SHA-256 is `dcec158dfe9cce88c4e6ea4a523349ddb22504a0a07176a404efec6c822879ec` (17,941,884 bytes). All nine Markdown frames, seven My frames and the formerly failing preview frame are byte-identical to CI47. Of 492 total PNGs, 490 match; the inspected differences are expected provenance text and an unsupported-article capture progressing from a pending preview/reply spinner to completed preview/empty comments. No claim about the root cause follows from those differences.
+
+Final DEX inspection found 29 CommonMark D8 synthetic collection-factory backport calls and no inspected direct unsafe List/Set/Map factory invocations. This is static APK compatibility evidence, not an executed API26-device test. The original local coherent gate remains FAILED, and its lint stage remains never-run. Clean CI results are separate evidence, not retroactive changes to that record.
