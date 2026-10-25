@@ -38,7 +38,7 @@ internal val DecorativeJellyScale = SemanticsPropertyKey<Float>("DecorativeJelly
 
 /** Actual hit regions never scale; only the decorative active pill has a jelly pulse. */
 @Composable
-fun FloatingNavigation(selected: Int, reduceMotion: Boolean, onSelect: (Int) -> Unit, modifier: Modifier = Modifier) {
+fun FloatingNavigation(selected: Int, reduceMotion: Boolean, onSelect: (Int) -> Unit, modifier: Modifier = Modifier, enabled: Boolean = true) {
     val labels = listOf("首页", "关注", "我的")
     val icons = (0..2).map { rootNavigationIcon(it, it == selected) }
     val density = LocalDensity.current
@@ -87,11 +87,12 @@ fun FloatingNavigation(selected: Int, reduceMotion: Boolean, onSelect: (Int) -> 
                     scaleX = pulse.value
                     scaleY = 2f - pulse.value
                 }.background(MaterialTheme.colorScheme.primaryContainer, RoundedCornerShape(50)))
-            Row(Modifier.fillMaxSize().selectableGroup()) {
+            Row(Modifier.fillMaxSize().selectableGroup()
+                .navigationTabDrag(selected, labels.size, enabled, onSelect)) {
             labels.forEachIndexed { index, label ->
                 val active = selected == index
                 Box(Modifier.weight(1f).fillMaxHeight().clip(RoundedCornerShape(50))
-                    .selectable(active, role = Role.Tab, onClick = { onSelect(index) }), contentAlignment = Alignment.Center) {
+                    .selectable(active, enabled = enabled, role = Role.Tab, onClick = { onSelect(index) }), contentAlignment = Alignment.Center) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
                         Icon(icons[index], contentDescription = null, modifier = Modifier.size(22.dp),
                             tint = if (active) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant)

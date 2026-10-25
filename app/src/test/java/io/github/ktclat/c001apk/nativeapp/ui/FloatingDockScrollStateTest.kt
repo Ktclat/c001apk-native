@@ -4,39 +4,56 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class FloatingDockScrollStateTest {
-    @Test fun consumedDistanceHasDirectionalHysteresisAndBoundedAccumulation() {
-        val state = FloatingDockScrollState(28f, 20f)
-        assertTrue(state.consume(-27f, true)); assertFalse(state.consume(-1f, true))
+    @Test fun movementTracksPixelsAndReversesContinuouslyWithoutThresholdJump() {
+        val state = FloatingDockScrollState(28f, 20f, travelExtent = 100f)
+        state.consume(-14f, true); assertEquals(.14f, state.hiddenFraction, .0001f)
+        state.consume(-14f, true); assertEquals(.28f, state.hiddenFraction, .0001f)
+        assertTrue(state.visible); assertFalse(state.fullyShown)
+        state.consume(10f, true); assertEquals(.18f, state.hiddenFraction, .0001f)
+        state.consume(-1f, true); assertEquals(.19f, state.hiddenFraction, .0001f)
         repeat(1000) { state.consume(-100f, true) }
-        assertEquals(-28f, state.distance, 0f)
+        assertEquals(1f, state.hiddenFraction, 0f); assertFalse(state.visible)
+        state.consume(1f, true); assertEquals(.99f, state.hiddenFraction, .0001f)
+        repeat(1000) { state.consume(100f, true) }
+        assertEquals(0f, state.hiddenFraction, 0f); assertTrue(state.fullyShown)
+    }
+    @Test fun reducedMotionRetainsDirectionalThresholdsWithoutTranslationFrames() {
+        val state = FloatingDockScrollState(28f, 20f, reduceMotion = true)
+        assertTrue(state.consume(-27f, true)); assertEquals(0f, state.hiddenFraction, 0f)
+        assertFalse(state.consume(-1f, true)); assertEquals(1f, state.hiddenFraction, 0f)
         assertFalse(state.consume(19f, true)); assertTrue(state.consume(1f, true))
-        assertEquals(20f, state.distance, 0f)
     }
-    @Test fun zeroHorizontalAndUnconsumedMovementCannotHideOrResetDirection() {
-        val state = FloatingDockScrollState(28f, 20f)
+    @Test fun noConsumptionAndProgrammaticScrollCannotMoveDock() {
+        val state = FloatingDockScrollState(28f, 20f, 100f)
+        state.consume(-100f, false); assertTrue(state.fullyShown)
         state.consume(-20f, true)
-        repeat(100) { assertTrue(state.consume(0f, true)) }
-        assertFalse(state.consume(-8f, true))
+        for (delta in listOf(0f, Float.NaN, Float.POSITIVE_INFINITY)) state.consume(delta, true)
+        assertEquals(.2f, state.hiddenFraction, .0001f)
+        assertEquals(0f, state.endFling(), 0f)
+        state.consume(-100f, false); assertEquals(.2f, state.hiddenFraction, .0001f)
     }
-    @Test fun userFlingContinuesShortDragButProgrammaticMovementDoesNot() {
-        val state = FloatingDockScrollState(28f, 20f)
-        assertTrue(state.consume(-100f, false))
+    @Test fun genuineUserFlingContinuesButHorizontalAndEndedFlingCannot() {
+        val state = FloatingDockScrollState(28f, 20f, 100f)
         state.consume(-4f, true); state.beginFling(0f, -800f)
-        assertFalse(state.consume(-24f, false))
-        state.endFling()
-        assertFalse(state.consume(1000f, false))
-        state.reset(); assertTrue(state.consume(-1000f, false))
+        state.consume(-24f, false); assertEquals(.28f, state.hiddenFraction, .0001f)
+        assertEquals(1f, state.endFling(), 0f)
+        state.consume(-100f, false); assertEquals(.28f, state.hiddenFraction, .0001f)
+        state.reset(); state.consume(-4f, true); state.beginFling(1000f, 5f)
+        state.consume(-100f, false); assertEquals(.04f, state.hiddenFraction, .0001f)
     }
-    @Test fun pageChangeAndReselectDiscardOldDistanceAndFling() {
-        val state = FloatingDockScrollState(28f, 20f)
-        state.consume(-27f, true); state.beginFling(0f, -800f); state.reset()
-        assertTrue(state.consume(-2f, true)); assertTrue(state.consume(-100f, false))
-        assertEquals(-2f, state.distance, 0f)
+    @Test fun settlingUsesIntentThenNearestEndAndResetCancelsHistory() {
+        val state = FloatingDockScrollState(28f, 20f, 100f)
+        state.consume(-30f, true); assertEquals(1f, state.endFling(), 0f)
+        state.settleTo(.75f); state.consume(20f, true); assertEquals(0f, state.endFling(), 0f)
+        state.settleTo(.75f); state.consume(1f, true); assertEquals(1f, state.endFling(), 0f)
+        state.reset(); assertTrue(state.fullyShown); assertEquals(0f, state.distance, 0f)
+        state.consume(-1000f, false); assertTrue(state.fullyShown)
     }
-    @Test fun directionJitterAndHorizontalFlingDoNotToggleVisibility() {
-        val state = FloatingDockScrollState(28f, 20f)
-        repeat(100) { state.consume(-2f, true); assertTrue(state.consume(2f, true)) }
-        state.beginFling(1000f, 5f); assertTrue(state.consume(-200f, false))
-        assertTrue(state.consume(Float.NaN, true))
+    @Test fun differentHeightsUseTheirActualTravelExtent() {
+        val phone = FloatingDockScrollState(28f, 20f, 74f)
+        val largeFontWithInsets = FloatingDockScrollState(28f, 20f, 108f)
+        phone.consume(-37f, true); largeFontWithInsets.consume(-37f, true)
+        assertEquals(.5f, phone.hiddenFraction, .0001f)
+        assertEquals(37f, largeFontWithInsets.hiddenFraction * largeFontWithInsets.travelExtent, .0001f)
     }
 }

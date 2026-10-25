@@ -5,6 +5,11 @@ import android.content.Context
 import android.view.accessibility.AccessibilityManager
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.animate
+import androidx.compose.animation.core.CubicBezierEasing
+import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.testTag
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
@@ -34,6 +39,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.IntOffset
+import kotlin.math.roundToInt
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.layout.onSizeChanged
@@ -87,7 +94,6 @@ fun NativeApp(model: BrowseViewModel, container: AppContainer, settings: AppSett
     NativeUpdatePrompt(container.nativeUpdates) { navigate("native-updates") }
     val accessibility = rememberSystemAccessibility()
     val reduceMotion = accessibility.reduceMotion
-    var dockVisible by remember { mutableStateOf(true) }
     val keyboardOpen = WindowInsets.ime.getBottom(LocalDensity.current) > 0
     val configuration = androidx.compose.ui.platform.LocalConfiguration.current
     // Floating mode remains a bottom overlay in every window orientation, including phones in landscape.
@@ -105,32 +111,76 @@ fun NativeApp(model: BrowseViewModel, container: AppContainer, settings: AppSett
     val floatingTail = if (floatingRoot && !keyboardOpen) floatingNavigationHeight() + dockBottomGap + 12.dp + dockExtraBottom else 0.dp
     val hideDistance = with(density) { 28.dp.toPx() }
     val showDistance = with(density) { 20.dp.toPx() }
-    val dockScroll = remember(root, homeTab, route, settings.followType, settings.secretFollow, accountState.generation, hideDistance, showDistance, keyboardOpen, searchOpen) {
-        FloatingDockScrollState(hideDistance, showDistance)
+    val dockTravel = with(density) { (floatingNavigationHeight() + dockBottomGap + dockExtraBottom).toPx() }
+    val dockScroll = remember(root, homeTab, route, settings.floatingNavigation, settings.followType, settings.secretFollow,
+        accountState.generation, hideDistance, showDistance, dockTravel, reduceMotion, keyboardOpen, searchOpen) {
+        FloatingDockScrollState(hideDistance, showDistance, dockTravel, reduceMotion)
     }
-    val recoveryEnabled = shouldOfferFloatingDockRecovery(floatingRoot, keyboardOpen, searchOpen, dockVisible)
+    var dockSettle by remember(dockScroll) { mutableStateOf<kotlinx.coroutines.Job?>(null) }
+    DisposableEffect(dockScroll) { onDispose { dockSettle?.cancel() } }
+    // Read the current root's real scroll boundary; unconsumed nested movement alone
+    // cannot establish that a vertical root is at the top.
+    val dockAtTop = remember(dockScroll) { object { var read: () -> Boolean = { false } } }
+    val dockScrollActive = remember(dockScroll) { mutableStateOf<(() -> Boolean)?>(null) }
+    val dockVisible by remember(dockScroll) { derivedStateOf { dockScroll.visible } }
+    val dockFullyShown by remember(dockScroll) { derivedStateOf { dockScroll.fullyShown } }
+    val recoveryEnabled = shouldOfferFloatingDockRecovery(floatingRoot, keyboardOpen, searchOpen, dockFullyShown)
     val currentRecoveryEnabled by rememberUpdatedState(recoveryEnabled)
     val currentDockScroll by rememberUpdatedState(dockScroll)
     val revealDock: (() -> Boolean)? = if (recoveryEnabled) ({
         // Recheck eligibility if an accessibility service invokes an action after the UI changed.
         if (currentRecoveryEnabled && currentDockScroll === dockScroll) {
+            dockSettle?.cancel()
             dockScroll.reset()
-            dockVisible = true
             true
         } else false
     }) else null
     val reselectEvents = remember { kotlinx.coroutines.flow.MutableSharedFlow<Boolean>(extraBufferCapacity = 1) }
     val selectRoot: (Int) -> Unit = { index ->
+        dockSettle?.cancel()
         dockScroll.reset()
-        dockVisible = true
         if (root == index && index in 0..1) reselectEvents.tryEmit(!reduceMotion)
         root = index
+    }
+    val settleDock: () -> Unit = {
+        if (observeDockScroll && currentDockScroll === dockScroll) {
+            val target = dockScroll.endFling()
+            if (target != dockScroll.hiddenFraction) {
+                dockSettle?.cancel()
+                dockSettle = scope.launch {
+                    val start = dockScroll.hiddenFraction
+                    animate(start, target, animationSpec = tween(
+                        durationMillis = (180 * kotlin.math.abs(target - start)).toInt().coerceIn(60, 180),
+                        easing = CubicBezierEasing(.215f, .61f, .355f, 1f),
+                    )) { value, _ -> dockScroll.settleTo(value) }
+                }
+            }
+        }
+    }
+    // Accessibility ScrollBy also emits UserInput, but does not necessarily dispatch a fling.
+    // Observe the real scroll state's end, not a timer, to avoid leaving clipped tabs at rest.
+    LaunchedEffect(dockScroll) {
+        snapshotFlow { dockScrollActive.value?.invoke() }.collect { scrolling ->
+            if (scrolling == false) settleDock()
+        }
     }
     val scrollObserver = remember(dockScroll, observeDockScroll) {
         object : NestedScrollConnection {
             private val enabled get() = observeDockScroll
             override fun onPostScroll(consumed: Offset, available: Offset, source: NestedScrollSource): Offset {
-                if (enabled) dockVisible = dockScroll.consume(consumed.y, source == NestedScrollSource.UserInput)
+                if (enabled && currentDockScroll === dockScroll) {
+                    val userInput = source == NestedScrollSource.UserInput
+                    // A zero-consumption edge attempt must not interrupt a settle halfway.
+                    if (userInput && consumed.y.isFinite() && consumed.y != 0f) dockSettle?.cancel()
+                    dockScroll.consume(consumed.y, userInput)
+                    // Once a genuine upward-content gesture reaches the root top, reveal even
+                    // if less than 20dp remained. Subsequent top-edge pulls consume zero pixels.
+                    if (userInput && consumed.y >= 0f && available.y >= 0f &&
+                        (consumed.y > 0f || available.y > 0f) && dockAtTop.read()) {
+                        dockSettle?.cancel()
+                        dockScroll.reset()
+                    }
+                }
                 return Offset.Zero
             }
             override suspend fun onPreFling(available: androidx.compose.ui.unit.Velocity): androidx.compose.ui.unit.Velocity {
@@ -138,15 +188,13 @@ fun NativeApp(model: BrowseViewModel, container: AppContainer, settings: AppSett
                 return androidx.compose.ui.unit.Velocity.Zero
             }
             override suspend fun onPostFling(consumed: androidx.compose.ui.unit.Velocity, available: androidx.compose.ui.unit.Velocity): androidx.compose.ui.unit.Velocity {
-                dockScroll.endFling()
+                settleDock()
                 return androidx.compose.ui.unit.Velocity.Zero
             }
         }
     }
-    LaunchedEffect(dockScroll) { dockScroll.reset(); dockVisible = true }
     val entrance = remember { Animatable(1f) }
     LaunchedEffect(root, homeTab, route, reduceMotion, settings.floatingNavigation) {
-        dockVisible = true
         if (reduceMotion) entrance.snapTo(1f)
         else { entrance.snapTo(0f); entrance.animateTo(1f, tween(160)) }
     }
@@ -327,7 +375,10 @@ fun NativeApp(model: BrowseViewModel, container: AppContainer, settings: AppSett
     }, bottomBar = {
         if (route == null && !settings.floatingNavigation && !keyboardOpen && !useRail) NavigationBar {
             val icons = (0..2).map { rootNavigationIcon(it, it == root) }
-            listOf("首页", "关注", "我的").forEachIndexed { index, label -> NavigationBarItem(root == index, { selectRoot(index) }, icon = { Icon(icons[index], null) }, label = { Text(label) }) }
+            // Gesture bounds exclude NavigationBar's platform insets, unlike an outer detector.
+            Row(Modifier.fillMaxWidth().testTag("standard-navigation").navigationTabDrag(root, 3, onSelect = selectRoot)) {
+                listOf("首页", "关注", "我的").forEachIndexed { index, label -> NavigationBarItem(root == index, { selectRoot(index) }, icon = { Icon(icons[index], null) }, label = { Text(label) }) }
+            }
         }
     }) { padding ->
         CompositionLocalProvider(LocalRootReselect provides reselectEvents, LocalFloatingBottomSpace provides floatingTail, LocalFloatingDockReveal provides revealDock,
@@ -348,8 +399,13 @@ fun NativeApp(model: BrowseViewModel, container: AppContainer, settings: AppSett
                         val blacklist = (localLoad as? LocalLoadState.Ready)?.value?.blacklist
                         val visibleState = remember(rawState, blacklist, localLoad) { if (blacklist == null) rawState.copy(items = emptyList(), error = if (localLoad == LocalLoadState.Failed) "本地过滤设置无法读取，未展示未过滤内容" else "正在读取本地过滤设置") else rawState.copy(items = filterBlocked(rawState.items, blacklist)) }
                         CompositionLocalProvider(LocalPreviewGeometryStore provides model.previewGeometry) {
+                        val rootListState = browseListStates[key] ?: rememberLazyListState()
+                        SideEffect {
+                            dockAtTop.read = { !rootListState.canScrollBackward }
+                            dockScrollActive.value = { rootListState.isScrollInProgress }
+                        }
                         ContentList(visibleState, key, accounts, accountState,
-                            listState = browseListStates[key] ?: rememberLazyListState(),
+                            listState = rootListState,
                             retry = { model.load(key, refresh = true) }, more = { model.load(key, more = true) },
                             navigate = navigate, openLink = openLink, favorite = { item -> scope.launch {
                                 try { container.local.favorite(item) } catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
@@ -358,18 +414,44 @@ fun NativeApp(model: BrowseViewModel, container: AppContainer, settings: AppSett
                         }
                     }
                 }
-                root == 0 && homeTab == 0 -> holder.SaveableStateProvider("apps") { InstalledAppsScreen(listState = browseListStates["apps"] ?: rememberLazyListState()) { navigate("app:$it") } }
-                root == 1 -> holder.SaveableStateProvider("root-local-follow") { LocalFollowFeedScreen(container.local, accounts.repository, { navigate("feed:$it") }, { navigate("user:$it") }, { navigate("local-follows") }, listState = browseListStates["root-local-follow"] ?: rememberLazyListState()) }
+                root == 0 && homeTab == 0 -> holder.SaveableStateProvider("apps") {
+                    val rootListState = browseListStates["apps"] ?: rememberLazyListState()
+                    SideEffect {
+                        dockAtTop.read = { !rootListState.canScrollBackward }
+                        dockScrollActive.value = { rootListState.isScrollInProgress }
+                    }
+                    InstalledAppsScreen(listState = rootListState) { navigate("app:$it") }
+                }
+                root == 1 -> holder.SaveableStateProvider("root-local-follow") {
+                    val rootListState = browseListStates["root-local-follow"] ?: rememberLazyListState()
+                    SideEffect {
+                        dockAtTop.read = { !rootListState.canScrollBackward }
+                        dockScrollActive.value = { rootListState.isScrollInProgress }
+                    }
+                    LocalFollowFeedScreen(container.local, accounts.repository, { navigate("feed:$it") }, { navigate("user:$it") }, { navigate("local-follows") }, listState = rootListState)
+                }
                 else -> holder.SaveableStateProvider("root-my") {
+                    SideEffect {
+                        dockAtTop.read = { myScrollState.value == 0 }
+                        dockScrollActive.value = { myScrollState.isScrollInProgress }
+                    }
                     OwnProfileDashboard(accounts, accountState, myScrollState, floatingTail, onNavigate = navigate,
                         onPersonalList = { navigate(personalListRoute(it)) })
                 }
             }
         }
         if (shouldShowFloatingDock(floatingRoot, keyboardOpen, searchOpen, dockVisible)) {
-            BoxWithConstraints(Modifier.align(Alignment.BottomCenter).fillMaxWidth().absolutePadding(left = dockExtraLeft, right = dockExtraRight, top = 12.dp, bottom = dockBottomGap + dockExtraBottom), contentAlignment = Alignment.Center) {
-                val sideGap = if (maxWidth >= 186.dp) 16.dp else 8.dp
-                FloatingNavigation(root, reduceMotion, onSelect = selectRoot, modifier = Modifier.padding(horizontal = sideGap))
+            // Clip against the full content viewport, not the original dock rectangle:
+            // the bar must travel through its bottom gap before leaving the screen.
+            Box(Modifier.matchParentSize().clipToBounds()) {
+                BoxWithConstraints(Modifier.align(Alignment.BottomCenter).fillMaxWidth()
+                    .absolutePadding(left = dockExtraLeft, right = dockExtraRight, top = 12.dp, bottom = dockBottomGap + dockExtraBottom), contentAlignment = Alignment.Center) {
+                    val sideGap = if (maxWidth >= 186.dp) 16.dp else 8.dp
+                    FloatingNavigation(root, reduceMotion, onSelect = selectRoot, enabled = dockFullyShown,
+                        modifier = Modifier.padding(horizontal = sideGap).offset {
+                            IntOffset(0, (dockScroll.hiddenFraction * dockScroll.travelExtent).roundToInt())
+                        }.graphicsLayer { alpha = 1f - dockScroll.hiddenFraction }.then(if (dockFullyShown) Modifier else Modifier.clearAndSetSemantics { testTag = "floating-navigation" }))
+                }
             }
         }
         }

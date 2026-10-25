@@ -366,6 +366,7 @@ class AdaptiveDockRenderingTest {
 
     @Test fun programmaticScrollAndReselectNeverStartAUserFling() {
         render()
+        val originalViewport = compose.onNodeWithTag("content-list").getUnclippedBoundsInRoot()
         compose.onNodeWithTag("content-list").performScrollToIndex(6)
         assertDockGeometry()
         rootTab("首页").performClick()
@@ -377,12 +378,18 @@ class AdaptiveDockRenderingTest {
         dock.assertDoesNotExist()
         compose.onNodeWithTag("content-list").performScrollToIndex(0)
         dock.assertDoesNotExist() // programmatic upward movement may not reveal a hidden dock either.
-        // At the top, user overscroll is not consumed and must not reveal it.
-        drag("content-list", forward = false)
-        dock.assertDoesNotExist()
-        compose.onNodeWithTag("content-list").performScrollToIndex(6)
+        // A genuine top-edge pull explicitly recovers the dock; programmatic top alone did not.
         drag("content-list", forward = false)
         assertDockGeometry()
+        drag("content-list", forward = true)
+        dock.assertDoesNotExist()
+        compose.onNodeWithTag("content-list").performScrollToIndex(6)
+        dock.assertDoesNotExist()
+        drag("content-list", forward = false)
+        assertDockGeometry()
+        assertRectEquals("Recovery must not alter the root viewport", originalViewport, compose.onNodeWithTag("content-list").getUnclippedBoundsInRoot())
+        assertRootSelection("首页")
+        assertEquals(1, homeCalls.get())
     }
 
     @Test fun genuineUserFlingContinuesTheGesturePastHideThreshold() {

@@ -8,6 +8,10 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.SemanticsProperties
@@ -78,4 +82,62 @@ class FloatingNavigationMotionTest {
         assertEquals(1f, scale(), 0.001f)
         assertEquals(1f, position(), 0.001f)
     }
+    @Test fun liveDragSelectsEveryCrossedTabAndCanReverseWithoutLosingThePointer() = scrub(LayoutDirection.Ltr)
+    @Test fun liveDragUsesLogicalTabOrderInRtl() = scrub(LayoutDirection.Rtl)
+
+    private fun scrub(direction: LayoutDirection) {
+        val selected = mutableIntStateOf(0)
+        val callbacks = mutableListOf<Int>()
+        compose.setContent { CompositionLocalProvider(LocalLayoutDirection provides direction) {
+            MaterialTheme { Surface { Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                FloatingNavigation(selected.intValue, false, { callbacks += it; selected.intValue = it })
+            } } }
+        } }
+        val bounds = listOf("首页", "关注", "我的").map { tab(it).fetchSemanticsNode().boundsInRoot }
+        val dock = compose.onNodeWithTag("floating-navigation")
+        val dockBounds = dock.fetchSemanticsNode().boundsInRoot
+        fun point(tab: Int) = bounds[tab].center - dockBounds.topLeft
+        dock.performTouchInput { down(point(0)); moveTo(point(1), delayMillis = 80) }
+        tab("关注").assertIsSelected()
+        // Separate injections force recomposition while the SAME pointer remains held.
+        dock.performTouchInput { moveTo(point(2), delayMillis = 80) }
+        tab("我的").assertIsSelected()
+        dock.performTouchInput { moveTo(point(2) + Offset(2f, 0f), delayMillis = 30) }
+        compose.runOnIdle { assertEquals(listOf(1, 2), callbacks) }
+        dock.performTouchInput { moveTo(point(1), delayMillis = 80) }
+        tab("关注").assertIsSelected()
+        dock.performTouchInput { moveTo(point(0), delayMillis = 80); up() }
+        tab("首页").assertIsSelected()
+        compose.runOnIdle { assertEquals(listOf(1, 2, 1, 0), callbacks) }
+        assertEquals(bounds, listOf("首页", "关注", "我的").map { tab(it).fetchSemanticsNode().boundsInRoot })
+        // Pointer consumption must not break a normal same-tab tap/reselection afterwards.
+        tab("首页").performTouchInput { click() }
+        compose.runOnIdle { assertEquals(listOf(1, 2, 1, 0, 0), callbacks) }
+    }
+
+    @Test fun verticalDragsAndCanceledScrubsDoNotCreatePhantomSelections() {
+        val callbacks = mutableListOf<Int>()
+        val selected = mutableIntStateOf(0)
+        compose.setContent { MaterialTheme { Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            FloatingNavigation(selected.intValue, true, { callbacks += it; selected.intValue = it })
+        } } }
+        tab("首页").performTouchInput { down(center); moveBy(Offset(0f, -120f)); up() }
+        compose.runOnIdle { assertTrue(callbacks.isEmpty()) }
+        compose.onNodeWithTag("floating-navigation").performTouchInput { down(Offset(width / 6f, centerY)); moveTo(Offset(width / 2f, centerY)); cancel() }
+        tab("关注").assertIsSelected()
+        compose.runOnIdle { assertEquals(listOf(1), callbacks) }
+        tab("我的").performTouchInput { click() }
+        compose.runOnIdle { assertEquals(listOf(1, 2), callbacks) }
+    }
+
+    @Test fun disabledMovingDockRejectsTapsAndDrags() {
+        val callbacks = mutableListOf<Int>()
+        compose.setContent { MaterialTheme { Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            FloatingNavigation(0, false, { callbacks += it }, enabled = false)
+        } } }
+        tab("我的").assertIsNotEnabled().performTouchInput { click() }
+        compose.onNodeWithTag("floating-navigation").performTouchInput { swipeLeft() }
+        compose.runOnIdle { assertTrue(callbacks.isEmpty()) }
+    }
+
 }

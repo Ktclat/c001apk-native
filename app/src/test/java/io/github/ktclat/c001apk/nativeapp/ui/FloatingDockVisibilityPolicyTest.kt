@@ -23,14 +23,14 @@ class FloatingDockVisibilityPolicyTest {
             }
     }
     @Test fun defaultUsesUnchangedConsumedDistanceThresholds() {
-        val state = FloatingDockScrollState(28f, 20f)
+        val state = FloatingDockScrollState(28f, 20f, reduceMotion = true)
         assertTrue(state.consume(-27f, true)); assertFalse(state.consume(-1f, true))
         assertFalse(shouldShowFloatingDock(true, false, false, state.visible))
         assertFalse(state.consume(19f, true)); assertTrue(state.consume(1f, true))
         assertTrue(shouldShowFloatingDock(true, false, false, state.visible))
     }
     @Test fun accessibilityRecoveryResetDiscardsDistanceAndFling() {
-        val state = FloatingDockScrollState(28f, 20f)
+        val state = FloatingDockScrollState(28f, 20f, reduceMotion = true)
         state.consume(-28f, true); state.beginFling(0f, -800f)
         state.reset()
         assertTrue(state.visible)

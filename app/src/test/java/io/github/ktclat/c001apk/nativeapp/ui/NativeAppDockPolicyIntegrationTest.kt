@@ -23,6 +23,8 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.SideEffect
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.compositeOver
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.nestedscroll.nestedScroll
@@ -222,7 +224,9 @@ class NativeAppDockPolicyIntegrationTest {
         shortConsumedDrag()
         assertDockGeometry() // Recovery must discard the previous hidden 28dp distance.
         shortConsumedDrag()
-        assertHiddenDockAndRecovery() // Two fresh 20dp consumed drags still cross the threshold.
+        assertDockGeometry() // Each sub-threshold gesture settles fully shown; no stale intent.
+        consumedDrag(forward = true)
+        assertHiddenDockAndRecovery()
         val listRecoveryAction = list.fetchSemanticsNode().config[SemanticsActions.CustomActions]
             .single { it.label == SHOW_FLOATING_DOCK_ACTION }.action
         compose.runOnIdle { assertTrue(listRecoveryAction()) }
@@ -288,6 +292,8 @@ class NativeAppDockPolicyIntegrationTest {
         shortConsumedDrag()
         assertDockGeometry()
         shortConsumedDrag()
+        assertDockGeometry()
+        consumedDrag(forward = true)
         assertHiddenDockAndRecovery()
         assertSystemState(exploration = true)
     }
@@ -320,6 +326,127 @@ class NativeAppDockPolicyIntegrationTest {
             last.getUnclippedBoundsInRoot().bottom.value, 1f)
         assertReportedViewport()
         recordEvidence("reported-flutter-mapping-restored-end")
+    }
+
+    @Test fun oneHeldPointerScrubsAcrossActualRootChangesAndReturnsWithoutReloadingHome() = scrubActualRoots(floating = true)
+    @Test fun standardBottomTabsAlsoScrubAcrossActualRootsWithoutReloadingHome() = scrubActualRoots(floating = false)
+
+    private fun scrubActualRoots(floating: Boolean) {
+        render(exploration = true)
+        if (!floating) compose.runOnIdle { uiSettings.value = uiSettings.value.copy(floatingNavigation = false) }
+        val navigation = if (floating) dock else compose.onNodeWithTag("standard-navigation")
+        val bounds = listOf("首页", "关注", "我的").map { rootTab(it).fetchSemanticsNode().boundsInRoot }
+        val dockBounds = navigation.fetchSemanticsNode().boundsInRoot
+        fun point(index: Int) = bounds[index].center - dockBounds.topLeft
+        navigation.performTouchInput { down(point(0)); moveTo(point(1), delayMillis = 80) }
+        assertRootSelection("关注")
+        navigation.performTouchInput { moveTo(point(2), delayMillis = 80) }
+        assertRootSelection("我的")
+        compose.onNodeWithContentDescription("设置").assertIsDisplayed()
+        navigation.performTouchInput { moveTo(point(1), delayMillis = 80) }
+        assertRootSelection("关注")
+        navigation.performTouchInput { moveTo(point(0), delayMillis = 80); up() }
+        assertRootSelection("首页")
+        if (floating) assertDockGeometry() else dock.assertDoesNotExist()
+        assertEquals("Scrubbing returns to the existing Home state, without a reselect/reload", 1, homeCalls.get())
+        list.assertIsDisplayed().assertHeightIsAtLeast(300.dp)
+        assertSystemState(exploration = true)
+    }
+
+    @Test fun fixedFlutterPalettesRenderOnActualRootInLightAndDarkModes() {
+        render(exploration = true)
+        for (index in listOf(0, 9)) for (dark in listOf(false, true)) {
+            compose.runOnIdle { uiSettings.value = uiSettings.value.copy(themeColor = index, theme = if (dark) ThemeMode.DARK else ThemeMode.LIGHT) }
+            compose.waitForIdle()
+            assertDockGeometry()
+            recordEvidence("flutter-palette-root-$index-${if (dark) "dark" else "light"}")
+        }
+        assertEquals("Theme changes must not reload Home", 1, homeCalls.get())
+    }
+
+    @Test fun accessibilitySemanticScrollingSettlesEvenWithoutANestedFlingCallback() {
+        render(exploration = true)
+        list.performSemanticsAction(SemanticsActions.ScrollBy) { it(0f, 40f * pixelDensity) }
+        compose.waitForIdle()
+        assertHiddenDockAndRecovery()
+        list.performSemanticsAction(SemanticsActions.ScrollBy) { it(0f, -24f * pixelDensity) }
+        compose.waitForIdle()
+        assertDockGeometry()
+        list.performSemanticsAction(SemanticsActions.ScrollBy) { it(0f, 24f * pixelDensity) }
+        compose.waitForIdle()
+        assertDockGeometry()
+        assertNoRecoveryActions()
+        assertEquals(1, homeCalls.get())
+    }
+
+    @Test fun shortReverseGesturesRevealAtActualRootTopEvenWhenRemainingPixelsAreBelowThreshold() {
+        render(exploration = true)
+        consumedDrag(forward = true)
+        assertHiddenDockAndRecovery()
+        // Programmatic repositioning is not permission to reveal the hidden dock.
+        compose.runOnIdle { runBlocking { homeState.scrollToItem(0, (28f * pixelDensity).toInt()) } }
+        dock.assertDoesNotExist()
+        val slop = ViewConfiguration.get(compose.activity).scaledTouchSlop.toFloat()
+        repeat(8) {
+            list.performTouchInput {
+                down(Offset(centerX, height * .4f))
+                moveBy(Offset(0f, slop + 10f * pixelDensity), delayMillis = 80)
+                advanceEventTime(250); moveBy(Offset.Zero); up()
+            }
+            compose.waitForIdle()
+        }
+        assertFalse("The actual root list must reach its top", compose.runOnIdle { homeState.canScrollBackward })
+        assertDockGeometry()
+        assertNoRecoveryActions()
+        recordEvidence("continuous-dock-root-top-recovered")
+    }
+
+    @Test fun heldScrollMovesDockDownPixelForPixelAndDisablesClippedTargetsUntilSettled() {
+        render(exploration = true)
+        val start = dock.getUnclippedBoundsInRoot()
+        val slop = ViewConfiguration.get(compose.activity).scaledTouchSlop.toFloat()
+        compose.runOnIdle { samples.clear(); recordScroll = true }
+        try {
+            list.performTouchInput {
+                down(Offset(centerX, height * .6f))
+                moveBy(Offset(0f, -(slop + 12f * pixelDensity)), delayMillis = 80)
+            }
+            val first = compose.onNodeWithTag("floating-navigation", useUnmergedTree = true).getUnclippedBoundsInRoot()
+            val consumedFirst = samples.sumOf { -it.y.toDouble() }.toFloat() / pixelDensity
+            assertTrue("First live scroll must move the dock down, not just wait for a threshold", first.top > start.top)
+            assertEquals("Translation follows actual consumed px", consumedFirst, first.top.value - start.top.value, 1f)
+            val drawn = compose.onNodeWithTag("floating-navigation", useUnmergedTree = true).fetchSemanticsNode().boundsInRoot
+            val windowBottom = compose.onRoot().getUnclippedBoundsInRoot().bottom.value
+            assertEquals("Exit clipping must use the viewport bottom, not the original dock baseline", min(windowBottom, first.bottom.value) - first.top.value, drawn.height / pixelDensity, 1f)
+            recordEvidence("continuous-dock-held-first")
+            val frame = android.graphics.BitmapFactory.decodeFile("build/verification/native-dock-policy/continuous-dock-held-first.png")
+            try {
+                val palette = fixedColorScheme(0, false)
+                val expected = palette.surface.copy(alpha = 1f - consumedFirst / 74f).compositeOver(palette.inverseOnSurface).toArgb()
+                val actual = frame.getPixel(WIDTH_PX / 2, ((start.bottom.value + 6f) * pixelDensity).toInt())
+                assertNotEquals("The dock must paint into its old bottom gap, not be cut off at its old baseline", palette.inverseOnSurface.toArgb(), actual)
+                for (channel in listOf<(Int) -> Int>(android.graphics.Color::red, android.graphics.Color::green, android.graphics.Color::blue)) {
+                    assertTrue("Expected faded dock pixel in bottom gap: expected=$expected actual=$actual", abs(channel(expected) - channel(actual)) <= 3)
+                }
+            } finally { frame.recycle() }
+            compose.onAllNodes(hasAnyAncestor(hasTestTag("floating-navigation")) and hasClickAction()).assertCountEquals(0)
+            list.performTouchInput { moveBy(Offset(0f, -12f * pixelDensity), delayMillis = 80) }
+            val second = compose.onNodeWithTag("floating-navigation", useUnmergedTree = true).getUnclippedBoundsInRoot()
+            assertTrue("A second sub-threshold sample progresses continuously", second.top > first.top)
+            recordEvidence("continuous-dock-held-second")
+            list.performTouchInput { moveBy(Offset(0f, 10f * pixelDensity), delayMillis = 80) }
+            val reverse = compose.onNodeWithTag("floating-navigation", useUnmergedTree = true).getUnclippedBoundsInRoot()
+            assertTrue("Direction reversal must move upward immediately without a jump", reverse.top < second.top)
+            assertTrue(reverse.top > start.top)
+            recordEvidence("continuous-dock-held-reversal")
+            list.performTouchInput { advanceEventTime(250); moveBy(Offset.Zero); up() }
+            compose.waitForIdle()
+            assertDockGeometry()
+            assertNoRecoveryActions()
+        } finally {
+            runCatching { list.performTouchInput { cancel() } }
+            recordScroll = false
+        }
     }
 
     private fun recoveryMatcher() = SemanticsMatcher("Has 显示底部导航 accessibility action") { node ->
@@ -450,8 +577,9 @@ class NativeAppDockPolicyIntegrationTest {
         assertEquals("Must start at actual top", 0f, range.value(), .01f)
     }
 
+    private val navigationTag get() = if (uiSettings.value.floatingNavigation) "floating-navigation" else "standard-navigation"
     private fun rootTab(label: String) = compose.onNode(hasText(label) and
-        SemanticsMatcher.keyIsDefined(SemanticsProperties.Selected) and hasAnyAncestor(hasTestTag("floating-navigation")))
+        SemanticsMatcher.keyIsDefined(SemanticsProperties.Selected) and hasAnyAncestor(hasTestTag(navigationTag)))
 
     private fun assertRootSelection(selected: String) {
         compose.waitForIdle()
@@ -460,7 +588,7 @@ class NativeAppDockPolicyIntegrationTest {
                 .assert(SemanticsMatcher.expectValue(SemanticsProperties.Role, Role.Tab))
                 .assert(SemanticsMatcher.expectValue(SemanticsProperties.Selected, selected == label))
         }
-        compose.onAllNodes(isSelected() and hasAnyAncestor(hasTestTag("floating-navigation"))).assertCountEquals(1)
+        compose.onAllNodes(isSelected() and hasAnyAncestor(hasTestTag(navigationTag))).assertCountEquals(1)
     }
 
     private fun assertDockGeometry() {
@@ -572,7 +700,7 @@ class NativeAppDockPolicyIntegrationTest {
         compose.setContent {
             CompositionLocalProvider(LocalDensity provides Density(LocalDensity.current.density, 1f),
                 LocalReadingStyles provides readingStyles(ReadingPreset.COMFORTABLE, FontChoice.NOTO_SANS)) {
-                MaterialTheme(colorScheme = flutterReferenceColorScheme(), typography = appTypography(FontChoice.NOTO_SANS)) {
+                MaterialTheme(colorScheme = fixedColorScheme(uiSettings.value.themeColor, uiSettings.value.theme == ThemeMode.DARK), typography = appTypography(FontChoice.NOTO_SANS)) {
                     val density = LocalDensity.current
                     val visualTop = WindowInsets.statusBars.getTop(density)
                     val gestureTop = WindowInsets.systemGestures.getTop(density)
