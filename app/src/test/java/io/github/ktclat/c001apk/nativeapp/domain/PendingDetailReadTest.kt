@@ -33,4 +33,20 @@ class PendingDetailReadTest {
         assertTrue(pending.verifyGraphic("a1B2")); assertEquals(1, imageCalls); assertEquals(1, validationCalls); assertEquals(0, readCalls)
         assertTrue(pending.retryOnce() is ApiResult.Success); assertEquals(1, readCalls)
     }
+    @Test fun cancellationDuringGraphicImageOrValidationCannotResurrectUiState() = runBlocking {
+        for (imagePhase in listOf(true, false)) {
+            val entered = CompletableDeferred<Unit>(); val release = CompletableDeferred<Unit>()
+            val imageBytes = byteArrayOf(1, 2, 3)
+            val pending = PendingDetailRead(ApiChallenge.Graphic("synthetic"), { true },
+                { entered.complete(Unit); release.await(); ApiResult.Success(imageBytes) },
+                { entered.complete(Unit); release.await(); ApiResult.Success(Unit) },
+                { error("No read dispatch after cancellation") })
+            val task = async { if (imagePhase) pending.image() else pending.verifyGraphic("a1B2") }
+            entered.await(); pending.cancel(); release.complete(Unit); task.await()
+            assertEquals(DetailVerificationState.CLOSED, pending.state.value)
+            assertFalse(pending.canOpen()); assertTrue(pending.retryOnce() is ApiResult.Failure)
+            if (imagePhase) assertArrayEquals(byteArrayOf(0, 0, 0), imageBytes)
+        }
+    }
+
 }

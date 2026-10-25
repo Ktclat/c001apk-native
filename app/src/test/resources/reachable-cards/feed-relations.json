@@ -1,0 +1,37 @@
+{
+  "data": [
+    {
+      "id": "5001",
+      "entityType": "feed",
+      "uid": "1001",
+      "username": "合成作者",
+      "message": "关联入口与资料链接",
+      "dateline": 1792880400,
+      "likenum": 12,
+      "replynum": 3,
+      "targetRow": {
+        "id": "42",
+        "entityType": "product",
+        "title": "轻便相机",
+        "logo": "https://fixture.invalid/icon-8.png",
+        "url": "/product/42"
+      },
+      "relationRows": [
+        {
+          "id": "43",
+          "entityType": "topic",
+          "title": "周末摄影",
+          "logo": "https://fixture.invalid/icon-9.png",
+          "url": "/t/周末摄影"
+        }
+      ],
+      "extra_url": "https://example.com/article",
+      "extra_title": "摄影入门资料",
+      "userInfo": {
+        "uid": 1001,
+        "username": "合成作者"
+      },
+      "userAvatar": "https://fixture.invalid/icon-4.png"
+    }
+  ]
+}

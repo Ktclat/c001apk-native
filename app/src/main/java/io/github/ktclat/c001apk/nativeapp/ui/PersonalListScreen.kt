@@ -12,6 +12,8 @@ import androidx.compose.ui.unit.dp
 import io.github.ktclat.c001apk.nativeapp.domain.*
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.isActive
 
 /** Defensive even for restored or synthetic states: an active ID alone is not a login. */
 fun personalListAccountId(state: io.github.ktclat.c001apk.nativeapp.account.AccountState): String? =
@@ -41,7 +43,7 @@ fun parsePersonalListRoute(route: String?): PersonalListRequest? {
  }
 }
 private data class PersonalListState(val entries: List<PersonalEntry> = emptyList(), val loading: Boolean = false,
- val loaded: Boolean = false, val next: PageCursor? = null, val failure: ApiResult.Failure? = null)
+ val loaded: Boolean = false, val next: PageCursor? = null, val failure: ApiResult.Failure? = null, val failedMore: Boolean = false)
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable private fun PersonalListContent(repository: PersonalListRepository, request: PersonalListRequest, uid: String,
  onBack: () -> Unit, navigate: (String) -> Unit, openLink: (String) -> Unit) {
@@ -56,23 +58,38 @@ private data class PersonalListState(val entries: List<PersonalEntry> = emptyLis
   if(tabs.size > 1) TabRow(selectedTabIndex = selected) { tabs.forEachIndexed { index, kind -> Tab(selected = selected == index, onClick = { selected = index }, text = { Text(if(kind == PersonalListKind.FOLLOW) "用户" else kind.title) }) } }
   key(selected) {
    var state by remember { mutableStateOf(PersonalListState()) }
+   var alive by remember { mutableStateOf(true) }
+   var epoch by remember { mutableLongStateOf(0L) }
    val scope = rememberCoroutineScope()
-   fun load(more: Boolean) {
-    if(state.loading || (more && state.next == null)) return
+   DisposableEffect(Unit) { onDispose {
+    alive = false; epoch++; state.failure?.personalRead?.cancel()
+   } }
+   fun load(more: Boolean, retry: PendingPersonalRead? = null) {
+    if (!alive || state.loading || (more && state.next == null)) return
+    if (retry != null && state.failure?.personalRead !== retry) return
     val old = state
-    val cursor = if(more) old.next!! else PageCursor()
-    state = if(more) old.copy(loading = true, failure = null) else PersonalListState(loading = true)
+    val cursor = if (more) old.next!! else PageCursor()
+    val frozen = request.copy(kind = tabs[selected])
+    val attempt = ++epoch
+    if (old.failure?.personalRead !== retry) old.failure?.personalRead?.cancel()
+    // Retain this owner's prior rows/cursor while refreshing or verifying; never infer the
+    // failed request mode from row presence, which can turn a failed refresh into append.
+    state = old.copy(loading = true, failure = if (retry != null) old.failure else null)
     scope.launch {
-     val result = try { repository.load(request.copy(kind = tabs[selected]), uid, cursor) }
-      catch(e: CancellationException) { state = old.copy(loading = false); throw e }
+     val result = try { retry?.retryOnce() ?: repository.load(frozen, uid, cursor) }
+      catch(e: CancellationException) { if (alive && epoch == attempt) state = old.copy(loading = false); throw e }
       catch(_: Exception) { ApiResult.Failure(FailureKind.NETWORK, "加载失败，请重试") }
+     if (!alive || epoch != attempt || !currentCoroutineContext().isActive) {
+      (result as? ApiResult.Failure)?.personalRead?.cancel()
+      return@launch
+     }
      state = when(result) {
-      is ApiResult.Failure -> old.copy(loading = false, loaded = true, failure = result)
+      is ApiResult.Failure -> old.copy(loading = false, loaded = true, failure = result, failedMore = more)
       is ApiResult.Success -> {
        val all = if(more) old.entries + result.value.items else result.value.items
        // Contacts intentionally preserve duplicate raw records, matching Flutter's override.
        val seen = mutableSetOf<String>()
-       val rows = if(tabs[selected] in setOf(PersonalListKind.FOLLOW, PersonalListKind.FAN)) all else all.filter { it.recordId.isBlank() || seen.add("${it.content.kind}:${it.recordId}") }
+       val rows = if(frozen.kind in setOf(PersonalListKind.FOLLOW, PersonalListKind.FAN)) all else all.filter { contentListIdentity(it.content)?.let(seen::add) ?: true }
        PersonalListState(rows.take(2000), loaded = true, next = result.value.nextCursor.takeIf { rows.size < 2000 })
       }
      }
@@ -82,11 +99,27 @@ private data class PersonalListState(val entries: List<PersonalEntry> = emptyLis
    LazyColumn(Modifier.fillMaxSize().testTag("personal-list"), contentPadding = PaddingValues(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
     item { TextButton(onClick = { load(false) }, enabled = !state.loading) { Text("刷新") } }
     itemsIndexed(state.entries) { index, entry ->
-     Card(Modifier.fillMaxWidth().testTag("personal-entry-$index")) {
+     if (isEntityCard(entry.content)) {
+      val action: (() -> Unit)? = when (val destination = entry.destination) {
+       is PersonalDestination.Route -> ({ navigate(destination.value) })
+       is PersonalDestination.Link -> ({ openLink(destination.value) })
+       PersonalDestination.Unsupported -> null
+      }
+      Column(Modifier.fillMaxWidth().testTag("personal-entry-$index")) {
+       entry.likeAuthor?.let { Text("${it}赞了这条内容", Modifier.padding(horizontal = 10.dp)) }
+       EntityCard(entry.content, navigate, openLink, actionOverride = EntityCardAction(action),
+        titleOverride = entry.label, showSourceTabs = false)
+       // The shared row already renders message and typed metrics; do not repeat either.
+       if (entry.content.kind != "collection" && entry.detail.isNotBlank() && entry.detail != entry.content.message)
+        PagedPostText(entry.detail, openLink)
+      }
+     } else Card(Modifier.fillMaxWidth().testTag("personal-entry-$index")) {
       Column(Modifier.padding(12.dp)) {
        Text(entry.label, style = MaterialTheme.typography.titleMedium)
        entry.likeAuthor?.let { Text("${it}赞了这条内容") }
        if(entry.detail.isNotBlank()) PagedPostText(entry.detail, openLink)
+       if (entry.content.kind == "card" || entry.content.children.isNotEmpty() || entry.content.childrenIncomplete)
+        Text("此卡片的模板或嵌套内容暂不支持")
        when(val destination = entry.destination) {
         is PersonalDestination.Route -> TextButton(onClick = { navigate(destination.value) }) { Text("查看内容") }
         is PersonalDestination.Link -> TextButton(onClick = { openLink(destination.value) }) { Text("查看内容") }
@@ -98,8 +131,11 @@ private data class PersonalListState(val entries: List<PersonalEntry> = emptyLis
     if(state.loading) item { CircularProgressIndicator(Modifier.testTag("personal-loading")) }
     state.failure?.let { failure -> item {
      Text(failure.message, Modifier.testTag("personal-error"))
+     failure.personalRead?.takeIf { !state.loading }?.let { pending ->
+      PersonalReadVerification(pending, state.loading) { load(state.failedMore, retry = pending) }
+     }
      if(failure.kind == FailureKind.AUTHENTICATION) TextButton(onClick = { navigate("login") }) { Text("重新登录") }
-     TextButton(onClick = { load(state.entries.isNotEmpty() && state.next != null) }) { Text("重试") }
+     TextButton(onClick = { load(state.failedMore) }, enabled = !state.loading) { Text("重试") }
     } }
     if(state.loaded && !state.loading && state.failure == null && state.entries.isEmpty()) item { Text("暂无内容") }
     if(!state.loading && state.failure == null && state.next != null) item { Button(onClick = { load(true) }) { Text("加载更多") } }

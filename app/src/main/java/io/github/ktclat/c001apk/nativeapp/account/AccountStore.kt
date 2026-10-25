@@ -109,6 +109,13 @@ class AccountStore(private val persistence: CredentialPersistence, private val g
         return snapshot.owner === owner && snapshot.generation == state.value.generation && snapshot.accountId == vault.activeId && !state.value.recoveryRequired
     }
 
+    /** Atomic read-continuation check; unlike authenticated mutations, anonymous identities are valid. */
+    @Synchronized fun isCurrentRead(expected: SessionSnapshot): Boolean {
+        val current = snapshot()
+        return isCurrent(expected) && expected.revision == current.revision &&
+            expected.deviceId == current.deviceId && expected.cookies == current.cookies
+    }
+
     /** Only call following a server-confirmed login; not a synthetic success or an entered username. */
     @Synchronized fun saveAuthenticated(id: String, name: String, deviceId: String, cookies: List<Cookie>, expected: SessionSnapshot): Boolean {
         if (!isCurrent(expected)) return false

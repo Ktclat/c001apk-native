@@ -30,30 +30,86 @@ class HomeRequestDiagnosticsTest {
         val client = OkHttpClient.Builder().addInterceptor(interceptor).build()
         try { block(client) } finally { client.dispatcher.cancelAll(); client.connectionPool.evictAll(); client.dispatcher.executorService.shutdownNow() }
     }
-    @Test fun htmlAndJson403AreRedactedAndDoNotAcceptCookiesOrReadErrorBody() {
-        for (type in listOf("text/html; charset=utf-8", "application/json")) {
-            val store = store(); val journal = journal(store); var requests = 0; var bodyReads = 0
+    private class CountedBody(payload: String) : ResponseBody() {
+        var reads = 0
+        var bytes = 0L
+        private val contents = payload.toByteArray()
+        private val measured = object : okio.ForwardingSource(okio.Buffer().write(contents)) {
+            override fun read(sink: okio.Buffer, byteCount: Long): Long {
+                reads++
+                return super.read(sink, byteCount).also { if (it > 0) bytes += it }
+            }
+        }.buffer()
+        override fun contentType(): MediaType? = null
+        override fun contentLength() = contents.size.toLong()
+        override fun source() = measured
+    }
+    private fun assertRedacted(journal: HomeRequestDiagnostics, vararg additional: String) {
+        val text = sampleDiagnostics().copy(homeRequests = journal.snapshot()).copyText()
+        for (secret in listOf("SYNTHETIC", "https://", "installTime=", "firstLaunch=", "Set-Cookie", "User-Agent", "X-App-Token", "ca_") + additional)
+            assertFalse(secret, text.contains(secret))
+        assertTrue(text.contains("identityProvenance=unknown")); assertTrue(text.contains("profile=fallback"))
+    }
+    @Test fun declaredHtml403IsUnreadWhileGenericJsonIsBoundedAndBothStayRedacted() {
+        val payload = """{"message":"SYNTHETIC_BODY_SECRET"}"""
+        for (type in listOf("text/html; charset=utf-8", "TeXt/HtMl ; charset=UTF-8", "application/xhtml+xml", "application/json")) {
+            val store = store(); val journal = journal(store); var requests = 0
+            val body = CountedBody(payload)
             withClient(Interceptor { chain ->
                 requests++
-                response(chain.request(), 403, type, "SYNTHETIC_BODY_SECRET").newBuilder().body(object : ResponseBody() {
-                    override fun contentType(): MediaType? = null
-                    override fun contentLength() = 99L
-                    override fun source(): okio.BufferedSource = object : okio.ForwardingSource(okio.Buffer().writeUtf8("SYNTHETIC_BODY_SECRET")) {
-                        override fun read(sink: okio.Buffer, byteCount: Long): Long { bodyReads++; return super.read(sink, byteCount) }
-                    }.buffer()
-                }).build()
+                response(chain.request(), 403, type, "").newBuilder().body(body).build()
             }) { client ->
-                val result = runBlocking { HttpCoolapkRepository(client, protocol = protocol(), requestSession = { store.captureRequestSession() }, homeDiagnostics = journal).home(PageCursor()) }
-                assertEquals(FailureKind.HTTP, (result as ApiResult.Failure).kind)
-                assertEquals(1, requests); assertEquals(0, bodyReads); assertTrue(store.snapshot().cookies.isEmpty())
+                val result = runBlocking { HttpCoolapkRepository(client, protocol = protocol(), requestSession = { store.captureRequestSession() }, homeDiagnostics = journal).home(PageCursor()) } as ApiResult.Failure
+                assertEquals(FailureKind.HTTP, result.kind); assertNull(result.pageRead); assertNull(result.challenge)
+                assertEquals(1, requests); assertTrue(store.snapshot().cookies.isEmpty())
+                if (type == "application/json") { assertTrue(body.reads > 0); assertEquals(payload.toByteArray().size.toLong(), body.bytes) }
+                else { assertEquals(0, body.reads); assertEquals(0L, body.bytes) }
                 val event = journal.snapshot().single()
                 assertEquals(403, event.httpStatus); assertEquals(HomeRequestHost.API2, event.host)
-                assertEquals(if (type.startsWith("text")) HomeContentType.HTML else HomeContentType.JSON, event.contentType)
+                assertEquals(homeContentType(type), event.contentType)
                 assertEquals(HomeRequestMode.GUEST, event.mode); assertFalse(event.hasSessid)
-                val text = sampleDiagnostics().copy(homeRequests = journal.snapshot()).copyText()
-                for (secret in listOf("SYNTHETIC", "https://", "installTime=", "firstLaunch=", "Set-Cookie", "User-Agent", "X-App-Token", "ca_")) assertFalse(secret, text.contains(secret))
-                assertTrue(text.contains("identityProvenance=unknown")); assertTrue(text.contains("profile=fallback"))
+                assertRedacted(journal)
             }
+        }
+    }
+    @Test fun declaredHtmlCannotBecomeChallengeEvenWithDuplicateJsonHeaderOrValidJsonBytes() {
+        for (headers in listOf(listOf("text/html"), listOf("text/html", "application/json"), listOf("application/json", "APPLICATION/XHTML+XML; charset=utf-8"))) {
+            val store = store(); val journal = journal(store)
+            val body = CountedBody("""{"messageStatus":"err_request_captcha_v2","messageExtra":{"captchaId":"abcdefghijklmnop","captchaField":""}}""")
+            withClient(Interceptor { chain ->
+                response(chain.request(), 403, null, "").newBuilder().apply { headers.forEach { addHeader("Content-Type", it) } }.body(body).build()
+            }) { client ->
+                val result = runBlocking { HttpCoolapkRepository(client, protocol = protocol(), requestSession = { store.captureRequestSession() }, homeDiagnostics = journal).home(PageCursor()) } as ApiResult.Failure
+                assertEquals(FailureKind.HTTP, result.kind); assertNull(result.pageRead); assertNull(result.challenge)
+                assertEquals(0, body.reads); assertTrue(store.snapshot().cookies.isEmpty())
+                assertRedacted(journal, "abcdefghijklmnop")
+            }
+        }
+    }
+    @Test fun genuineJson403ChallengeIsActionableButNeverExportsPayloadProofOrAdoptsCredentials() {
+        for (type in listOf("application/json", null, "application/octet-stream")) {
+            val store = store(); val journal = journal(store)
+            val body = CountedBody("""{"messageStatus":"err_request_captcha_v2","messageExtra":{"captchaId":"abcdefghijklmnop","captchaField":""},"message":"SYNTHETIC_BODY_SECRET"}""")
+            withClient(Interceptor { chain -> response(chain.request(), 403, type, "").newBuilder()
+                .addHeader("Set-Cookie", "uid=999; Path=/; Secure").addHeader("Set-Cookie", "token=SYNTHETIC_FOREIGN_SECRET; Path=/; Secure").body(body).build() }) { client ->
+                val result = runBlocking { HttpCoolapkRepository(client, protocol = protocol(), requestSession = { store.captureRequestSession() }, homeDiagnostics = journal).home(PageCursor()) } as ApiResult.Failure
+                assertEquals(FailureKind.CAPTCHA, result.kind); assertEquals(403, result.httpStatus)
+                val pending = requireNotNull(result.pageRead)
+                assertTrue(pending.canOpen()); assertTrue(pending.acceptHumanProof("NEC:abcdefgh:SYNTHETIC_PROOF_SECRET"))
+                assertTrue(body.reads > 0); assertTrue(store.snapshot().cookies.isEmpty()); assertNull(store.state.value.activeId)
+                assertEquals(FailureKind.CAPTCHA, journal.snapshot().single().failure)
+                assertRedacted(journal, "abcdefghijklmnop", "NEC:"); pending.cancel()
+            }
+        }
+    }
+    @Test fun oversizedJson403IsBoundedAndCannotProduceContinuationOrDiagnosticPayload() {
+        val store = store(); val journal = journal(store)
+        val body = CountedBody("SYNTHETIC_OVERSIZE_SECRET" + "x".repeat(5 * 1024 * 1024))
+        withClient(Interceptor { chain -> response(chain.request(), 403, "application/json", "").newBuilder().body(body).build() }) { client ->
+            val result = runBlocking { HttpCoolapkRepository(client, protocol = protocol(), requestSession = { store.captureRequestSession() }, homeDiagnostics = journal).home(PageCursor()) } as ApiResult.Failure
+            assertEquals(FailureKind.HTTP, result.kind); assertNull(result.pageRead); assertNull(result.challenge)
+            assertTrue(body.bytes in 1L..(4L * 1024 * 1024 + 8192)); assertTrue(store.snapshot().cookies.isEmpty())
+            assertRedacted(journal)
         }
     }
     @Test fun timeoutIsExistingNetworkFailureWithUnavailableStatusAndNoExceptionText() {

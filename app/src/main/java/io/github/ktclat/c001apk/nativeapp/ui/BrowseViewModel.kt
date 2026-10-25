@@ -35,23 +35,35 @@ class BrowseViewModel(private val repository: CoolapkRepository = HttpCoolapkRep
                 loaded = old.items.isNotEmpty(), error = null)) }
         }
     }
+    /** A challenge belongs to this visible route, never another tab or a later visit. */
+    fun leaveRead(key: String) {
+        requests.remove(key)?.job?.cancel()
+        mutable.value[key]?.let { old ->
+            old.failure?.pageRead?.cancel()
+            mutable.update { it + (key to old.copy(loading = false, failure = null,
+                // A completed empty page is still cached data (not an unstarted read).
+                // Only departed failures/capabilities or never-completed empty reads reload.
+                error = null, loaded = old.items.isNotEmpty() || (old.loaded && old.failure == null))) }
+        }
+    }
     /** Route-owned supplemental reads cannot publish after their screen/tab departs. */
     internal fun cancelLinkedRead(key: String) {
-        if (!(key.startsWith("event:") || key.startsWith("dyh-list:") || key.startsWith("coolpic-list:"))) return
-        val pending = requests.remove(key) ?: return
-        pending.job?.cancel()
-        mutable.update { current -> current[key]?.let { current + (key to it.copy(loading = false, loaded = false)) } ?: current }
+        if (!(key.startsWith("event:") || key.startsWith("dyh-list:") || key.startsWith("coolpic-list:") || key.startsWith("collection:"))) return
+        leaveRead(key)
     }
     fun invalidateReplies(feedId: String) {
         val affected = (mutable.value.keys + requests.keys).filter { it.startsWith("ordered:$feedId:") || it == "replies:$feedId" }.toSet()
-        affected.forEach { requests.remove(it)?.job?.cancel() }
+        affected.forEach { key -> requests.remove(key)?.job?.cancel(); mutable.value[key]?.failure?.pageRead?.cancel() }
         mutable.update { states -> states.filterKeys { it !in affected } }
     }
-    fun load(key: String, refresh: Boolean = false, more: Boolean = false, detailRetry: PendingDetailRead? = null) {
+    fun load(key: String, refresh: Boolean = false, more: Boolean = false, detailRetry: PendingDetailRead? = null, pageRetry: PendingPageRead? = null) {
         activeKey = key
         val old = mutable.value[key] ?: BrowseState()
+        if (pageRetry != null && old.failure?.pageRead !== pageRetry) return
+        if (detailRetry != null && old.failure?.detailRead !== detailRetry && old.items.none { it.accountDetailRetry === detailRetry }) return
         if (key in mutable.value) mutable.update { (it - key) + (key to old) }
         if (old.loading || (!refresh && !more && old.loaded) || (more && old.next == null)) return
+        if (old.failure?.pageRead !== pageRetry) old.failure?.pageRead?.cancel()
         if (old.failure?.detailRead !== detailRetry) old.failure?.detailRead?.cancel()
         old.items.mapNotNull { it.accountDetailRetry }.filter { it !== detailRetry }.forEach { it.cancel() }
         mutable.update { it + (key to old.copy(loading = true, error = if (detailRetry != null) old.error else null, moreError = false)) }
@@ -60,12 +72,14 @@ class BrowseViewModel(private val repository: CoolapkRepository = HttpCoolapkRep
         request.job = viewModelScope.launch {
             val cursor = if (more) old.next!! else PageCursor()
             val result = try { when {
+                pageRetry != null -> pageRetry.retryOnce()
                 key.startsWith("following:") -> repository.following(FollowType.entries.getOrElse(key.substringAfter(":").toIntOrNull() ?: 0) { FollowType.ALL }, cursor)
                 key == "home" -> repository.home(cursor)
                 key == "hot" -> repository.page("/page?url=V9_HOME_TAB_RANKING", "热榜", cursor)
                 key == "pictures" -> repository.page("/page?url=V11_FIND_COOLPIC", "酷图", cursor)
                 key == "products" -> repository.productCategories()
                 key.startsWith("product:") -> repository.productDetail(key.removePrefix("product:")).asPage()
+                key.startsWith("collection:") -> repository.collectionItems(key.removePrefix("collection:"), cursor)
                 key == "topics" -> repository.page("V11_VERTICAL_TOPIC", "话题", cursor)
                 key.startsWith("search:") -> repository.search(key.removePrefix("search:"), cursor)
                 key.startsWith("thread:") -> repository.replyThread(key.removePrefix("thread:"), cursor)
@@ -100,7 +114,15 @@ class BrowseViewModel(private val repository: CoolapkRepository = HttpCoolapkRep
                 }
                 throw cancelled
             } catch (_: Exception) { ApiResult.Failure(FailureKind.NETWORK, "加载失败，请重试") }
-            if (requests[key] !== request) return@launch
+            if (requests[key] !== request) {
+                // A non-cooperative reader may return after route cancellation. Its newly
+                // created capability never becomes visible and must be closed, not orphaned.
+                when (result) {
+                    is ApiResult.Failure -> { result.pageRead?.cancel(); result.detailRead?.cancel() }
+                    is ApiResult.Success -> result.value.items.forEach { it.accountDetailRetry?.cancel() }
+                }
+                return@launch
+            }
             mutable.update { current ->
                 bounded((current - key) + (key to when (result) {
                     is ApiResult.Success -> if (key.startsWith("feed:") && old.items.firstOrNull()?.publicRead == true &&
@@ -108,7 +130,7 @@ class BrowseViewModel(private val repository: CoolapkRepository = HttpCoolapkRep
                         result.value.items.firstOrNull()?.fullPostBody is FullPostBody.Unavailable) {
                         old.copy(loading = false, error = "新响应没有可完整读取的正文，仍保留上次已读取的内容", loaded = true)
                     } else BrowseState(
-                        items = if (more) (old.items + result.value.items).distinctBy { "${it.kind}:${it.id}:${it.title}" } else result.value.items,
+                        items = if (more) mergeRawContentPages(old.items + result.value.items) else result.value.items,
                         next = result.value.nextCursor, loaded = true)
                     is ApiResult.Failure -> old.copy(loading = false, error = result.message, failure = result, loaded = true, moreError = more)
                 }), setOfNotNull(activeKey, key, activeKey?.takeIf { it.startsWith("ordered:") }?.split(':')?.getOrNull(1)?.let { "feed:$it" }))
@@ -117,7 +139,7 @@ class BrowseViewModel(private val repository: CoolapkRepository = HttpCoolapkRep
             requests.remove(key)
         }
     }
-    override fun onCleared() { mutable.value.values.forEach { state -> state.failure?.detailRead?.cancel(); state.items.forEach { it.accountDetailRetry?.cancel() } }; previewGeometry.close(); readerPositions.clear(); super.onCleared() }
+    override fun onCleared() { mutable.value.values.forEach { state -> state.failure?.pageRead?.cancel(); state.failure?.detailRead?.cancel(); state.items.forEach { it.accountDetailRetry?.cancel() } }; previewGeometry.close(); readerPositions.clear(); super.onCleared() }
 }
 private fun ApiResult<ContentItem>.asPage(): ApiResult<Page<ContentItem>> = when (this) {
     is ApiResult.Success -> ApiResult.Success(Page(listOf(value), null))
@@ -127,5 +149,6 @@ private fun ApiResult<ContentItem>.asPage(): ApiResult<Page<ContentItem>> = when
 internal fun bounded(states: Map<String, BrowseState>, protectedKeys: Set<String> = emptySet()): Map<String, BrowseState> {
     val roots = setOf("home", "hot", "topics", "products", "pictures")
     val remove = states.keys.filterNot { it in roots || it in protectedKeys || states[it]?.loading == true }.take((states.size - 24).coerceAtLeast(0)).toSet()
+    remove.forEach { key -> states[key]?.let { state -> state.failure?.pageRead?.cancel(); state.failure?.detailRead?.cancel(); state.items.forEach { it.accountDetailRetry?.cancel() } } }
     return states.filterKeys { it !in remove }
 }

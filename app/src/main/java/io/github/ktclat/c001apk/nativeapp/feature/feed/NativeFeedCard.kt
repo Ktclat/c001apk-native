@@ -4,6 +4,7 @@ package io.github.ktclat.c001apk.nativeapp.feature.feed
 import android.text.Html
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.text.InlineTextContent
 import androidx.compose.foundation.text.appendInlineContent
@@ -116,7 +117,11 @@ fun NativeFeedCard(model: FeedCardModel, actions: FeedCardActions, modifier: Mod
                 Spacer(Modifier.height(10.dp))
                 Surface(shape = RoundedCornerShape(12.dp), color = palette.surface) {
                     Row(Modifier.fillMaxWidth().heightIn(min = 48.dp).clickable(onClickLabel = "打开${link.title}") { actions.openLink(link.url) }.padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
-                        link.image?.let { AsyncImage(it, null, modifier = Modifier.size(40.dp).clip(RoundedCornerShape(8.dp)), contentScale = ContentScale.Crop, imageLoader = LocalMediaImageLoader.current ?: LocalImageLoader.current); Spacer(Modifier.width(10.dp)) }
+                        if (link.image != null) AsyncImage(link.image, null, modifier = Modifier.size(40.dp).clip(RoundedCornerShape(8.dp)), contentScale = ContentScale.Crop, imageLoader = LocalMediaImageLoader.current ?: LocalImageLoader.current)
+                        else Box(Modifier.size(40.dp).testTag("feed-link-icon:${model.id}").clip(RoundedCornerShape(8.dp)).background(palette.primary), contentAlignment = Alignment.Center) {
+                            Icon(FlutterMaterialIcons.LinkRounded, null, Modifier.size(24.dp), tint = palette.onPrimary)
+                        }
+                        Spacer(Modifier.width(10.dp))
                         Column(Modifier.weight(1f)) {
                             Text(link.title, maxLines = 1, overflow = TextOverflow.Ellipsis, fontSize = 14.sp)
                             Text(link.url, maxLines = 1, overflow = TextOverflow.Ellipsis, fontSize = 13.sp, color = palette.onSurfaceVariant)
@@ -145,8 +150,12 @@ fun NativeFeedCard(model: FeedCardModel, actions: FeedCardActions, modifier: Mod
             }
             if (model.relations.isNotEmpty()) FlowRow(horizontalArrangement = Arrangement.spacedBy(5.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
                 model.relations.take(12).forEach { relation -> key(relation.key) {
-                    if (relation.url != null) AssistChip(onClick = { actions.openLink(relation.url) }, label = { Text(relation.title, maxLines = 2, overflow = TextOverflow.Ellipsis) }, modifier = Modifier.heightIn(min = 48.dp))
-                    else Text(relation.title, Modifier.padding(horizontal = 8.dp, vertical = 10.dp), fontSize = 13.sp, color = palette.primary)
+                    if (relation.url != null) AssistChip(onClick = { actions.openLink(relation.url) }, label = { Text(relation.title, maxLines = 2, overflow = TextOverflow.Ellipsis) },
+                        leadingIcon = relation.image?.let { { RelationLogo(relation) } }, modifier = Modifier.heightIn(min = 48.dp))
+                    else Row(Modifier.heightIn(min = 48.dp).padding(horizontal = 8.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+                        if (relation.image != null) { RelationLogo(relation); Spacer(Modifier.width(4.dp)) }
+                        Text(relation.title, Modifier.weight(1f, fill = false), maxLines = 2, overflow = TextOverflow.Ellipsis, fontSize = 13.sp, color = palette.primary)
+                    }
                 } }
                 if (model.relations.size > 12) {
                     if (detail) Text("另有${model.relations.size - 12}项关联内容尚未展示", fontSize = 13.sp)
@@ -155,6 +164,13 @@ fun NativeFeedCard(model: FeedCardModel, actions: FeedCardActions, modifier: Mod
             }
         }
     }
+}
+
+/** Source miniCardItem uses the existing decoded logo at 18dp, never an authenticated image client. */
+@Composable
+private fun RelationLogo(relation: FeedRelation) {
+    AsyncImage(relation.image, null, modifier = Modifier.size(18.dp).testTag("feed-relation-icon:${relation.id}").clip(RoundedCornerShape(4.dp)),
+        contentScale = ContentScale.Crop, imageLoader = LocalMediaImageLoader.current ?: LocalImageLoader.current)
 }
 
 @Composable

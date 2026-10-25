@@ -39,7 +39,18 @@ data class ContentItem(
     /** Preserve distinct Home template fields; logo and picture have different source roles. */
     val cardFields: HomeCardFields? = null,
     val event: EventContent? = null,
+    /** Source-known list entity presentation; never reused as post media or account state. */
+    val entityCard: EntityCardMetadata? = null,
+    /** Source entity identity is separate from record id (which remains the raw cursor id). */
+    val sourceEntityId: String? = null,
 
+)
+data class EntityCardMetadata(
+    val image: String? = null,
+    val circular: Boolean = false,
+    val metrics: List<String> = emptyList(),
+    val targetTypeTitle: String = "",
+    val lastActiveSeconds: Long? = null,
 )
 data class HomeCardFields(val picture: String? = null, val logo: String? = null, val description: String = "", val title: String = "",
     val userName: String = "", val avatar: String? = null)
@@ -88,6 +99,7 @@ data class FeedRelationMetadata(
     val title: String = "", val url: String? = null, val image: String? = null,
 )
 data class ContentTab(val title: String, val url: String)
+fun validCollectionId(id: String): Boolean = id.length in 1..64 && id.all { it in '0'..'9' }
 data class PageCursor(val page: Int = 1, val firstItem: String? = null, val lastItem: String? = null) {
     init { require(page > 0) }
 }
@@ -96,7 +108,7 @@ enum class FailureKind { UNCERTAIN, NETWORK, HTTP, AUTHENTICATION, CAPTCHA, RATE
 sealed interface ApiResult<out T> {
     data class Success<T>(val value: T) : ApiResult<T>
     /** Only locally authored, safe messages; never raw server data, URLs or exceptions. */
-    data class Failure(val kind: FailureKind, val message: String, val httpStatus: Int? = null, val challenge: ApiChallenge? = null, val detailRead: PendingDetailRead? = null) : ApiResult<Nothing>
+    data class Failure(val kind: FailureKind, val message: String, val httpStatus: Int? = null, val challenge: ApiChallenge? = null, val detailRead: PendingDetailRead? = null, val pageRead: PendingPageRead? = null, val personalRead: PendingPersonalRead? = null, val countsRead: PendingCountsRead? = null) : ApiResult<Nothing>
 }
 
 data class SearchOptions(val type: String = "feed", val feedType: String = "all", val sort: String = "default", val strict: Boolean = false, val pageType: String? = null, val pageParam: String? = null)
@@ -128,6 +140,8 @@ interface CoolapkRepository {
     suspend fun topicDetail(tag: String): ApiResult<ContentItem>
     suspend fun appDetail(id: String): ApiResult<ContentItem>
     suspend fun productDetail(id: String): ApiResult<ContentItem>
+    /** Public read only: no UID, collection mutation or login requirement is inferred. */
+    suspend fun collectionItems(id: String, cursor: PageCursor = PageCursor()): ApiResult<Page<ContentItem>>
     suspend fun productCategories(): ApiResult<Page<ContentItem>>
     suspend fun page(url: String, title: String = "", cursor: PageCursor = PageCursor()): ApiResult<Page<ContentItem>>
 }

@@ -37,6 +37,7 @@ import kotlinx.coroutines.launch
     var authorOnly by rememberSaveable(id) { mutableStateOf(controls?.authorOnly ?: false) }
     val postKey = "feed:$id"
     val replyKey = "ordered:$id:${order.name}:$authorOnly"
+    DisposableEffect(model, replyKey) { onDispose { model.leaveRead(replyKey) } }
     val states by model.states.collectAsState()
     val post = states[postKey] ?: BrowseState(loading = true)
     val replies = states[replyKey] ?: BrowseState()
@@ -125,7 +126,7 @@ import kotlinx.coroutines.launch
                     } }
                     Row {
                         TextButton(enabled = !post.loading, onClick = { model.load(postKey, refresh = true) }) { Text("重新加载动态") }
-                        if (post.failure?.kind in setOf(FailureKind.AUTHENTICATION, FailureKind.CAPTCHA) && accountState.activeId == null)
+                        if (post.failure?.kind in setOf(FailureKind.AUTHENTICATION, FailureKind.CAPTCHA) && post.failure?.detailRead == null && accountState.activeId == null)
                             TextButton(onClick = { navigate("login") }) { Text("登录后重试") }
                     }
                 } }
@@ -163,7 +164,11 @@ import kotlinx.coroutines.launch
                     }
                 }
             }
-            replies.error?.let { error -> item { Column(Modifier.padding(16.dp)) { Text(if (replies.failure?.kind == FailureKind.CAPTCHA) "评论接口要求验证，此页暂不能继续该验证；可重新加载评论。" else error); TextButton(onClick = { model.load(replyKey, refresh = true) }) { Text("重新加载评论") } } } }
+            replies.error?.let { error -> item { Column(Modifier.padding(16.dp)) { Text(error)
+                replies.failure?.pageRead?.let { pending -> PageReadVerification(pending, replies.loading) {
+                    model.load(replyKey, refresh = !replies.moreError, more = replies.moreError, pageRetry = pending)
+                } }
+                TextButton(onClick = { model.load(replyKey, refresh = true) }) { Text("重新加载评论") } } } }
             items(replyItems, key = { "reply:${it.kind}:${it.id}" }) { reply ->
                 InteractiveFeedReplyRow(reply, accounts, accountState, navigate, openLink, onChanged = { model.load(replyKey, refresh = true) })
             }

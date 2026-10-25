@@ -27,9 +27,11 @@ class CoolapkHttpTransport(
     private val monotonicMillis: () -> Long = { System.nanoTime() / 1_000_000 },
     private val operationScoped: Boolean = false,
     private val homeDiagnostics: HomeRequestDiagnostics? = null,
+    private val readVerification: Boolean = false,
 ) {
     private data class Operation(val path: String, val params: Map<String,String>, val api2: Boolean, val post: Boolean, val query: Map<String,String>, val multipart: Boolean, val mutation: Boolean)
-    private class Rejected(val operation: Operation, val challenge: ApiChallenge, @Volatile var session: RequestSession?, @Volatile var scope: String, val expires: Long, val originalUrl: HttpUrl) {
+    private class Rejected(val operation: Operation, val challenge: ApiChallenge, @Volatile var session: RequestSession?, @Volatile var scope: String, val expires: Long, val originalUrl: HttpUrl, val readSession: ReadVerificationSession? = null) {
+        val closed = AtomicBoolean(false)
         val graphicVerified = AtomicBoolean(false)
         val replayGranted = AtomicBoolean(false)
     }
@@ -42,8 +44,15 @@ class CoolapkHttpTransport(
      * normal Set-Cookie behavior; do not import authenticated mutation/challenge revision rules.
      * This clone never consults the mutable original session supplier again.
      */
-    internal fun forCapturedReadSession(session: RequestSession): CoolapkHttpTransport =
-        CoolapkHttpTransport(client, endpoints, protocol, { session }, monotonicMillis, false, homeDiagnostics)
+    internal fun forCapturedReadSession(session: RequestSession): CoolapkHttpTransport {
+        val safe = if (!session.isGuest) session else session.copy(cookieFor = { url ->
+            val accepted = session.readValidationCookie?.invoke()
+            session.cookieFor(url).orEmpty().split(';').map { it.trim() }.filter {
+                '=' in it && (it.substringBefore('=') == "SESSID" || (accepted != null && it == "validate=$accepted"))
+            }.joinToString("; ").ifBlank { null }
+        })
+        return CoolapkHttpTransport(client, endpoints, protocol, { safe }, monotonicMillis, false, homeDiagnostics, readVerification = true)
+    }
 
     /** Read-only scoped adapter: use exactly the caller's captured session, never recapture another account. */
     internal fun forRequestSession(session: RequestSession): CoolapkHttpTransport =
@@ -56,6 +65,13 @@ class CoolapkHttpTransport(
     }
     fun isRequestScopeCurrent(): Boolean = activeSession().let { it == null || (it.isCurrent() && it.isSessionCurrent?.invoke() != false) }
     fun isCaptchaContinuationCurrent(challenge: ApiChallenge): Boolean = rejected.get()?.let { it.challenge == challenge && eligible(it) && !it.replayGranted.get() } ?: false
+    /** After decoding a verified read, reject a cookie/device/owner change before publication. */
+    internal fun isReadVerificationResultCurrent(challenge: ApiChallenge): Boolean = rejected.get()?.let {
+        it.challenge == challenge && it.readSession != null && eligible(it) && it.scope == scope(it.session, it.originalUrl)
+    } ?: false
+    internal fun readVerificationCookies(challenge: ApiChallenge): List<Cookie> = rejected.get()?.takeIf {
+        it.challenge == challenge && eligible(it)
+    }?.readSession?.snapshotCookies().orEmpty()
     /** Advance only from the exact response under the account store revision lock, never by recapturing an arbitrary session. */
     private fun acceptChallengeResponse(session: RequestSession?, url: HttpUrl, headers: List<String>, record: Rejected?): RequestSession? {
         fun advance(): RequestSession? {
@@ -75,7 +91,12 @@ class CoolapkHttpTransport(
         "${session?.deviceCode ?: protocol.deviceCode}|${session?.cookieFor?.invoke(url).orEmpty().split(';').map { it.trim() }.filter { it.substringBefore('=') in setOf("uid", "token", "SESSID") }.sorted().joinToString(";")}".toByteArray().toByteString().sha256().hex()
     private fun eligible(record: Rejected): Boolean {
         val session = record.session
-        return now() <= record.expires && (session == null || (session.isCurrent() && session.isSessionCurrent?.invoke() == true))
+        return !record.closed.get() && now() <= record.expires && (session == null || (session.isCurrent() && session.isSessionCurrent?.invoke() == true))
+    }
+    /** Drop this read's private cookies/proof binding; never alter the account vault or WebView jar. */
+    internal fun closeReadVerification(challenge: ApiChallenge) {
+        val record = rejected.get()?.takeIf { it.challenge == challenge } ?: return
+        if (record.readSession != null) { record.closed.set(true); record.readSession.close(); record.session = null; rejected.compareAndSet(record, null) }
     }
     /** Explicit caller-controlled replay, bound to this transport's last known rejected operation. */
     fun withCaptchaProof(challenge: ApiChallenge, proof: String): CoolapkHttpTransport {
@@ -90,7 +111,7 @@ class CoolapkHttpTransport(
         val record = requireNotNull(rejected.get()) { "No pending challenge" }
         require(record.challenge == challenge && eligible(record) && (!graphic || record.graphicVerified.get())) { "Challenge scope changed" }
         require(record.replayGranted.compareAndSet(false, true)) { "Challenge already consumed" }
-        return CoolapkHttpTransport(client, endpoints, protocol, requestSession, monotonicMillis, operationScoped, homeDiagnostics).also { it.replay = Replay(record, proof); it.continuationSession = continuationSession }
+        return CoolapkHttpTransport(client, endpoints, protocol, requestSession, monotonicMillis, operationScoped, homeDiagnostics, readVerification).also { it.replay = Replay(record, proof); it.continuationSession = continuationSession }
     }
     suspend fun getCaptchaImage(): ApiResult<ByteArray> {
         val record = rejected.get()
@@ -184,6 +205,9 @@ class CoolapkHttpTransport(
             if (boundRecord != null && (!eligible(boundRecord) || boundRecord.scope != scope(session, boundRecord.originalUrl))) return@withContext failure(FailureKind.INVALID_ARGUMENT)
             if (attempt != null && (!attempt.used.compareAndSet(false, true) || attempt.rejected.operation != operation || !eligible(attempt.rejected) || attempt.rejected.scope != scope(session, attempt.rejected.originalUrl))) return@withContext failure(FailureKind.INVALID_ARGUMENT)
             val fieldProof = attempt?.proof?.let { value -> (attempt.rejected.challenge as? ApiChallenge.Netease)?.field?.takeIf { it.isNotEmpty() }?.let { it to value } }
+            if (fieldProof != null && (fieldProof.first in params || fieldProof.first in query ||
+                    (readVerification && !ReadProofFieldPolicy.allows(fieldProof.first, params.keys + query.keys))))
+                return@withContext failure(FailureKind.INVALID_ARGUMENT)
             val effectiveParams = if (fieldProof != null) params + fieldProof else params
             val url = base.newBuilder().addPathSegments(path).apply { (if (post) query else effectiveParams).forEach { (k, v) -> addQueryParameter(k, v) } }.build()
             val builder = Request.Builder().url(url).header("Accept", "application/json")
@@ -230,15 +254,24 @@ class CoolapkHttpTransport(
                     return@withContext ApiResult.Success(JsonPrimitive(imageUrl.toString()))
                 }
                 if ((imageRedirect || browserRedirect) && response.isSuccessful) return@withContext failure(FailureKind.INVALID_RESPONSE)
-                if (!response.isSuccessful) {
+                val httpFailure = if (!response.isSuccessful) {
                     val kind = when (response.code) { 401 -> FailureKind.AUTHENTICATION; 429 -> FailureKind.RATE_LIMIT; else -> if (mutation && (response.code >= 500 || response.code in 300..399 || response.code == 408)) FailureKind.UNCERTAIN else FailureKind.HTTP }
-                    return@withContext failure(kind, response.code)
-                }
-                val body = response.body ?: return@withContext failure(if (mutation) FailureKind.UNCERTAIN else FailureKind.INVALID_RESPONSE)
+                    failure(kind, response.code)
+                } else null
+                // Read-only HTTP 4xx may carry the same source-defined JSON challenge. Never turn
+                // redirects, HTML, generic403 or a success-shaped error body into permission to retry.
+                if (httpFailure != null && (!readVerification || mutation || response.code !in 400..499 || response.code == 429)) return@withContext httpFailure
+                // A declared HTML block page is not a CAPTCHA JSON envelope. Do not consume it,
+                // even when another duplicate header claims JSON. Missing/unknown types still use
+                // the same bounded JSON parser below; diagnostics never govern this decision.
+                if (httpFailure != null && response.headers.values("Content-Type").any { declared ->
+                        declared.substringBefore(';').trim().lowercase(java.util.Locale.ROOT) in
+                            setOf("text/html", "application/xhtml+xml") }) return@withContext httpFailure
+                val body = response.body ?: return@withContext httpFailure ?: failure(if (mutation) FailureKind.UNCERTAIN else FailureKind.INVALID_RESPONSE)
                 // Bound allocation; giant/unexpected server responses cannot exhaust app memory.
                 val source = body.source()
                 if (source.request((if (captchaImage) MAX_IMAGE else MAX_BODY) + 1)) {
-                    return@withContext if (mutation) failure(FailureKind.UNCERTAIN)
+                    return@withContext if (httpFailure != null) httpFailure else if (mutation) failure(FailureKind.UNCERTAIN)
                     else failure(FailureKind.INVALID_RESPONSE).copy(message = if (captchaImage)
                         "验证图片超过 1 MiB 安全上限，未读取图片" else "响应超过 4 MiB 安全上限，未读取完整内容")
                 }
@@ -252,21 +285,31 @@ class CoolapkHttpTransport(
                 }
                 val decoded = try { ApiDecoder.envelope(source.readUtf8(), requestPath = path) } catch (problem: ApiProblem) {
                     val challenge = problem.failure.challenge
+                    if (httpFailure != null && challenge == null) {
+                        return@withContext if (problem.failure.kind in setOf(FailureKind.RISK_CONTROL, FailureKind.CLIENT_UPGRADE, FailureKind.AUTHENTICATION, FailureKind.RATE_LIMIT))
+                            problem.failure.copy(httpStatus = response.code) else httpFailure
+                    }
                     if (challenge != null && replay == null && path !in setOf("v6/account/requestValidate", "v6/account/captchaImage")) {
                         if (session?.isCurrent?.invoke() == false || (operationScoped && session?.isSessionCurrent?.invoke() == false)) throw CancellationException("Session changed")
-                        // Guest or adapter without continuation support still receives a visible CAPTCHA failure.
-                        if (session != null && (session.isGuest || session.isSessionCurrent == null || session.deviceCode.isNullOrBlank() || session.cookieFor(url).isNullOrBlank())) throw problem
-                        val successor = acceptChallengeResponse(session, url, response.headers.values("Set-Cookie"), null)
+                        // Anonymous read verification is deliberately separate from authenticated writes.
+                        // Capture only the original request owner; never consult a WebView/global jar.
+                        if (readVerification && challenge is ApiChallenge.Netease &&
+                            !ReadProofFieldPolicy.allows(challenge.field, params.keys + query.keys)) throw problem
+                        val readSession = if (readVerification && !mutation && session != null) ReadVerificationSession.capture(session) else null
+                        if (readVerification && session != null && readSession == null) throw problem
+                        if (!readVerification && session != null && (session.isGuest || session.isSessionCurrent == null || session.deviceCode.isNullOrBlank() || session.cookieFor(url).isNullOrBlank())) throw problem
+                        val successor = acceptChallengeResponse(readSession?.session ?: session, url, response.headers.values("Set-Cookie"), null)
                         val operationId = UUID.randomUUID().toString()
                         val bound = when (challenge) {
                             is ApiChallenge.Graphic -> challenge.copy(operationId = operationId)
                             is ApiChallenge.Netease -> challenge.copy(operationId = operationId)
                         }
-                        rejected.set(Rejected(operation, bound, successor, scope(successor, originalUrl), now() + 300_000, originalUrl))
-                        throw ApiProblem(problem.failure.copy(challenge = bound))
+                        rejected.set(Rejected(operation, bound, successor, scope(successor, originalUrl), now() + 300_000, originalUrl, readSession))
+                        throw ApiProblem(problem.failure.copy(challenge = bound, httpStatus = httpFailure?.httpStatus))
                     }
                     throw problem
                 }
+                if (httpFailure != null) return@withContext httpFailure
                 if (session?.isCurrent?.invoke() == false || (operationScoped && session?.isSessionCurrent?.invoke() == false)) throw CancellationException("Session changed")
                 if (boundRecord == null) session?.acceptCookies?.invoke(url, response.headers.values("Set-Cookie"))
                 else acceptChallengeResponse(session, url, response.headers.values("Set-Cookie"), boundRecord)

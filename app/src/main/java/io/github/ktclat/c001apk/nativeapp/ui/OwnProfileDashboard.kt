@@ -41,7 +41,7 @@ import kotlin.coroutines.coroutineContext
     val uid = personalListAccountId(accountState)
     key(uid, accountState.generation, repository, countsRepository) {
         val profile = rememberDashboardRead(repository, uid, "个人资料", reloadOnResume = false) { repository!!.load() }
-        val counts = rememberDashboardRead(countsRepository, uid, "未读数量") { countsRepository!!.load() }
+        val counts = rememberDashboardRead(countsRepository, uid, "未读数量", pendingOf = { it.countsRead }) { countsRepository!!.load() }
         var aggregate by remember { mutableStateOf<Pair<Int, Int>?>(null) }
         // Derive the indicator from the admitted pair, rather than an effect that can miss
         // immediate completions coalesced into one composition. Later resource-only retries
@@ -65,16 +65,20 @@ import kotlin.coroutines.coroutineContext
             profileLoading = profile.loading,
             counts = countValue, countsStatus = counts.status ?: if (countValue?.hasUnknown == true) "部分未读数量暂不可用" else null,
             onRetryCounts = if (countsRepository != null && uid != null) counts::refresh else null,
-            countsLoading = counts.loading, onRefreshAll = refreshAll, refreshing = refreshing,
+            countsLoading = counts.loading, countsRead = if (counts.loading) null else counts.pending(),
+            onVerifiedCountsRetry = counts::retryVerified, onRefreshAll = refreshAll, refreshing = refreshing,
             refreshEnabled = profile.canRefresh() && counts.canRefresh())
     }
 }
 
 /** Each resource owns its result and retry; the aggregate action only coordinates admission. */
-private class DashboardRead<T>(val enabled: Boolean, val lifecycle: Lifecycle, val label: String) {
+private class DashboardRead<T>(val enabled: Boolean, val lifecycle: Lifecycle, val label: String,
+    private val pendingOf: (ApiResult.Failure) -> PendingRead<T>?) {
     var result by mutableStateOf<ApiResult<T>?>(null)
     var loading by mutableStateOf(enabled)
     var refreshEpoch by mutableIntStateOf(0)
+    private var disposed = false
+    private var verifiedRetry: PendingRead<T>? = null
     val value: T? get() = (result as? ApiResult.Success)?.value
     val status: String? get() = when {
         !enabled -> null
@@ -82,27 +86,48 @@ private class DashboardRead<T>(val enabled: Boolean, val lifecycle: Lifecycle, v
         result is ApiResult.Failure -> (result as ApiResult.Failure).message
         else -> null
     }
-    fun canRefresh() = enabled && !loading && lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)
+    fun pending(): PendingRead<T>? = (result as? ApiResult.Failure)?.let(pendingOf)
+    fun canPublish() = !disposed && lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)
+    fun canRefresh() = enabled && !loading && canPublish()
+    fun cancelVerification() {
+        verifiedRetry?.cancel(); verifiedRetry = null
+        pending()?.cancel()
+    }
+    fun discard(value: ApiResult<T>?) { (value as? ApiResult.Failure)?.let(pendingOf)?.cancel() }
+    fun dispose() { disposed = true; cancelVerification() }
     fun refresh() {
         if (canRefresh()) {
+            cancelVerification()
             loading = true
             refreshEpoch++
         }
     }
+    /** Separate admission from refresh: only this displayed, verified capability may be consumed. */
+    fun retryVerified(capability: PendingRead<T>) {
+        if (canRefresh() && pending() === capability && capability.state.value == DetailVerificationState.VERIFIED) {
+            verifiedRetry = capability
+            loading = true
+            refreshEpoch++
+        }
+    }
+    fun retryCommand(): PendingRead<T>? = verifiedRetry
+    fun clearRetry(command: PendingRead<T>?) { if (verifiedRetry === command) verifiedRetry = null }
 }
 
 /** Pause/disposal cancels both reads. Counts reload on resume; completed profiles stay independent. */
 @Composable private fun <T> rememberDashboardRead(repository: Any?, uid: String?, label: String,
-    reloadOnResume: Boolean = true, load: suspend () -> ApiResult<T>): DashboardRead<T> {
+    reloadOnResume: Boolean = true, pendingOf: (ApiResult.Failure) -> PendingRead<T>? = { null },
+    load: suspend () -> ApiResult<T>): DashboardRead<T> {
     val lifecycle = LocalLifecycleOwner.current.lifecycle
-    val state = remember(repository, uid, lifecycle) { DashboardRead<T>(repository != null && uid != null, lifecycle, label) }
+    val state = remember(repository, uid, lifecycle) { DashboardRead<T>(repository != null && uid != null, lifecycle, label, pendingOf) }
+    DisposableEffect(state) { onDispose { state.dispose() } }
     LaunchedEffect(state) {
         if (!state.enabled) return@LaunchedEffect
         lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) {
             var completed = state.result != null && !state.loading
             // A lifecycle-triggered read is a new admission too. Never reuse an old
             // aggregate epoch when only counts (or an interrupted profile) resumes.
-            if (reloadOnResume || !completed) state.refreshEpoch++
+            if (reloadOnResume || !completed) { state.cancelVerification(); state.refreshEpoch++ }
             try {
                 snapshotFlow { state.refreshEpoch }.collect {
                     // A completed profile need not refetch merely because counts resumed.
@@ -110,13 +135,17 @@ private class DashboardRead<T>(val enabled: Boolean, val lifecycle: Lifecycle, v
                     // Keep this owner's last success while refreshing, so avatars, badges
                     // and row geometry do not jump. A failure below replaces it explicitly.
                     completed = false
-                    if (state.result !is ApiResult.Success) state.result = null
+                    val retry = state.retryCommand()
+                    if (state.result !is ApiResult.Success && retry == null) state.result = null
                     state.loading = true
+                    var loaded: ApiResult<T>? = null
                     try {
-                        val loaded = load()
+                        loaded = retry?.retryOnce() ?: load()
                         coroutineContext.ensureActive()
+                        if (!state.canPublish()) { state.discard(loaded); return@collect }
                         state.result = loaded
                     } catch (e: CancellationException) {
+                        state.discard(loaded)
                         // A strict revision cancellation can leave the lifecycle job active.
                         coroutineContext.ensureActive()
                         state.result = ApiResult.Failure(FailureKind.UNCERTAIN, "${label}加载已取消，请重试")
@@ -124,6 +153,7 @@ private class DashboardRead<T>(val enabled: Boolean, val lifecycle: Lifecycle, v
                         coroutineContext.ensureActive()
                         state.result = ApiResult.Failure(FailureKind.NETWORK, "${label}加载失败，请重试")
                     } finally {
+                        state.clearRetry(retry)
                         if (coroutineContext.isActive) {
                             state.loading = false
                             completed = true
@@ -131,6 +161,7 @@ private class DashboardRead<T>(val enabled: Boolean, val lifecycle: Lifecycle, v
                     }
                 }
             } finally {
+                state.cancelVerification()
                 if (reloadOnResume || !completed) state.result = null
                 state.loading = false
             }

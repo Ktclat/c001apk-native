@@ -38,7 +38,7 @@ class FeedReadRecoveryRepositoryTest {
         assertEquals(listOf("50001", "50002"), item.highlightedReplies.map { it.id })
         assertEquals(ExplicitLikeState.UNKNOWN, item.highlightedReplies.first().replyInteraction?.likeState)
         assertEquals(ExplicitLikeState.UNKNOWN, item.highlightedReplies.first().replies.first().replyInteraction?.likeState)
-        assertNull(item.accountDetailRetry); assertEquals(0, accepted)
+        assertNotNull(item.accountDetailRetry); assertEquals(0, accepted)
         val request = web.takeRequest(); assertEquals("GET", request.method); assertEquals("/feed/42001", request.path)
         listOf("Cookie", "Authorization", "Proxy-Authorization").forEach { assertNull(request.getHeader(it)) }
         assertTrue(request.getHeader("X-App-Token")!!.startsWith("v3")); assertEquals(1, api.requestCount); assertEquals(1, web.requestCount)
@@ -64,7 +64,7 @@ class FeedReadRecoveryRepositoryTest {
     @Test fun challengeWithAppOnlyHtmlIsTypedErrorNotEmptyOrSummarySuccess() = runBlocking {
         api.enqueue(MockResponse().setBody(captcha)); web.enqueue(MockResponse().setBody("<html>请用酷安手机APP扫码查看详情</html>"))
         val result = repo().feedDetail("42001") as ApiResult.Failure
-        assertEquals(FailureKind.CAPTCHA, result.kind); assertTrue(result.message.contains("未提供可读取正文")); assertNull(result.detailRead)
+        assertEquals(FailureKind.CAPTCHA, result.kind); assertTrue(result.message.contains("未提供可读取正文")); assertNotNull(result.detailRead)
     }
     @Test fun responseIdMustMatchRouteOnApiAndPublic() = runBlocking {
         api.enqueue(MockResponse().setBody(fixture("ordinary-detail")))

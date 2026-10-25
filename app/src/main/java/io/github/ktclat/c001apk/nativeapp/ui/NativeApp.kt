@@ -61,6 +61,7 @@ import kotlinx.coroutines.launch
 import androidx.compose.material.icons.outlined.Home
 import androidx.compose.material.icons.outlined.FavoriteBorder
 import androidx.compose.material.icons.outlined.Person
+import io.github.ktclat.c001apk.nativeapp.domain.PendingPageRead
 import io.github.ktclat.c001apk.nativeapp.domain.ContentItem
 import io.github.ktclat.c001apk.nativeapp.platform.*
 import io.github.ktclat.c001apk.nativeapp.diagnostics.NativeDiagnosticsScreen
@@ -232,7 +233,7 @@ fun NativeApp(model: BrowseViewModel, container: AppContainer, settings: AppSett
         val personalLists = remember(accounts.repository, authenticatedId, accountState.generation) {
             val expectedId = authenticatedId
             val expectedGeneration = accountState.generation
-            accounts.repository.personalLists {
+            accounts.repository.personalLists(expectedId) {
                 val current = accounts.store.state.value
                 expectedId != null && personalListAccountId(current) == expectedId && current.generation == expectedGeneration
             }
@@ -314,12 +315,13 @@ fun NativeApp(model: BrowseViewModel, container: AppContainer, settings: AppSett
                 if (blacklist == null) Notice("本地过滤设置", if (localLoad == LocalLoadState.Failed) "无法读取过滤规则，原有数据未被覆盖" else "正在读取过滤规则")
                 else {
                     LaunchedEffect(linkedKey) { model.load(linkedKey) }
-                    DisposableEffect(model, linkedKey) { onDispose { model.cancelLinkedRead(linkedKey) } }
+                    DisposableEffect(model, linkedKey) { onDispose { model.leaveRead(linkedKey) } }
                     SideEffect { savedKeys.add(linkedKey) }
                     val raw = states[linkedKey] ?: BrowseState(loading = true)
                     val visible = remember(raw, blacklist) { raw.copy(items = filterBlocked(raw.items, blacklist)) }
                     holder.SaveableStateProvider(linkedKey) {
                         ContentList(visible, linkedKey, accounts, accountState, retry = { model.load(linkedKey, refresh = !raw.moreError, more = raw.moreError) },
+                            verificationRetry = { pending -> model.load(linkedKey, refresh = !raw.moreError, more = raw.moreError, pageRetry = pending) },
                             more = { model.load(linkedKey, more = true) }, navigate = navigate, openLink = openLink,
                             favorite = { item -> scope.launch { try { container.local.favorite(item) }
                                 catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
@@ -397,7 +399,7 @@ fun NativeApp(model: BrowseViewModel, container: AppContainer, settings: AppSett
                     scope.launch { try { container.settings.selectFollow(type) }
                         catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
                         catch (_: Exception) { localError = "关注分类保存失败，请重试" } }
-                } else Text(if (route?.startsWith("event:") == true) "活动详情" else if (route != null) "浏览" else listOf("c001apk Native", "本地关注", "我的")[root])
+                } else Text(if (route?.startsWith("event:") == true) "活动详情" else if (route?.startsWith("collection:") == true) "收藏内容" else if (route != null) "浏览" else listOf("c001apk Native", "本地关注", "我的")[root])
             },
                 navigationIcon = { if (route != null) IconButton(onClick = goBack) { Icon(FlutterMaterialIcons.ArrowBack, "返回") } },
                 actions = {
@@ -438,7 +440,7 @@ fun NativeApp(model: BrowseViewModel, container: AppContainer, settings: AppSett
             when {
                 route != null || (root == 0 && homeTab != 0) || (root == 1 && accountState.activeId != null && !settings.secretFollow) -> {
                     LaunchedEffect(key) { model.load(key) }
-                    DisposableEffect(model, key) { onDispose { model.cancelLinkedRead(key) } }
+                    DisposableEffect(model, key) { onDispose { model.leaveRead(key) } }
                     SideEffect { savedKeys.add(key) }
                     holder.SaveableStateProvider(key) {
                         val rawState = states[key] ?: BrowseState(loading = true)
@@ -453,7 +455,8 @@ fun NativeApp(model: BrowseViewModel, container: AppContainer, settings: AppSett
                         ContentList(visibleState, key, accounts, accountState,
                             listState = rootListState,
                             localUserRepository = container.local,
-                            retry = { model.load(key, refresh = true) }, more = { model.load(key, more = true) },
+                            verificationRetry = { pending -> model.load(key, refresh = !rawState.moreError, more = rawState.moreError, pageRetry = pending) },
+                            retry = { model.load(key, refresh = !rawState.moreError, more = rawState.moreError) }, more = { model.load(key, more = true) },
                             navigate = navigate, openLink = openLink, favorite = { item -> scope.launch {
                                 try { container.local.favorite(item) } catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
                                 catch (_: Exception) { localError = "收藏保存失败，请重试" }
@@ -517,10 +520,10 @@ private fun Notice(title: String, message: String) {
 }
 
 @Composable
-private fun ContentList(state: BrowseState, key: String, accounts: AccountRuntime, accountState: AccountState, retry: () -> Unit, more: () -> Unit, navigate: (String) -> Unit, openLink: (String) -> Unit, favorite: (ContentItem) -> Unit, listState: LazyListState = rememberLazyListState(), localUserRepository: LocalRepository? = null) {
+private fun ContentList(state: BrowseState, key: String, accounts: AccountRuntime, accountState: AccountState, retry: () -> Unit, more: () -> Unit, navigate: (String) -> Unit, openLink: (String) -> Unit, favorite: (ContentItem) -> Unit, listState: LazyListState = rememberLazyListState(), localUserRepository: LocalRepository? = null, verificationRetry: ((PendingPageRead) -> Unit)? = null) {
     ObserveRootReselect(listState)
     val rootHeader = LocalScrollableRootHeader.current
-    val displayItems = remember(state.items) { state.items.distinctBy { "${it.kind}:${it.id}:${it.title}" } }
+    val displayItems = remember(state.items) { contentListItems(state.items) }
     LazyColumn(modifier = Modifier.fillMaxSize().testTag("content-list").floatingDockRecovery(LocalFloatingDockReveal.current), state = listState, contentPadding = PaddingValues(start = 10.dp, top = 10.dp, end = 10.dp, bottom = 10.dp + LocalFloatingBottomSpace.current), verticalArrangement = Arrangement.spacedBy(10.dp)) {
         rootHeader?.let { header -> item(key = "root-header") { header() } }
         if (localUserRepository != null && key.startsWith("user:") && validUid(key.substringAfter(':'))) item(key = "local-user-follow") {
@@ -528,17 +531,21 @@ private fun ContentList(state: BrowseState, key: String, accounts: AccountRuntim
         }
         if (key.startsWith("replies:")) item { TextButton(onClick = { navigate("compose-reply:feed:${key.removePrefix("replies:")}") }) { Text("回复动态") } }
         if (state.error != null) item {
-            Card { Column(Modifier.padding(16.dp)) { Text(state.error); TextButton(onClick = retry) { Text("重试") } } }
+            Card { Column(Modifier.padding(16.dp)) {
+                Text(state.error)
+                state.failure?.pageRead?.let { pending -> if (verificationRetry != null) PageReadVerification(pending, state.loading) { verificationRetry(pending) } }
+                TextButton(enabled = !state.loading, onClick = retry) { Text("重试") }
+            } }
         }
-        if (state.loaded && state.items.isEmpty() && state.error == null && !state.loading) item { Text("暂无内容") }
-        itemsIndexed(displayItems, key = { index, item -> if (item.id.isNotBlank()) "${item.kind}:${item.id}:${item.title}" else "anonymous:$index:${item.kind}" }) { _, item ->
+        if (state.loaded && displayItems.isEmpty() && state.error == null && !state.loading) item { Text("暂无内容") }
+        itemsIndexed(displayItems, key = { index, item -> contentListIdentity(item) ?: "anonymous:$index:${item.kind}" }) { _, item ->
             ContentCard(item, navigate, openLink, favorite, accounts, accountState, retry, isDetail = key == "feed:${item.id}")
         }
         if (key.startsWith("feed:") && state.items.isNotEmpty()) item {
             Button(onClick = { navigate("replies:${key.removePrefix("feed:")}") }) { Text("查看评论") }
         }
         if (state.loading) item { Box(Modifier.fillMaxWidth().padding(24.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator() } }
-        else if (state.next != null) item { TextButton(onClick = more, modifier = Modifier.fillMaxWidth()) { Text("加载更多") } }
+        else if (state.next != null) item { TextButton(onClick = more, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp).testTag("content-more")) { Text("加载更多") } }
     }
 }
 
@@ -551,7 +558,8 @@ private fun ContentCard(item: ContentItem, navigate: (String) -> Unit, openLink:
         return
     }
     if (item.kind == "feed_reply") { InteractiveFeedReplyRow(item, accounts, accountState, navigate, openLink, onChanged); return }
-    if (item.entityTemplate == "iconLinkGridCard") { IconLinkGridCard(item, openLink); return }
+    if (isEntityCard(item)) { EntityCard(item, navigate, openLink); return }
+    if (item.kind == "card" && item.entityTemplate == "iconLinkGridCard") { IconLinkGridCard(item, openLink); return }
     homeCardTemplate(item)?.let { template -> HomeTemplateCard(item, template, openLink, onChanged); return }
     Card(Modifier.fillMaxWidth()) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {

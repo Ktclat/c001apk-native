@@ -45,7 +45,7 @@ internal object ChallengeOriginPolicy {
  */
 @SuppressLint("SetJavaScriptEnabled")
 @Composable
-fun HumanVerification(challenge: HumanChallengeSpec, onProof: (String) -> Unit, onCancel: () -> Unit, modifier: Modifier = Modifier) {
+fun HumanVerification(challenge: HumanChallengeSpec, onProof: (String) -> Unit, onCancel: () -> Unit, modifier: Modifier = Modifier, explanation: String = "请亲自完成下方服务商验证。验证结果只用于本次请求；取消不会重试登录。") {
     val gate = remember(challenge) { ChallengeGate(challenge) }
     val currentProof by rememberUpdatedState(onProof)
     var view by remember(challenge) { mutableStateOf<WebView?>(null) }
@@ -53,8 +53,8 @@ fun HumanVerification(challenge: HumanChallengeSpec, onProof: (String) -> Unit, 
     DisposableEffect(gate) { onDispose { gate.cancel(); view?.apply { stopLoading(); removeJavascriptInterface("CaptchaProof"); destroy() }; view = null } }
     Column(modifier.fillMaxSize().padding(12.dp)) {
         Text("人机验证", style = MaterialTheme.typography.headlineSmall)
-        Text("请亲自完成下方服务商验证。验证结果只用于本次请求；取消不会重试登录。")
-        if (error) Text("验证组件加载失败。可取消后重新准备登录，不会绕过验证。", color = MaterialTheme.colorScheme.error)
+        Text(explanation)
+        if (error) Text("验证组件加载失败。可取消后重新加载内容，不会绕过验证。", color = MaterialTheme.colorScheme.error)
         key(challenge) { AndroidView(modifier = Modifier.weight(1f).fillMaxWidth(), factory = { context ->
             WebView(context).apply {
                 view = this
@@ -91,7 +91,9 @@ fun HumanVerification(challenge: HumanChallengeSpec, onProof: (String) -> Unit, 
                         }
                     }
                 }, "CaptchaProof")
-                loadDataWithBaseURL(ChallengeOriginPolicy.PAGE, challengeHtml(challenge, gate.nonce), "text/html", "UTF-8", null)
+                // Keep the displayed/history URL aligned with the fixed local origin checked by
+                // the callback. null history URLs become about:blank in Android WebView.
+                loadDataWithBaseURL(ChallengeOriginPolicy.PAGE, challengeHtml(challenge, gate.nonce), "text/html", "UTF-8", ChallengeOriginPolicy.PAGE)
             }
         }) }
         TextButton(onClick = { gate.cancel(); onCancel() }) { Text("取消验证") }
@@ -100,7 +102,7 @@ fun HumanVerification(challenge: HumanChallengeSpec, onProof: (String) -> Unit, 
 
 private fun challengeHtml(challenge: HumanChallengeSpec, nonce: String): String = """<!doctype html><html lang="zh-CN"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'nonce-$nonce' https://*.126.net https://*.127.net https://*.163.com https://*.163yun.com; connect-src https://*.126.net https://*.127.net https://*.163.com https://*.163yun.com; img-src data: https://*.126.net https://*.127.net https://*.163.com https://*.163yun.com; style-src 'unsafe-inline' https://*.126.net https://*.127.net; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'nonce-$nonce' https://*.126.net https://*.127.net https://*.163.com https://*.163yun.com; connect-src https://*.126.net https://*.127.net https://*.163.com https://*.163yun.com; media-src blob: https://*.126.net https://*.127.net https://*.163.com https://*.163yun.com; img-src data: https://*.126.net https://*.127.net https://*.163.com https://*.163yun.com; style-src 'unsafe-inline' https://*.126.net https://*.127.net; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
 <style>body{font:16px sans-serif;padding:12px}#captcha{margin-top:24px}</style></head><body><p id="status">正在加载验证组件…</p><div id="captcha"></div>
 <script nonce="$nonce">
 function statusText(s){document.getElementById('status').textContent=s;}

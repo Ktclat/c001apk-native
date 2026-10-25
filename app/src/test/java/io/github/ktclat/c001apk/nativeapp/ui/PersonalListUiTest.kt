@@ -48,7 +48,7 @@ class PersonalListUiTest {
    ApiResult.Success(Page(if(cursor.page == 1) listOf(PersonalEntry("8",ContentItem("8","collection"),"真实合集","",PersonalDestination.Route("mycollection:8"))) else emptyList(),if(cursor.page == 1) PageCursor(2,"8","8") else null))
   }
   compose.setContent { MaterialTheme { PersonalListScreen(repo,PersonalListRequest(PersonalListKind.COLLECTION),"123",0,{}, { route = it },{}) } }
-  compose.onNodeWithText("查看内容").performClick(); compose.runOnIdle { assertEquals(PersonalListRequest(PersonalListKind.COLLECTION_ITEMS,"8"),parsePersonalListRoute(route)) }
+  compose.onNodeWithTag("entity-card:collection:8", useUnmergedTree = true).performClick(); compose.runOnIdle { assertEquals(PersonalListRequest(PersonalListKind.COLLECTION_ITEMS,"8"),parsePersonalListRoute(route)) }
   compose.onNodeWithText("加载更多").performScrollTo().performClick()
   compose.runOnIdle { assertEquals(listOf(PageCursor(),PageCursor(2,"8","8")),calls) }
  }
@@ -91,4 +91,36 @@ class PersonalListUiTest {
   compose.onNodeWithText("请求受限").assertExists(); compose.onNodeWithText("暂无内容").assertDoesNotExist()
   compose.onNodeWithText("重试").performClick(); compose.runOnIdle { assertEquals(2,attempts) }
  }
+ @Test fun explicitUnsupportedCollectionCannotFallBackToPublicRoute() {
+  var route = ""
+  val repo = PersonalListRepository { _,_,_ -> ApiResult.Success(Page(listOf(PersonalEntry("8",ContentItem("8","collection"),"禁止推断的收藏","",PersonalDestination.Unsupported)),null)) }
+  compose.setContent { MaterialTheme { PersonalListScreen(repo,PersonalListRequest(PersonalListKind.COLLECTION),"123",0,{}, { route = it },{ route = it }) } }
+  compose.onNodeWithText("禁止推断的收藏").assertExists()
+  compose.onNodeWithTag("entity-card:collection:8", useUnmergedTree = true).assertHasNoClickAction()
+  compose.onNodeWithText("未提供可打开的内容地址").assertExists()
+  compose.runOnIdle { assertEquals("",route) }
+ }
+ @Test fun sourceAwareIdentityRetainsDistinctEntitiesMarkersAndContactDuplicates() {
+  var kind by mutableStateOf(PersonalListKind.COLLECTION)
+  val repo = PersonalListRepository { request,_,_ ->
+   val raw = if (request.kind == PersonalListKind.FOLLOW) """[
+    {"id":"8","entityType":"contacts","fUserInfo":{"uid":1002,"username":"重复联系人"}},
+    {"id":"8","entityType":"contacts","fUserInfo":{"uid":1002,"username":"重复联系人"}}
+   ]""" else """[
+    {"id":"0","entityId":"11","entityType":"collection","title":"同名收藏"},
+    {"id":"0","entityId":"12","entityType":"collection","title":"同名收藏"},
+    {"id":"20","entityType":"card","entityTemplate":"listCard","title":"同名容器","entities":[null,{"id":"20","entityType":"card","title":"同名容器"}]}
+   ]"""
+   ApiResult.Success(io.github.ktclat.c001apk.nativeapp.data.decodePersonalPage(kotlinx.serialization.json.Json.parseToJsonElement(raw),PageCursor()))
+  }
+  compose.setContent { MaterialTheme { PersonalListScreen(repo,PersonalListRequest(kind),"123",0,{}, {},{}) } }
+  compose.onAllNodesWithText("同名收藏").assertCountEquals(2)
+  compose.onNodeWithTag("personal-list").performScrollToIndex(4)
+  compose.onAllNodesWithText("同名容器").assertCountEquals(2)
+  compose.onAllNodesWithText("此卡片的模板或嵌套内容暂不支持").assertCountEquals(2)
+  compose.runOnIdle { kind = PersonalListKind.FOLLOW }
+  compose.onAllNodesWithText("重复联系人").assertCountEquals(2)
+ }
+
+
 }

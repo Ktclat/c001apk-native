@@ -14,6 +14,8 @@ fun AccountStore.requestSessionFor(captured: SessionSnapshot): RequestSession {
         diagnosticMode = if (captured.accountId == null) io.github.ktclat.c001apk.nativeapp.diagnostics.HomeRequestMode.GUEST else io.github.ktclat.c001apk.nativeapp.diagnostics.HomeRequestMode.AUTHENTICATED,
         isGuest = captured.accountId == null, cookieFor = { url -> captured.cookieHeader(url).takeIf { it.isNotEmpty() } },
         isCurrent = { isCurrent(captured) }, acceptCookies = { url, headers -> acceptCookies(captured, url, headers); Unit }, deviceCode = captured.deviceId,
+        isReadSessionCurrent = { isCurrentRead(captured) }, readOwner = captured.owner,
+        readSessionCookies = { captured.cookies.filter { it.name == "SESSID" } },
         isSessionCurrent = { val current = snapshot(); captured.revision == current.revision && captured.sameIdentityAndSession(current) },
         acceptChallengeCookies = { url, headers -> acceptChallengeCookies(captured, url, headers)?.let(::requestSessionFor) })
 }

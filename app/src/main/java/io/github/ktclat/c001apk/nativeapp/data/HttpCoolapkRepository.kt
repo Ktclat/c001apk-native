@@ -32,6 +32,13 @@ data class RequestSession(
     val acceptChallengeCookies: ((HttpUrl, List<String>) -> RequestSession?)? = null,
     /** Explicit anonymous identity marker; never infer identity from the presence of SESSID. */
     val isGuest: Boolean = false,
+    /** Exact owner/generation/device/cookie revision, including anonymous read identities. */
+    val isReadSessionCurrent: (() -> Boolean)? = null,
+    /** Opaque local AccountStore identity for memory-only read-session ownership; never serialized. */
+    val readOwner: Any? = null,
+    val readSessionCookies: (() -> List<Cookie>)? = null,
+    /** Accepted memory-only read validation; never supplied to social/login transports. */
+    val readValidationCookie: (() -> String?)? = null,
     val diagnosticGeneration: Long? = null,
     val diagnosticMode: io.github.ktclat.c001apk.nativeapp.diagnostics.HomeRequestMode = io.github.ktclat.c001apk.nativeapp.diagnostics.HomeRequestMode.UNKNOWN,
 )
@@ -44,27 +51,24 @@ class HttpCoolapkRepository(
     private val requestSession: (() -> RequestSession)? = null,
     val homeDiagnostics: io.github.ktclat.c001apk.nativeapp.diagnostics.HomeRequestDiagnostics? = null,
 ) : CoolapkRepository {
+    private val readSessions = ReadSessionMemory()
     private val transport = CoolapkHttpTransport(client, endpoints, protocol, requestSession, homeDiagnostics = homeDiagnostics)
 
     private val publicReader = (endpoints.publicWeb ?: "https://www.coolapk.com/".toHttpUrl().takeIf {
         endpoints.api.host == "api.coolapk.com" && endpoints.api2.host == "api2.coolapk.com"
     })?.let { PublicFeedReader(client, it, protocol) }
 
-    /** Root must bind isCurrentAccount to immutable expected activeId + generation. */
-    fun personalLists(isCurrentAccount: () -> Boolean): PersonalListRepository = PersonalListRepository { request, uid, cursor ->
-      withContext(Dispatchers.IO) io@{
-        if (!isCurrentAccount()) throw CancellationException("Account changed")
-        val captured = requestSession?.invoke()
-        if (captured == null) return@io failure(FailureKind.AUTHENTICATION)
-        if (!isCurrentAccount() || !captured.isCurrent()) throw CancellationException("Session changed")
-        val operation = transport.forRequestSession(captured)
-        if (!isCurrentAccount()) throw CancellationException("Account changed")
-        val result = withContext(Dispatchers.Default) {
-            HttpPersonalListRepository { path, params -> operation.get(path, params) }.load(request, uid, cursor)
+    /** Factory UID and root generation are immutable; a caller cannot substitute another list owner. */
+    fun personalLists(expectedUid: String?, isCurrentAccount: () -> Boolean): PersonalListRepository = PersonalListRepository { request, uid, cursor ->
+        if (expectedUid == null || uid != expectedUid) failure(FailureKind.AUTHENTICATION)
+        else {
+            val frozen = request.copy()
+            accountRead(expectedUid, isCurrentAccount, attach = { failure, pending -> failure.copy(personalRead = pending) }) { operation ->
+                withContext(Dispatchers.Default) {
+                    HttpPersonalListRepository { path, params -> operation.get(path, params) }.load(frozen, expectedUid, cursor)
+                }
+            }
         }
-        if (!isCurrentAccount() || !captured.isCurrent() || !operation.isRequestScopeCurrent()) throw CancellationException("Session changed")
-        result
-      }
     }
 
     /** Bind both the UID and root account generation before entering this read-only operation. */
@@ -89,43 +93,77 @@ class HttpCoolapkRepository(
         }
     }
 
-    /** No query/body, no acknowledgement writes. Bind UID + generation and the strict cookie revision. */
+    /** No query/body, no acknowledgement writes. Only an explicit retry may consume this read. */
     fun notificationCounts(uid: String, isCurrentAccount: () -> Boolean): NotificationCountsRepository = NotificationCountsRepository {
-        withContext(Dispatchers.IO) io@{
-            if (!isCurrentAccount()) throw CancellationException("Account changed")
-            if (!numeric(uid)) return@io failure(FailureKind.INVALID_ARGUMENT)
-            val captured = requestSession?.invoke() ?: return@io failure(FailureKind.AUTHENTICATION)
-            if (captured.isGuest || captured.isSessionCurrent == null) return@io failure(FailureKind.AUTHENTICATION)
-            if (!isCurrentAccount() || !captured.isCurrent() || !captured.isSessionCurrent.invoke())
-                throw CancellationException("Session changed")
-            val operation = transport.forRequestSession(captured)
-            if (!isCurrentAccount()) throw CancellationException("Account changed")
-            val result = when (val response = operation.get("v6/notification/checkCount")) {
+        accountRead(uid, isCurrentAccount, attach = { failure, pending -> failure.copy(countsRead = pending) }) { operation ->
+            when (val response = operation.get("v6/notification/checkCount")) {
                 is ApiResult.Failure -> response
                 is ApiResult.Success -> withContext(Dispatchers.Default) {
                     try { ApiResult.Success(decodeNotificationCounts(response.value, uid)) }
                     catch (e: ApiProblem) { e.failure }
                 }
             }
-            if (!isCurrentAccount() || !captured.isCurrent() || !operation.isRequestScopeCurrent())
-                throw CancellationException("Session changed")
-            result
         }
+    }
+
+    /** Reusable only for explicitly admitted authenticated GET readers, never social/login operations. */
+    private suspend fun <T> accountRead(uid: String, isCurrentAccount: () -> Boolean,
+        attach: (ApiResult.Failure, PendingRead<T>) -> ApiResult.Failure,
+        read: suspend (CoolapkHttpTransport) -> ApiResult<T>): ApiResult<T> = withContext(Dispatchers.IO) {
+        if (!isCurrentAccount()) throw CancellationException("Account changed")
+        if (!numeric(uid)) return@withContext failure(FailureKind.INVALID_ARGUMENT)
+        val raw = requestSession?.invoke() ?: return@withContext failure(FailureKind.AUTHENTICATION)
+        if (raw.isGuest || raw.isSessionCurrent == null) return@withContext failure(FailureKind.AUTHENTICATION)
+        fun current() = isCurrentAccount() && raw.isCurrent() &&
+            (raw.isReadSessionCurrent ?: raw.isSessionCurrent).invoke()
+        if (!current()) throw CancellationException("Session changed")
+        val scope = readSessions.capture(raw)
+        // Unlike public reads, these account-only transports must recheck raw revision
+        // and the root UID/generation guard at dispatch, not merely before suspension.
+        val operation = transport.forCapturedReadSession(scope.session.copy(isCurrent = { current() }))
+        if (!current()) throw CancellationException("Session changed")
+        val result = read(operation)
+        // Keep the pre-existing strict raw-cookie-revision publication contract. An accepted
+        // private read-cache SESSID rotation need not invalidate its own decoded response.
+        if (!current()) throw CancellationException("Session changed")
+        if (result !is ApiResult.Failure) return@withContext result
+        if (result.kind == FailureKind.CAPTCHA) readSessions.revokeOnChallenge(scope)
+        val challenge = result.challenge?.takeIf { operation.isCaptchaContinuationCurrent(it) }
+            ?: return@withContext result
+        val pending = PendingRead(challenge,
+            isCurrent = { current() && operation.isCaptchaContinuationCurrent(challenge) },
+            image = { operation.getCaptchaImage() }, verify = { operation.validateGraphicCaptcha(it) },
+            retry = { proof ->
+                if (!current()) throw CancellationException("Account changed")
+                val verified = when (challenge) {
+                    is ApiChallenge.Graphic -> operation.withGraphicVerification(challenge)
+                    is ApiChallenge.Netease -> operation.withCaptchaProof(challenge, proof.orEmpty())
+                }
+                val retried = read(verified)
+                if (!current() || !operation.isReadVerificationResultCurrent(challenge)) throw CancellationException("Session changed")
+                if (retried is ApiResult.Success && !readSessions.publish(scope, operation.readVerificationCookies(challenge),
+                        proof?.takeIf { challenge is ApiChallenge.Netease && challenge.field.isEmpty() }))
+                    throw CancellationException("Read session changed")
+                retried
+            }, onClosed = { operation.closeReadVerification(challenge) })
+        attach(result, pending)
     }
 
     override suspend fun following(type: FollowType, cursor: PageCursor) = page(type.route, type.title, cursor)
     override suspend fun home(cursor: PageCursor) = list("v6/main/indexV8", cursor, mapOf("firstLaunch" to "1", "installTime" to "$installTimeMillis", "ids" to ""), api2 = true)
     override suspend fun feedDetail(id: String): ApiResult<ContentItem> = withContext(Dispatchers.IO) {
         if (!numeric(id)) return@withContext failure(FailureKind.INVALID_ARGUMENT)
-        val captured = requestSession?.invoke()
+        val readScope = requestSession?.invoke()?.let(readSessions::capture)
+        val captured = readScope?.session
         if (captured?.isCurrent?.invoke() == false) throw CancellationException("Session changed")
         val operation = captured?.let(transport::forCapturedReadSession) ?: transport.forSingleOperation()
         val result = readDetail(id, operation)
         if (captured?.isCurrent?.invoke() == false) throw CancellationException("Session changed")
         if (result !is ApiResult.Failure) return@withContext result
+        if (result.kind == FailureKind.CAPTCHA && readScope != null) readSessions.revokeOnChallenge(readScope)
         // No fallback on HTTP403, network, malformed data, risk-control or rate limiting.
         if (result.kind !in setOf(FailureKind.CAPTCHA, FailureKind.AUTHENTICATION)) return@withContext result
-        val challenge = result.challenge?.takeIf { captured != null && !captured.isGuest && captured.isSessionCurrent != null && operation.isCaptchaContinuationCurrent(it) }
+        val challenge = result.challenge?.takeIf { captured != null && operation.isCaptchaContinuationCurrent(it) }
         val pending = challenge?.let { spec -> PendingDetailRead(spec,
             isCurrent = { captured?.isCurrent?.invoke() != false && operation.isCaptchaContinuationCurrent(spec) },
             image = { operation.getCaptchaImage() }, verify = { operation.validateGraphicCaptcha(it) },
@@ -136,11 +174,16 @@ class HttpCoolapkRepository(
                 }
                 // Human-initiated one-shot read: no second fallback or verification loop.
                 val verifiedResult = readDetail(id, verified)
-                if (captured?.isCurrent?.invoke() == false) throw CancellationException("Session changed")
+                if (captured?.isCurrent?.invoke() == false || !operation.isReadVerificationResultCurrent(spec)) throw CancellationException("Session changed")
                 if (verifiedResult is ApiResult.Success && verifiedResult.value.fullPostBody is FullPostBody.Unavailable)
                     failure(FailureKind.INVALID_RESPONSE).copy(message = "账号详情未提供可完整读取的正文，未替换已读取内容")
-                else verifiedResult
-            }) }
+                else {
+                    if (verifiedResult is ApiResult.Success && readScope != null &&
+                        !readSessions.publish(readScope, operation.readVerificationCookies(spec),
+                            proof?.takeIf { spec is ApiChallenge.Netease && spec.field.isEmpty() })) throw CancellationException("Read session changed")
+                    verifiedResult
+                }
+            }, onClosed = { operation.closeReadVerification(spec) }) }
         val reader = publicReader ?: return@withContext result.copy(detailRead = pending)
         val public = reader.read(id, captured)
         if (captured?.isCurrent?.invoke() == false) { pending?.cancel(); throw CancellationException("Session changed") }
@@ -199,7 +242,8 @@ class HttpCoolapkRepository(
     }
     override suspend fun eventDetail(id: String): ApiResult<ContentItem> = withContext(Dispatchers.IO) {
         if (!numeric(id)) return@withContext failure(FailureKind.INVALID_ARGUMENT)
-        val captured = requestSession?.invoke()
+        val readScope = requestSession?.invoke()?.let(readSessions::capture)
+        val captured = readScope?.session
         if (captured?.isCurrent?.invoke() == false) throw CancellationException("Session changed")
         val operation = captured?.let(transport::forCapturedReadSession) ?: transport
         val result = when (val response = operation.get("v6/event/detail", mapOf("id" to id))) {
@@ -209,6 +253,8 @@ class HttpCoolapkRepository(
             }
         }
         if (captured?.isCurrent?.invoke() == false) throw CancellationException("Session changed")
+        if (result is ApiResult.Failure && result.kind == FailureKind.CAPTCHA && readScope != null)
+            readSessions.revokeOnChallenge(readScope)
         result
     }
     override suspend fun dyhArticles(id: String, type: String, cursor: PageCursor): ApiResult<Page<ContentItem>> {
@@ -225,6 +271,10 @@ class HttpCoolapkRepository(
         return list("v6/user/feedList", cursor, mapOf("uid" to uid, "showAnonymous" to "0", "isIncludeTop" to "0", "showDoing" to "0"))
     }
     override suspend fun productDetail(id: String) = objectRequest("v6/product/detail", "id", id, numericOnly = true)
+    override suspend fun collectionItems(id: String, cursor: PageCursor): ApiResult<Page<ContentItem>> {
+        if (!validCollectionId(id)) return failure(FailureKind.INVALID_ARGUMENT)
+        return list("v6/collection/itemList", cursor, mapOf("id" to id))
+    }
     override suspend fun productCategories() = list("v6/product/categoryList", PageCursor(), emptyMap())
     override suspend fun topicDetail(tag: String) = objectRequest("v6/topic/newTagDetail", "tag", tag)
     override suspend fun appDetail(id: String) = objectRequest("v6/apk/detail", "id", id, extra = mapOf("installed" to "1"))
@@ -243,17 +293,48 @@ class HttpCoolapkRepository(
             cursor.firstItem?.takeIf { it.isNotBlank() }?.let { put("firstItem", it) }
             cursor.lastItem?.takeIf { it.isNotBlank() }?.let { put("lastItem", it) }
         }
-        return request(path, query, api2) { data ->
-            val array = data as? JsonArray ?: ApiDecoder.invalid()
-            val items = ApiDecoder.items(array)
-            // Preserve card rows; use raw top-level IDs, not IDs of flattened child cards.
-            val last = items.lastOrNull()?.id?.takeIf { it.isNotBlank() }
-            val next = if (items.isEmpty() || last == null || last == cursor.lastItem) null else PageCursor(cursor.page + 1, cursor.firstItem ?: items.firstOrNull()?.id?.takeIf { it.isNotBlank() }, last)
-            Page(items, next)
+        val readScope = requestSession?.invoke()?.let(readSessions::capture)
+        val captured = readScope?.session
+        val operation = captured?.let(transport::forCapturedReadSession) ?: transport.forSingleOperation()
+        suspend fun read(using: CoolapkHttpTransport): ApiResult<Page<ContentItem>> = when (val response = using.get(path, query, api2)) {
+            is ApiResult.Failure -> response
+            is ApiResult.Success -> withContext(Dispatchers.Default) {
+                try {
+                    val array = response.value as? JsonArray ?: ApiDecoder.invalid()
+                    val items = ApiDecoder.items(array)
+                    // Known listCard wrappers group source entities; all other templates keep top-level cursors.
+                    val boundary = listCardCursorBoundary(items)
+                    val last = boundary.lastId
+                    val next = if (!boundary.complete || last == null || last == cursor.lastItem) null else PageCursor(cursor.page + 1, cursor.firstItem ?: boundary.firstId, last)
+                    ApiResult.Success(Page(items, next))
+                } catch (e: ApiProblem) { e.failure }
+            }
         }
+        val result = read(operation)
+        if (captured?.isCurrent?.invoke() == false) throw CancellationException("Session changed")
+        if (result !is ApiResult.Failure) return result
+        if (result.kind == FailureKind.CAPTCHA && readScope != null) readSessions.revokeOnChallenge(readScope)
+        val challenge = result.challenge?.takeIf { captured != null && operation.isCaptchaContinuationCurrent(it) } ?: return result
+        val pending = PendingPageRead(challenge,
+            isCurrent = { captured?.isCurrent?.invoke() != false && operation.isCaptchaContinuationCurrent(challenge) },
+            image = { operation.getCaptchaImage() }, verify = { operation.validateGraphicCaptcha(it) },
+            retry = { proof ->
+                val verified = when (challenge) {
+                    is ApiChallenge.Graphic -> operation.withGraphicVerification(challenge)
+                    is ApiChallenge.Netease -> operation.withCaptchaProof(challenge, proof.orEmpty())
+                }
+                val retried = read(verified) // Exact endpoint/query/cursor; no automatic second verification.
+                if (captured?.isCurrent?.invoke() == false || !operation.isReadVerificationResultCurrent(challenge)) throw CancellationException("Session changed")
+                if (retried is ApiResult.Success && readScope != null &&
+                    !readSessions.publish(readScope, operation.readVerificationCookies(challenge),
+                        proof?.takeIf { challenge is ApiChallenge.Netease && challenge.field.isEmpty() })) throw CancellationException("Read session changed")
+                retried
+            }, onClosed = { operation.closeReadVerification(challenge) })
+        return result.copy(pageRead = pending)
     }
     private suspend fun <T> request(path: String, params: Map<String, String>, api2: Boolean = false, decode: (JsonElement) -> T): ApiResult<T> {
-        val captured = requestSession?.invoke()
+        val readScope = requestSession?.invoke()?.let(readSessions::capture)
+        val captured = readScope?.session
         val operation = captured?.let(transport::forCapturedReadSession) ?: transport
         val result = when (val response = operation.get(path, params, api2)) {
             is ApiResult.Failure -> response
@@ -263,6 +344,8 @@ class HttpCoolapkRepository(
         }
         // Account switches during CPU mapping must not publish the previous account's content.
         if (captured?.isCurrent?.invoke() == false) throw CancellationException("Session changed")
+        if (result is ApiResult.Failure && result.kind == FailureKind.CAPTCHA && readScope != null)
+            readSessions.revokeOnChallenge(readScope)
         return result
     }
     private fun numeric(value: String) = value.isNotEmpty() && value.all { it in '0'..'9' }

@@ -49,7 +49,9 @@ fun MyDashboard(accountState: AccountState, scrollState: ScrollState, bottomPadd
     onRefreshProfile: (() -> Unit)? = null, profileLoading: Boolean = false,
     counts: NotificationCounts? = null, countsStatus: String? = null,
     onRetryCounts: (() -> Unit)? = null, countsLoading: Boolean = false,
-    onRefreshAll: (() -> Unit)? = null, refreshing: Boolean = false, refreshEnabled: Boolean = true) {
+    onRefreshAll: (() -> Unit)? = null, refreshing: Boolean = false, refreshEnabled: Boolean = true,
+    countsRead: io.github.ktclat.c001apk.nativeapp.domain.PendingCountsRead? = null,
+    onVerifiedCountsRetry: ((io.github.ktclat.c001apk.nativeapp.domain.PendingCountsRead) -> Unit)? = null) {
     val active = accountState.accounts.firstOrNull { it.id == accountState.activeId }
     var unavailable by remember(accountState.activeId, accountState.generation) { mutableStateOf<String?>(null) }
     val loggedIn = personalListAccountId(accountState) != null
@@ -145,6 +147,7 @@ fun MyDashboard(accountState: AccountState, scrollState: ScrollState, bottomPadd
             if (loggedIn && countsStatus != null) Surface(shape = RoundedCornerShape(12.dp), color = MaterialTheme.colorScheme.surfaceContainerLow) {
                 Column(Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
                     Text(countsStatus, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    if (countsRead != null && onVerifiedCountsRetry != null) CountsReadVerification(countsRead, countsLoading) { onVerifiedCountsRetry(countsRead) }
                     if (onRetryCounts != null) TextButton(onClick = onRetryCounts, enabled = !countsLoading) { Text("重试未读数量") }
                 }
             }

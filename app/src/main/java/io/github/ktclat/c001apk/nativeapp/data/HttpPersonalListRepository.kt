@@ -33,9 +33,11 @@ internal fun decodePersonalPage(value: JsonElement, cursor: PageCursor): Page<Pe
  val content = ApiDecoder.items(rows)
  val pairs = mutableListOf<Pair<JsonObject, ContentItem>>()
  fun collect(row: JsonObject, item: ContentItem, depth: Int) {
-  val children = row["entities"] as? JsonArray
-  if (children != null && item.children.isNotEmpty() && item.kind !in setOf("feed", "feed_reply") && depth < 3) {
-   children.take(item.children.size).forEachIndexed { index, child -> collect(child as? JsonObject ?: ApiDecoder.invalid(), item.children[index], depth + 1) }
+  if (item.kind == "card" && item.entityTemplate == "listCard" && depth < 4) {
+   // ApiDecoder uses this same bounded object sequence, skipping malformed non-object children.
+   val children = (row["entities"] as? JsonArray).orEmpty().take(100).filterIsInstance<JsonObject>()
+   children.zip(item.children).forEach { (child, decoded) -> collect(child, decoded, depth + 1) }
+   if (item.childrenIncomplete) pairs += row to item.copy(children = emptyList())
   } else pairs += row to item
  }
  rows.forEachIndexed { index, element -> collect(element as? JsonObject ?: ApiDecoder.invalid(), content[index], 0) }
@@ -44,7 +46,7 @@ internal fun decodePersonalPage(value: JsonElement, cursor: PageCursor): Page<Pe
   fun nested(key:String, field:String) = ((row[key] as? JsonObject)?.get(field) as? JsonPrimitive)?.contentOrNull.orEmpty()
   fun route(prefix:String, id:String): PersonalDestination = if(id.matches(Regex("[0-9]+"))) PersonalDestination.Route("$prefix:$id") else PersonalDestination.Unsupported
   val destination = when(item.kind) {
-   "contacts" -> route("user", nested("userInfo", "uid").ifBlank { nested("fUserInfo", "uid") })
+   "contacts" -> route("user", item.userId)
    "collection" -> route("mycollection", item.id)
    "feed" -> route("feed", item.id)
    "feed_reply" -> if(text("url").isNotBlank()) PersonalDestination.Link(text("url")) else route("thread", item.id)
@@ -52,15 +54,16 @@ internal fun decodePersonalPage(value: JsonElement, cursor: PageCursor): Page<Pe
    else -> PersonalDestination.Unsupported
   }
   val label = when(item.kind) {
-   "contacts" -> nested("userInfo","username").ifBlank { nested("fUserInfo","username") }
-   "recentHistory" -> listOf(text("targetTypeTitle"), item.title).filter { it.isNotBlank() }.joinToString("：")
+   "contacts" -> item.userName
+   "recentHistory" -> listOf(item.entityCard?.targetTypeTitle.orEmpty(), item.title).filter { it.isNotBlank() }.joinToString("：")
    else -> item.title.ifBlank { item.userName }
   }.ifBlank { "内容信息未提供" }
-  val detail = if(item.kind == "collection") listOf(text("isOpenTitle"), text("followNum").takeIf { it.isNotEmpty() }?.let { "${it}人关注" }.orEmpty(), text("itemNum").takeIf { it.isNotEmpty() }?.let { "${it}个内容" }.orEmpty()).filter { it.isNotBlank() }.joinToString(" · ") else item.message
+  val detail = if(item.kind == "collection") item.entityCard?.metrics.orEmpty().joinToString(" · ") else item.message
   PersonalEntry(text("id"), item, label, detail, destination, nested("likeUserInfo","username").takeIf { it.isNotBlank() })
  }
- fun rawId(element: JsonElement?) = ((element as? JsonObject)?.get("id") as? JsonPrimitive)?.contentOrNull?.takeIf { it.isNotBlank() && it != "null" }
- val last = rawId(rows.lastOrNull())
- val next = if(content.any { it.kind == "noMoreDataCard" } || pairs.any { it.second.kind == "noMoreDataCard" } || last == null || last == cursor.lastItem) null else PageCursor(cursor.page + 1, cursor.firstItem ?: rawId(rows.firstOrNull()), last)
+ val boundary = listCardCursorBoundary(content)
+ val last = boundary.lastId
+ val next = if(!boundary.complete || pairs.any { it.second.kind == "noMoreDataCard" } || last == null || last == cursor.lastItem) null
+  else PageCursor(cursor.page + 1, cursor.firstItem ?: boundary.firstId, last)
  return Page(entries, next)
 }

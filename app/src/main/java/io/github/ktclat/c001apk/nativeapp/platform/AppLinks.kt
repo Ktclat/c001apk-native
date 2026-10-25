@@ -29,6 +29,7 @@ fun parseAppLink(raw: String): AppLink = try {
         val route = if (parts.size == 2 && id.isNotBlank() && !id.contains('/') && !id.contains('\\')) when (parts[0]) {
             "feed" -> if (numeric) "feed:$id" else null
             "event" -> if (numeric) "event:$id" else null
+            "collection" -> if (io.github.ktclat.c001apk.nativeapp.domain.validCollectionId(id)) "collection:$id" else null
             "u" -> "user:$id"
             "apk", "game" -> "app:$id"
             "t" -> if (query["type"] == "8") "coolpic:$id" else "topic:$id"

@@ -1,0 +1,32 @@
+{
+  "data": [
+    {
+      "id": "audit-icons",
+      "entityType": "card",
+      "entityTemplate": "iconLinkGridCard",
+      "entities": [
+        {
+          "id": "link-1",
+          "entityType": "iconLink",
+          "title": "数码精选",
+          "url": "/t/数码精选",
+          "pic": "https://fixture.invalid/icon-1.png"
+        },
+        {
+          "id": "link-2",
+          "entityType": "iconLink",
+          "title": "应用推荐",
+          "url": "/t/应用推荐",
+          "pic": "https://fixture.invalid/icon-2.png"
+        },
+        {
+          "id": "link-3",
+          "entityType": "iconLink",
+          "title": "发现好物",
+          "url": "/t/发现好物",
+          "pic": "https://fixture.invalid/icon-3.png"
+        }
+      ]
+    }
+  ]
+}

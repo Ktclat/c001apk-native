@@ -91,9 +91,9 @@ internal object ApiDecoder {
             kind = kind,
             title = if (kind == "feed") obj.text("message_title") else obj.text("title").ifBlank { obj.text("message_title") }.ifBlank { obj.text("appName") },
             message = message, bodyTruncated = message.length < rawMessage.length,
-            userName = user?.text("username").orEmpty().ifBlank { obj.text("username") },
-            userId = obj.text("uid").ifBlank { user?.text("uid").orEmpty() },
-            avatarUrl = safeImage(obj.text("userAvatar").ifBlank { user?.text("userAvatar").orEmpty() }.ifBlank { obj.text("avatar") }),
+            userName = if (kind == "contacts") obj.contactField("username") else user?.text("username").orEmpty().ifBlank { obj.text("username") },
+            userId = if (kind == "contacts") obj.contactField("uid") else obj.text("uid").ifBlank { user?.text("uid").orEmpty() },
+            avatarUrl = safeImage(if (kind == "contacts") obj.contactField("userAvatar") else obj.text("userAvatar").ifBlank { user?.text("userAvatar").orEmpty() }.ifBlank { obj.text("avatar") }),
             imageUrls = if (kind in setOf("feed", "feed_reply")) pictures(obj) else
                 (pictures(obj) + listOf("pic", "message_cover", "logo").map { obj.text(it) }).mapNotNull(::safeImage).distinct().take(18),
             replyCount = obj.count("replynum") ?: obj.count("commentnum") ?: 0,
@@ -124,8 +124,43 @@ internal object ApiDecoder {
                 picture = safeImage(obj.text("pic")), logo = safeImage(obj.text("logo")), description = obj.text("description"), title = obj.text("title"),
                 userName = obj.text("username"), avatar = safeImage(obj.text("userAvatar")),
             ) else null,
+            entityCard = entityCardMetadata(obj, kind, user),
+            sourceEntityId = obj.optionalText("entityId"),
         )
     }
+    /** Exact Flutter AppCard/CollectionCard roles, including snake_case wire fields.
+     * Missing values remain absent; no invented counts, image downloads or HTML interpretation.
+     */
+    private fun entityCardMetadata(obj: JsonObject, kind: String, user: JsonObject?): EntityCardMetadata? {
+        if (kind !in setOf("apk", "product", "topic", "user", "contacts", "recentHistory", "collection")) return null
+        fun field(key: String, alias: String? = null): String = obj.text(key).ifBlank { alias?.let { obj.text(it) }.orEmpty() }
+            .take(80).takeUnless { it == "null" }.orEmpty()
+        fun metric(value: String, suffix: String) = value.takeIf { it.isNotBlank() && it != "null" }?.let { "$it$suffix" }
+        val metrics = when (kind) {
+            "apk" -> listOfNotNull(metric(field("commentnum"), "讨论"), metric(field("downCount"), "下载"))
+            "product" -> listOfNotNull(metric(field("hot_num_txt", "hotNumTxt"), "热度"), metric(field("feed_comment_num_txt", "feedCommentNumTxt"), "讨论"))
+            "topic" -> listOfNotNull(metric(field("hot_num_txt", "hotNumTxt"), "热度"), metric(field("commentnum_txt", "commentnumTxt"), "讨论"))
+            "user" -> listOfNotNull(metric(field("follow"), "关注"), metric(field("fans"), "粉丝"))
+            "contacts" -> listOfNotNull(metric(obj.contactField("follow").take(80), "关注"), metric(obj.contactField("fans").take(80), "粉丝"))
+            "recentHistory" -> listOfNotNull(metric(field("follow_num", "followNum"), "关注"),
+                if (field("target_type", "targetType") == "user") metric(field("fans_num", "fansNum"), "粉丝") else metric(field("comment_num", "commentNum"), "讨论"))
+            else -> listOfNotNull(field("is_open_title", "isOpenTitle").takeIf(String::isNotBlank),
+                metric(field("follow_num", "followNum"), "人关注"), metric(field("item_num", "itemNum"), "个内容"))
+        }
+        val image = when (kind) {
+            "collection" -> obj.text("cover_pic").ifBlank { obj.text("coverPic") }
+            "contacts" -> obj.contactField("userAvatar")
+            "user" -> obj.text("userAvatar").ifBlank { user?.text("userAvatar").orEmpty() }
+            else -> obj.text("logo")
+        }
+        return EntityCardMetadata(safeImage(image), kind in setOf("user", "contacts") ||
+            (kind == "recentHistory" && field("target_type", "targetType") == "user"), metrics,
+            field("target_type_title", "targetTypeTitle"), obj.text("logintime").toLongOrNull()?.takeIf { kind == "user" && it > 0 })
+    }
+    /** Flutter contact fields fall back independently, not by choosing one whole user object. */
+    private fun JsonObject.contactField(key: String): String =
+        (((this["userInfo"] as? JsonObject)?.get(key) as? JsonPrimitive)?.contentOrNull
+            ?: ((this["fUserInfo"] as? JsonObject)?.get(key) as? JsonPrimitive)?.contentOrNull).orEmpty().take(12_000)
     private fun feedMetadata(obj: JsonObject, id: String, hot: ContentItem?): FeedMetadata {
         val sourceType = obj.optionalText("forwardSourceType")
         val source = obj["forwardSourceFeed"] as? JsonObject

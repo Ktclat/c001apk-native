@@ -23,4 +23,14 @@ class HumanVerificationTest {
             assertFalse(ChallengeOriginPolicy.resourceAllowed(it))
         }
     }
+    @Test fun productionHtmlAllowsOnlyProviderAudioAndBlobWithoutRelaxingScriptPolicy() {
+        val method = Class.forName("io.github.ktclat.c001apk.nativeapp.account.HumanVerificationKt")
+            .getDeclaredMethod("challengeHtml", HumanChallengeSpec::class.java, String::class.java).apply { isAccessible = true }
+        val html = method.invoke(null, HumanChallengeSpec("abcdefghijklmnop", ""), "0".repeat(48)) as String
+        assertTrue(html.contains("media-src blob: https://*.126.net https://*.127.net https://*.163.com https://*.163yun.com;"))
+        assertTrue(html.contains("default-src 'none'")); assertTrue(html.contains("frame-src 'none'"))
+        assertTrue(html.contains("script-src 'nonce-${"0".repeat(48)}' https://*.126.net"))
+        assertFalse(html.contains("unsafe-eval")); assertFalse(html.contains("media-src *")); assertFalse(html.contains("coolapk.com"))
+        assertTrue(html.contains("typeof data.validate==='string'"))
+    }
 }

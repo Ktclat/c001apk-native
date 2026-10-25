@@ -17,7 +17,7 @@ class PersonalListScopeTest {
     current = false
     RequestSession({ null }, { true }, { _, _ -> }, isSessionCurrent = { true })
    })
-   val scoped = repository.personalLists { current }
+   val scoped = repository.personalLists("123") { current }
    try { scoped.load(PersonalListRequest(PersonalListKind.FAN),"123",PageCursor()); fail("must cancel") } catch(_: CancellationException) { }
    assertEquals(0,server.requestCount)
   }
@@ -28,7 +28,7 @@ class PersonalListScopeTest {
    val repository = HttpCoolapkRepository(endpoints = ApiEndpoints(server.url("/"),server.url("/")),requestSession = {
     RequestSession({ null }, { current = false; true }, { _, _ -> }, isSessionCurrent = { true })
    })
-   try { repository.personalLists { current }.load(PersonalListRequest(PersonalListKind.LIKE),"123",PageCursor()); fail("must cancel") } catch(_: CancellationException) { }
+   try { repository.personalLists("123") { current }.load(PersonalListRequest(PersonalListKind.LIKE),"123",PageCursor()); fail("must cancel") } catch(_: CancellationException) { }
    assertEquals(0,server.requestCount)
   }
  }
@@ -41,7 +41,7 @@ class PersonalListScopeTest {
     captures++
     RequestSession({ null }, { current.get() }, { _, _ -> }, isSessionCurrent = { current.get() })
    })
-   val result = async(Dispatchers.Default) { repository.personalLists { current.get() }.load(PersonalListRequest(PersonalListKind.COLLECTION),"123",PageCursor()) }
+   val result = async(Dispatchers.Default) { repository.personalLists("123") { current.get() }.load(PersonalListRequest(PersonalListKind.COLLECTION),"123",PageCursor()) }
    assertNotNull(withContext(Dispatchers.IO) { server.takeRequest(3,TimeUnit.SECONDS) })
    current.set(false)
    try { result.await(); fail("old response published") } catch(_: CancellationException) { }

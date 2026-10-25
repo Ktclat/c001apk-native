@@ -11,7 +11,7 @@ class AppLinksTest {
     @Test fun officialAliasesRouteAllExistingDestinations() {
         val routes = mapOf("feed/123" to "feed:123", "event/4" to "event:4", "u/name" to "user:name",
             "apk/com.example" to "app:com.example", "game/com.example" to "app:com.example",
-            "t/topic" to "topic:topic", "product/phone" to "product:phone", "dyh/5" to "dyh:5")
+            "t/topic" to "topic:topic", "product/phone" to "product:phone", "dyh/5" to "dyh:5", "collection/2001" to "collection:2001")
         for (host in hosts) for (scheme in listOf("https", "http")) for ((path, route) in routes) {
             val url = "$scheme://$host/$path?s=share#reply"
             assertEquals(url, AppLink.Internal(route), parseAppLink(url))
@@ -83,7 +83,7 @@ class AppLinksTest {
     }
 
     @Test fun encodedSeparatorsNeverBecomeInternalIds() {
-        for (kind in listOf("feed", "event", "u", "apk", "game", "t", "product", "dyh")) {
+        for (kind in listOf("feed", "event", "u", "apk", "game", "t", "product", "dyh", "collection")) {
             for (id in listOf("1%2F2", "1%2f2", "1%5C2", "1%5c2")) {
                 assertEquals("$kind/$id", AppLink.Unsupported, parseAppLink("/$kind/$id"))
                 assertEquals("$kind/$id", AppLink.Unsupported, parseAppLink("coolmarket://com.coolapk.market/$kind/$id"))
