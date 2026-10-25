@@ -20,6 +20,7 @@ import kotlinx.coroutines.launch
 @Composable internal fun FeedDetailScreen(id: String, model: BrowseViewModel, accounts: AccountRuntime,
     accountState: AccountState, blacklist: io.github.ktclat.c001apk.nativeapp.local.Blacklist, navigate: (String) -> Unit, openLink: (String) -> Unit,
     sourceMenu: DetailSourceMenuState? = null, favorite: (ContentItem) -> Unit) {
+    DisposableEffect(model, id) { onDispose { model.leaveDetail(id) } }
     key(accountState.activeId, accountState.generation, id) {
         FeedDetailContent(id, model, accounts, accountState, blacklist, navigate, openLink, sourceMenu, favorite)
     }
@@ -38,13 +39,16 @@ import kotlinx.coroutines.launch
     val replyKey = "ordered:$id:${order.name}:$authorOnly"
     val states by model.states.collectAsState()
     val post = states[postKey] ?: BrowseState(loading = true)
-    val replies = states[replyKey] ?: BrowseState(loading = true)
+    val replies = states[replyKey] ?: BrowseState()
+    var commentsRequested by rememberSaveable(id) { mutableStateOf(false) }
     val visiblePosts = remember(post.items, blacklist) { filterBlocked(post.items, blacklist) }
     val visibleReplies = remember(replies.items, blacklist) { filterBlocked(replies.items, blacklist) }
     val scope = rememberCoroutineScope()
     SideEffect { model.markVisible(replyKey) }
     LaunchedEffect(postKey) { model.load(postKey) }
-    LaunchedEffect(replyKey) { model.load(replyKey) }
+    val publicOnly = visiblePosts.firstOrNull()?.publicRead == true
+    val shouldLoadComments = visiblePosts.isNotEmpty() && (!publicOnly || commentsRequested)
+    LaunchedEffect(replyKey, shouldLoadComments) { if (shouldLoadComments) model.load(replyKey) }
     if (post.loaded && post.items.isNotEmpty() && visiblePosts.isEmpty()) {
         Text("该动态已被本地过滤规则隐藏", Modifier.padding(24.dp))
         return
@@ -68,7 +72,9 @@ import kotlinx.coroutines.launch
         else if (bookmark != null && model.states.value[postKey]?.items?.firstOrNull()?.fullPostBody == body)
             model.readerPositions.commit(bookmark)
     }
-    val replyItems = visibleReplies.distinctBy { "${it.kind}:${it.id}" }
+    val highlighted = if (shouldLoadComments && order == ReplyOrder.RECENT_REPLY && !authorOnly)
+        filterBlocked(visiblePosts.firstOrNull()?.highlightedReplies.orEmpty(), blacklist) else emptyList()
+    val replyItems = mergeHighlightedReplies(highlighted, visibleReplies)
     val restored = remember(bookmark, identity) {
         if (bookmark == null || ready == null) ReaderPosition()
         else restoredReaderPosition(bookmark.position, requireNotNull(ready.readyPageCount()), replyKey, ready.readerPageLimit()) { rowKey ->
@@ -112,7 +118,31 @@ import kotlinx.coroutines.launch
                     openLink, favorite, onChanged = { model.load(postKey, refresh = true) }, detail = true,
                     onComments = { scope.launch { displayedList.animateScrollToItem(1) } }) }
                 if (post.loading) LinearProgressIndicator(Modifier.fillMaxWidth().testTag("feed-detail-loading"))
-                post.error?.let { error -> Column(Modifier.padding(16.dp)) { Text(error); TextButton(onClick = { model.load(postKey, refresh = true) }) { Text("重新加载动态") } } }
+                post.error?.let { error -> Column(Modifier.padding(16.dp).testTag("feed-detail-error")) {
+                    Text(error)
+                    post.failure?.detailRead?.let { pending -> DetailReadVerification(pending, post.loading) {
+                        model.load(postKey, refresh = true, detailRetry = pending)
+                    } }
+                    Row {
+                        TextButton(enabled = !post.loading, onClick = { model.load(postKey, refresh = true) }) { Text("重新加载动态") }
+                        if (post.failure?.kind in setOf(FailureKind.AUTHENTICATION, FailureKind.CAPTCHA) && accountState.activeId == null)
+                            TextButton(onClick = { navigate("login") }) { Text("登录后重试") }
+                    }
+                } }
+                visiblePosts.firstOrNull()?.takeIf { it.publicRead }?.let { public ->
+                    Column(Modifier.padding(horizontal = 16.dp)) {
+                        val notice = when {
+                            post.error != null -> "保留上次读取的公开正文；最新详情未确认，账号点赞状态未获取。"
+                            post.loading -> "正在重新读取；暂显示上次公开正文，账号点赞状态未获取。"
+                            else -> "当前为公开正文；账号点赞状态未获取。"
+                        }
+                        Text(notice, Modifier.testTag("detail-public-notice"), style = MaterialTheme.typography.bodySmall)
+                        public.accountDetailRetry?.takeIf { it !== post.failure?.detailRead }?.let { pending ->
+                            DetailReadVerification(pending, post.loading) { model.load(postKey, refresh = true, detailRetry = pending) }
+                        }
+                        TextButton(enabled = !post.loading, onClick = { model.load(postKey, refresh = true) }) { Text(if (accountState.activeId == null) "重新读取接口正文" else "重新获取账号详情") }
+                    }
+                }
             }
             item(key = "comment-controls") {
                 HorizontalDivider()
@@ -120,6 +150,10 @@ import kotlinx.coroutines.launch
                     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                         Text("评论 ${post.items.firstOrNull()?.feed?.replyCount ?: post.items.firstOrNull()?.replyCount ?: 0}", Modifier.weight(1f), style = MaterialTheme.typography.titleMedium)
                         TextButton(onClick = { navigate("compose-reply:feed:$id") }) { Text("回复动态") }
+                    }
+                    if (publicOnly && !commentsRequested) {
+                        Text("公开正文可以独立阅读；评论将在点击后向接口读取。", style = MaterialTheme.typography.bodySmall)
+                        TextButton(onClick = { commentsRequested = true }, modifier = Modifier.testTag("detail-load-comments")) { Text("加载评论") }
                     }
                     FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                         listOf(ReplyOrder.RECENT_REPLY to "默认", ReplyOrder.NEWEST to "最新", ReplyOrder.POPULAR to "热门").forEach { (value, label) ->
@@ -129,13 +163,20 @@ import kotlinx.coroutines.launch
                     }
                 }
             }
-            replies.error?.let { error -> item { Column(Modifier.padding(16.dp)) { Text(error); TextButton(onClick = { model.load(replyKey, refresh = true) }) { Text("重新加载评论") } } } }
+            replies.error?.let { error -> item { Column(Modifier.padding(16.dp)) { Text(if (replies.failure?.kind == FailureKind.CAPTCHA) "评论接口要求验证，此页暂不能继续该验证；可重新加载评论。" else error); TextButton(onClick = { model.load(replyKey, refresh = true) }) { Text("重新加载评论") } } } }
             items(replyItems, key = { "reply:${it.kind}:${it.id}" }) { reply ->
                 InteractiveFeedReplyRow(reply, accounts, accountState, navigate, openLink, onChanged = { model.load(replyKey, refresh = true) })
             }
             if (replies.loading) item { Box(Modifier.fillMaxWidth().padding(24.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator() } }
-            else if (replies.loaded && visibleReplies.isEmpty() && replies.error == null) item { Text("暂无评论", Modifier.padding(16.dp), color = MaterialTheme.colorScheme.onSurfaceVariant) }
+            else if (replies.loaded && replyItems.isEmpty() && replies.error == null) item { Text("暂无评论", Modifier.padding(16.dp), color = MaterialTheme.colorScheme.onSurfaceVariant) }
             else if (replies.next != null) item { TextButton(onClick = { model.load(replyKey, more = true) }, Modifier.fillMaxWidth()) { Text("加载更多评论") } }
         }
     }
+}
+
+/** Keep pinned/self ordering without masking a newer reply-list body or account action state. */
+internal fun mergeHighlightedReplies(highlighted: List<ContentItem>, replies: List<ContentItem>): List<ContentItem> {
+    fun key(item: ContentItem) = "${item.kind}:${item.id}"
+    val latest = replies.associateBy(::key)
+    return (highlighted.map { latest[key(it)] ?: it } + replies).distinctBy(::key)
 }

@@ -31,8 +31,21 @@ data class ContentItem(
     val replyInteraction: ReplyInteractionMetadata? = null,
     /** Separate bounded detail source; message remains a <=12,000-unit list/history preview. */
     val fullPostBody: FullPostBody? = null,
+    /** Official cookie-free representation; account action state remains unknown. */
+    val publicRead: Boolean = false,
+    /** Memory-only account-detail recovery, never part of local history or saved state. */
+    val accountDetailRetry: PendingDetailRead? = null,
+    val highlightedReplies: List<ContentItem> = emptyList(),
+    /** Preserve distinct Home template fields; logo and picture have different source roles. */
+    val cardFields: HomeCardFields? = null,
+    val event: EventContent? = null,
 
 )
+data class HomeCardFields(val picture: String? = null, val logo: String? = null, val description: String = "", val title: String = "",
+    val userName: String = "", val avatar: String? = null)
+/** Read-only event detail fields, independent from feed IDs, post previews and account actions. */
+data class EventContent(val sections: List<EventSection>, val deadlineSeconds: Long?, val actionUrl: String?)
+data class EventSection(val label: String, val body: FullPostBody, val literal: Boolean = false)
 /** Reply-specific server state. Missing action/counts remain unknown rather than false/zero. */
 data class ReplyInteractionMetadata(
     val likeState: ExplicitLikeState = ExplicitLikeState.UNKNOWN,
@@ -83,7 +96,7 @@ enum class FailureKind { UNCERTAIN, NETWORK, HTTP, AUTHENTICATION, CAPTCHA, RATE
 sealed interface ApiResult<out T> {
     data class Success<T>(val value: T) : ApiResult<T>
     /** Only locally authored, safe messages; never raw server data, URLs or exceptions. */
-    data class Failure(val kind: FailureKind, val message: String, val httpStatus: Int? = null, val challenge: ApiChallenge? = null) : ApiResult<Nothing>
+    data class Failure(val kind: FailureKind, val message: String, val httpStatus: Int? = null, val challenge: ApiChallenge? = null, val detailRead: PendingDetailRead? = null) : ApiResult<Nothing>
 }
 
 data class SearchOptions(val type: String = "feed", val feedType: String = "all", val sort: String = "default", val strict: Boolean = false, val pageType: String? = null, val pageParam: String? = null)
@@ -101,6 +114,7 @@ interface CoolapkRepository {
     suspend fun following(type: FollowType = FollowType.ALL, cursor: PageCursor = PageCursor()): ApiResult<Page<ContentItem>>
     suspend fun home(cursor: PageCursor = PageCursor()): ApiResult<Page<ContentItem>>
     suspend fun feedDetail(id: String): ApiResult<ContentItem>
+    suspend fun eventDetail(id: String): ApiResult<ContentItem>
     suspend fun replies(id: String, cursor: PageCursor = PageCursor()): ApiResult<Page<ContentItem>>
     suspend fun search(query: String, cursor: PageCursor = PageCursor(), type: String = "feed"): ApiResult<Page<ContentItem>>
     suspend fun searchAdvanced(query: String, options: SearchOptions, cursor: PageCursor = PageCursor()): ApiResult<Page<ContentItem>>

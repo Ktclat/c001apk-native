@@ -288,6 +288,9 @@ class AdaptiveDockRenderingTest {
     @Test @Config(qualifiers = "w320dp-h640dp-320dpi")
     fun emptyRootsStaySafeAtLargeFontAndSmallWidth() = emptyRoots(1.6f)
     private fun emptyRoots(font: Float) {
+        // Preserve this deliberately unscrollable fixture. The optional manual-update row has
+        // its own enabled/scrollable large-font regression below.
+        uiSettings.value = uiSettings.value.copy(checkAppUpdates = false)
         render(font, InsetsCase(navigation = 48), count = 0, localFollow = false)
         awaitText("暂无内容")
         assertUnscrollableDock("content-list")
@@ -306,6 +309,29 @@ class AdaptiveDockRenderingTest {
         assertAboveDock(note, requireClick = false)
         assertTrue("No stored follows must mean no local repository request", localRequests.isEmpty())
         selectRoot("我的"); exerciseSurface(mySurface())
+    }
+
+    @Test @Config(qualifiers = "w320dp-h640dp-320dpi")
+    fun enabledManualUpdateEntryKeepsEmptyAppsScrollableAndSafeAtLargeFont() {
+        assertTrue(uiSettings.value.checkAppUpdates)
+        render(1.6f, InsetsCase(navigation = 48), count = 0, localFollow = false)
+        awaitText("暂无内容")
+        openApps(); awaitText("暂无系统允许查询的非系统应用")
+        val list = compose.onNodeWithTag("installed-apps-list")
+        val range = list.fetchSemanticsNode().config[SemanticsProperties.VerticalScrollAxisRange]
+        assertTrue("The enabled optional entry makes this narrow large-font fixture scrollable", range.maxValue() > 0f)
+        // Programmatic geometry reveal, not accessibility/user scrolling that may hide the dock.
+        compose.runOnIdle { runBlocking { browseListStates.getValue("apps").scrollToItem(3) } }
+        compose.waitForIdle(); assertDockGeometry()
+        val entry = compose.onNodeWithTag("installed-app-updates-entry")
+        assertAboveDock(entry)
+        assertAboveDock(compose.onNodeWithText("暂无系统允许查询的非系统应用"), requireClick = false)
+        capture("${testName.methodName}-enabled-end")
+        entry.performClick(); awaitText("已安装应用更新")
+        compose.runOnUiThread { compose.activity.onBackPressedDispatcher.onBackPressed() }; compose.waitForIdle()
+        assertDockGeometry(); assertAboveDock(compose.onNodeWithTag("installed-app-updates-entry"))
+        selectRoot("关注"); awaitText("暂无内容"); assertDockGeometry()
+        assertTrue(unexpected.isEmpty())
     }
 
     @Test @Config(qualifiers = "w400dp-h890dp-480dpi")

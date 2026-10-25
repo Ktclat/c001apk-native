@@ -50,4 +50,44 @@ class BrowseViewModelTest {
             assertFalse(model.states.value.getValue(key).loading)
         } finally { Dispatchers.resetMain() }
     }
+
+    @Test fun malformedRefreshRetainsPublicFallbackButReplacesAuthoritativeApiRevision() = runTest {
+        Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+        try {
+            for (publicRead in listOf(true, false)) {
+                val original = ContentItem("42", "feed", publicRead = publicRead,
+                    fullPostBody = FullPostBody.Available("Complete prior body"))
+                val unavailable = original.copy(publicRead = false,
+                    fullPostBody = FullPostBody.Unavailable(FullPostBodyLimit.UNSUPPORTED_ARTICLE))
+                var response: ApiResult<ContentItem> = ApiResult.Success(original)
+                var calls = 0
+                val repository = Proxy.newProxyInstance(CoolapkRepository::class.java.classLoader,
+                    arrayOf(CoolapkRepository::class.java)) { _, method, args ->
+                    check(method.name == "feedDetail"); assertEquals("42", args[0]); calls++
+                    response
+                } as CoolapkRepository
+                val model = BrowseViewModel(repository)
+                model.load("feed:42"); runCurrent()
+                assertEquals(original, model.states.value.getValue("feed:42").items.single())
+                response = ApiResult.Success(unavailable)
+                model.load("feed:42", refresh = true); runCurrent()
+                val state = model.states.value.getValue("feed:42")
+                assertEquals(2, calls); assertFalse(state.loading); assertTrue(state.loaded)
+                if (publicRead) {
+                    assertEquals(original, state.items.single())
+                    assertEquals("新响应没有可完整读取的正文，仍保留上次已读取的内容", state.error)
+                    val missing = ApiResult.Failure(FailureKind.HTTP, "服务端已无法提供此动态（404）")
+                    response = missing
+                    model.load("feed:42", refresh = true); runCurrent()
+                    val rejected = model.states.value.getValue("feed:42")
+                    assertEquals(original, rejected.items.single())
+                    assertEquals(missing.message, rejected.error); assertSame(missing, rejected.failure)
+                    assertFalse(rejected.loading); assertEquals(3, calls)
+                } else {
+                    assertEquals(unavailable, state.items.single())
+                    assertNull(state.error)
+                }
+            }
+        } finally { Dispatchers.resetMain() }
+    }
 }

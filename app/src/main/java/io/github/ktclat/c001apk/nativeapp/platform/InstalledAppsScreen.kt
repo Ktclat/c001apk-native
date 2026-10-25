@@ -19,7 +19,7 @@ import kotlinx.coroutines.withContext
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-fun InstalledAppsScreen(listState: androidx.compose.foundation.lazy.LazyListState = androidx.compose.foundation.lazy.rememberLazyListState(), onOpen: (String) -> Unit) {
+fun InstalledAppsScreen(listState: androidx.compose.foundation.lazy.LazyListState = androidx.compose.foundation.lazy.rememberLazyListState(), showUpdateEntry: Boolean = false, onOpenUpdates: () -> Unit = {}, onOpen: (String) -> Unit) {
     val context = LocalContext.current
     var loadState by remember { mutableStateOf(InstalledAppsLoadState()) }
     var refresh by remember { mutableIntStateOf(0) }
@@ -49,6 +49,11 @@ fun InstalledAppsScreen(listState: androidx.compose.foundation.lazy.LazyListStat
             TextButton(onClick = { sort = AppSort.UPDATED }) { Text("更新时间") }
             TextButton(onClick = { refresh++ }) { Text("刷新") }
         } }
+        if (showUpdateEntry) item {
+            ListItem(headlineContent = { Text("检查已安装应用更新") },
+                supportingContent = { Text("选择应用后手动查询，不会自动安装") },
+                modifier = Modifier.testTag("installed-app-updates-entry").fillMaxWidth().heightIn(min = 64.dp).clickable(onClick = onOpenUpdates))
+        }
         error?.let { item { Text(it, Modifier.padding(16.dp)) } }
         if (apps == null && error == null) item { CircularProgressIndicator() }
         if (apps?.isEmpty() == true) item { Text("暂无系统允许查询的非系统应用", Modifier.padding(16.dp)) }

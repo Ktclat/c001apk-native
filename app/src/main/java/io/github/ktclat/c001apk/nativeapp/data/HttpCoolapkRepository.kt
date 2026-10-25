@@ -18,7 +18,9 @@ import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 
 /** Separate API hosts; injectable loopback addresses are for MockWebServer tests only. */
-data class ApiEndpoints(val api: HttpUrl = "https://api.coolapk.com/".toHttpUrl(), val api2: HttpUrl = "https://api2.coolapk.com/".toHttpUrl())
+data class ApiEndpoints(val api: HttpUrl = "https://api.coolapk.com/".toHttpUrl(), val api2: HttpUrl = "https://api2.coolapk.com/".toHttpUrl(),
+    /** Override only for loopback contract tests; custom API fixtures never contact the public service. */
+    val publicWeb: HttpUrl? = null)
 
 /** Immutable request scope; implementations must verify cookie domain/path/expiry. */
 data class RequestSession(
@@ -43,6 +45,10 @@ class HttpCoolapkRepository(
     val homeDiagnostics: io.github.ktclat.c001apk.nativeapp.diagnostics.HomeRequestDiagnostics? = null,
 ) : CoolapkRepository {
     private val transport = CoolapkHttpTransport(client, endpoints, protocol, requestSession, homeDiagnostics = homeDiagnostics)
+
+    private val publicReader = (endpoints.publicWeb ?: "https://www.coolapk.com/".toHttpUrl().takeIf {
+        endpoints.api.host == "api.coolapk.com" && endpoints.api2.host == "api2.coolapk.com"
+    })?.let { PublicFeedReader(client, it, protocol) }
 
     /** Root must bind isCurrentAccount to immutable expected activeId + generation. */
     fun personalLists(isCurrentAccount: () -> Boolean): PersonalListRepository = PersonalListRepository { request, uid, cursor ->
@@ -113,19 +119,61 @@ class HttpCoolapkRepository(
         if (!numeric(id)) return@withContext failure(FailureKind.INVALID_ARGUMENT)
         val captured = requestSession?.invoke()
         if (captured?.isCurrent?.invoke() == false) throw CancellationException("Session changed")
-        // Capture exactly once. Guest/account reads keep existing browsing-generation semantics.
-        val operation = captured?.let(transport::forCapturedReadSession) ?: transport
-        val result = when (val response = operation.get("v6/feed/detail", mapOf("id" to id))) {
-            is ApiResult.Failure -> response
-            is ApiResult.Success -> withContext(Dispatchers.Default) {
-                val context = currentCoroutineContext()
-                try { ApiResult.Success(ApiDecoder.feedDetail(response.value) { context.ensureActive() }) }
-                catch (e: ApiProblem) { e.failure }
+        val operation = captured?.let(transport::forCapturedReadSession) ?: transport.forSingleOperation()
+        val result = readDetail(id, operation)
+        if (captured?.isCurrent?.invoke() == false) throw CancellationException("Session changed")
+        if (result !is ApiResult.Failure) return@withContext result
+        // No fallback on HTTP403, network, malformed data, risk-control or rate limiting.
+        if (result.kind !in setOf(FailureKind.CAPTCHA, FailureKind.AUTHENTICATION)) return@withContext result
+        val challenge = result.challenge?.takeIf { captured != null && !captured.isGuest && captured.isSessionCurrent != null && operation.isCaptchaContinuationCurrent(it) }
+        val pending = challenge?.let { spec -> PendingDetailRead(spec,
+            isCurrent = { captured?.isCurrent?.invoke() != false && operation.isCaptchaContinuationCurrent(spec) },
+            image = { operation.getCaptchaImage() }, verify = { operation.validateGraphicCaptcha(it) },
+            retry = { proof ->
+                val verified = when (spec) {
+                    is ApiChallenge.Graphic -> operation.withGraphicVerification(spec)
+                    is ApiChallenge.Netease -> operation.withCaptchaProof(spec, proof.orEmpty())
+                }
+                // Human-initiated one-shot read: no second fallback or verification loop.
+                val verifiedResult = readDetail(id, verified)
+                if (captured?.isCurrent?.invoke() == false) throw CancellationException("Session changed")
+                if (verifiedResult is ApiResult.Success && verifiedResult.value.fullPostBody is FullPostBody.Unavailable)
+                    failure(FailureKind.INVALID_RESPONSE).copy(message = "账号详情未提供可完整读取的正文，未替换已读取内容")
+                else verifiedResult
+            }) }
+        val reader = publicReader ?: return@withContext result.copy(detailRead = pending)
+        val public = reader.read(id, captured)
+        if (captured?.isCurrent?.invoke() == false) { pending?.cancel(); throw CancellationException("Session changed") }
+        if (public is ApiResult.Success) {
+            val decoded = decodeDetail(id, public.value, publicRead = true)
+            if (captured?.isCurrent?.invoke() == false) { pending?.cancel(); throw CancellationException("Session changed") }
+            if (decoded is ApiResult.Success && decoded.value.fullPostBody !is FullPostBody.Unavailable) {
+                return@withContext ApiResult.Success(decoded.value.copy(accountDetailRetry = pending))
             }
         }
-        // Normal Set-Cookie may advance revision; identity/generation changes must still cancel.
-        if (captured?.isCurrent?.invoke() == false) throw CancellationException("Session changed")
-        result
+        result.copy(message = when (result.kind) {
+            FailureKind.CAPTCHA -> if (pending != null) "当前设备需要验证，公开分享页未提供可读取正文；请亲自验证后重试" else "当前设备需要验证，公开分享页未提供可读取正文；可重新加载或登录后重试"
+            else -> "此内容需要登录，公开分享页未提供可读取正文；请登录后重试"
+        }, detailRead = pending)
+    }
+    private suspend fun readDetail(id: String, operation: CoolapkHttpTransport): ApiResult<ContentItem> =
+        when (val response = operation.get("v6/feed/detail", mapOf("id" to id))) {
+            is ApiResult.Failure -> response
+            is ApiResult.Success -> decodeDetail(id, response.value)
+        }
+    private suspend fun decodeDetail(id: String, value: JsonElement, publicRead: Boolean = false): ApiResult<ContentItem> = withContext(Dispatchers.Default) {
+        val context = currentCoroutineContext()
+        try {
+            val obj = value as? JsonObject ?: ApiDecoder.invalid()
+            // Never attach another feed's body to this route. Public summaries are not details.
+            val responseId = (obj["id"] as? JsonPrimitive)?.contentOrNull
+            if (responseId == null || responseId.isEmpty() || responseId.any { it !in '0'..'9' } ||
+                responseId.trimStart('0').ifEmpty { "0" } != id.trimStart('0').ifEmpty { "0" }) ApiDecoder.invalid()
+            val sanitized = if (publicRead) JsonObject(obj - "userAction") else obj
+            val item = ApiDecoder.feedDetail(sanitized) { context.ensureActive() }
+            if (item.kind != "feed") ApiDecoder.invalid()
+            ApiResult.Success((if (publicRead) item.withoutAccountActions() else item).copy(publicRead = publicRead))
+        } catch (e: ApiProblem) { e.failure }
     }
     override suspend fun replies(id: String, cursor: PageCursor) = orderedReplies(id, ReplyOrder.RECENT_REPLY, false, cursor)
     override suspend fun orderedReplies(id: String, order: ReplyOrder, authorOnly: Boolean, cursor: PageCursor): ApiResult<Page<ContentItem>> {
@@ -144,9 +192,27 @@ class HttpCoolapkRepository(
         options.pageParam?.takeIf { it.isNotBlank() }?.let { params["pageParam"] = it }
         return list("v6/search", cursor, params)
     }
-    override suspend fun pictures(tag: String, type: String, cursor: PageCursor) = list("v6/picture/list", cursor, mapOf("tag" to tag, "type" to type))
+    override suspend fun pictures(tag: String, type: String, cursor: PageCursor): ApiResult<Page<ContentItem>> {
+        if (tag.isBlank() || tag.length > 4096 || tag.any { it.isISOControl() } || type !in setOf("recommend", "hot", "newest"))
+            return failure(FailureKind.INVALID_ARGUMENT)
+        return list("v6/picture/list", cursor, mapOf("tag" to tag, "type" to type))
+    }
+    override suspend fun eventDetail(id: String): ApiResult<ContentItem> = withContext(Dispatchers.IO) {
+        if (!numeric(id)) return@withContext failure(FailureKind.INVALID_ARGUMENT)
+        val captured = requestSession?.invoke()
+        if (captured?.isCurrent?.invoke() == false) throw CancellationException("Session changed")
+        val operation = captured?.let(transport::forCapturedReadSession) ?: transport
+        val result = when (val response = operation.get("v6/event/detail", mapOf("id" to id))) {
+            is ApiResult.Failure -> response
+            is ApiResult.Success -> withContext(Dispatchers.Default) {
+                try { ApiResult.Success(decodeEventDetail(response.value, id)) } catch (problem: ApiProblem) { problem.failure }
+            }
+        }
+        if (captured?.isCurrent?.invoke() == false) throw CancellationException("Session changed")
+        result
+    }
     override suspend fun dyhArticles(id: String, type: String, cursor: PageCursor): ApiResult<Page<ContentItem>> {
-        if (!numeric(id)) return failure(FailureKind.INVALID_ARGUMENT)
+        if (!numeric(id) || type !in setOf("all", "square")) return failure(FailureKind.INVALID_ARGUMENT)
         return list("v6/dyhArticle/list", cursor, mapOf("dyhId" to id, "type" to type))
     }
     override suspend fun userProfile(uid: String) = objectRequest("v6/user/profile", "uid", uid, numericOnly = true)
@@ -188,7 +254,8 @@ class HttpCoolapkRepository(
     }
     private suspend fun <T> request(path: String, params: Map<String, String>, api2: Boolean = false, decode: (JsonElement) -> T): ApiResult<T> {
         val captured = requestSession?.invoke()
-        val result = when (val response = transport.get(path, params, api2)) {
+        val operation = captured?.let(transport::forCapturedReadSession) ?: transport
+        val result = when (val response = operation.get(path, params, api2)) {
             is ApiResult.Failure -> response
             is ApiResult.Success -> withContext(Dispatchers.Default) {
                 try { ApiResult.Success(decode(response.value)) } catch (e: ApiProblem) { e.failure }
@@ -200,3 +267,12 @@ class HttpCoolapkRepository(
     }
     private fun numeric(value: String) = value.isNotEmpty() && value.all { it in '0'..'9' }
 }
+
+/** Public representations cannot establish this account's state, including nested pinned replies. */
+private fun ContentItem.withoutAccountActions(): ContentItem = copy(
+    feed = feed?.copy(likeState = ExplicitLikeState.UNKNOWN),
+    replyInteraction = replyInteraction?.copy(likeState = ExplicitLikeState.UNKNOWN),
+    replies = replies.map { it.withoutAccountActions() },
+    children = children.map { it.withoutAccountActions() },
+    highlightedReplies = highlightedReplies.map { it.withoutAccountActions() },
+)

@@ -207,6 +207,8 @@ class NativeAboutRootTest {
         compose.onNode(hasText("本地诊断") and hasClickAction()).performClick()
         compose.onNodeWithTag("native-diagnostics").assertExists()
         hardwareBack()
+        compose.onNodeWithText("本地诊断").assertExists() // Returning from a child keeps the selected category.
+        hardwareBack()
         compose.onNodeWithText("外观与字体").assertExists()
         assertEquals(0, browseCalls.get())
     }

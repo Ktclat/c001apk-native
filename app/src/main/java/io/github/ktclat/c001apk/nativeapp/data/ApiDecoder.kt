@@ -61,7 +61,10 @@ internal object ApiDecoder {
     fun feedDetail(value: JsonElement, checkActive: () -> Unit = {}): ContentItem {
         val obj = value as? JsonObject ?: invalid()
         val preview = item(value)
-        return preview.copy(fullPostBody = decodeDetailBody(obj, checkActive))
+        val highlighted = listOf("topReplyRows", "replyMeRows").flatMap { field ->
+            (obj[field] as? JsonArray).orEmpty().take(20).filterIsInstance<JsonObject>().map(::item)
+        }.filter { it.kind == "feed_reply" }.distinctBy { it.id }
+        return preview.copy(fullPostBody = decodeDetailBody(obj, checkActive), highlightedReplies = highlighted)
     }
     fun items(values: JsonArray): List<ContentItem> {
         val budget = Budget()
@@ -117,6 +120,10 @@ internal object ApiDecoder {
                 }, likeCount = obj.count("likenum"), replyCount = obj.count("replynum"),
             ) else null,
             firstRelationTitle = ((obj["relationRows"] as? JsonArray)?.firstOrNull() as? JsonObject)?.text("title").orEmpty(),
+            cardFields = if (kind == "card" || listOf("pic", "logo", "title", "username", "userAvatar").any { it in obj }) HomeCardFields(
+                picture = safeImage(obj.text("pic")), logo = safeImage(obj.text("logo")), description = obj.text("description"), title = obj.text("title"),
+                userName = obj.text("username"), avatar = safeImage(obj.text("userAvatar")),
+            ) else null,
         )
     }
     private fun feedMetadata(obj: JsonObject, id: String, hot: ContentItem?): FeedMetadata {
@@ -162,8 +169,8 @@ internal object ApiDecoder {
 internal fun failure(kind: FailureKind, status: Int? = null) = ApiResult.Failure(kind, when (kind) {
     FailureKind.UNCERTAIN -> "操作结果尚不确定，请先刷新核实，不要直接重复提交"
     FailureKind.NETWORK -> "连接失败，请检查网络后重试"
-    FailureKind.AUTHENTICATION -> "此内容需要登录，原生版账号功能尚在迁移"
-    FailureKind.CAPTCHA -> "服务端要求验证码，原生版暂不支持验证；未绕过验证"
+    FailureKind.AUTHENTICATION -> "此内容需要登录，请登录后重试"
+    FailureKind.CAPTCHA -> "服务端要求验证码，当前请求未完成"
     FailureKind.RISK_CONTROL -> "服务端限制了当前网络环境，请稍后重试"
     FailureKind.CLIENT_UPGRADE -> "服务端暂不接受当前客户端协议"
     FailureKind.RATE_LIMIT -> "请求过于频繁，请稍后重试"

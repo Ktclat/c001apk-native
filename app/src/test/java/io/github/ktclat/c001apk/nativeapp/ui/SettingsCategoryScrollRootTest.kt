@@ -177,12 +177,19 @@ class SettingsCategoryScrollRootTest {
     }
     private fun tail(name: String) {
         detail().performScrollToNode(hasText("悬浮导航栏"))
+        compose.onNodeWithText("悬浮导航栏").assertIsDisplayed().assertIsOff()
         detail().performSemanticsAction(SemanticsActions.ScrollBy) { it(0f, 100_000f) }
         compose.waitForIdle()
         val axis = detail().fetchSemanticsNode().config[SemanticsProperties.VerticalScrollAxisRange]
         assertTrue("Appearance must actually be scrolled", axis.value() > 0f)
         assertEquals("Appearance tail must actually be reached", axis.maxValue(), axis.value(), .01f)
-        compose.onNodeWithText("悬浮导航栏").assertIsDisplayed().assertIsOff()
+        // ReadingPreview is now the real final item; a short 2× window cannot also
+        // promise the preceding switch is visible at the absolute tail.
+        compose.onNodeWithTag("settings-reading-preview").assertIsDisplayed()
+        val tail = compose.onNodeWithText("评论文字 · 轻松阅读每一次交流").assertIsDisplayed()
+        val bounds = tail.getUnclippedBoundsInRoot()
+        val viewport = detail().getUnclippedBoundsInRoot()
+        assertTrue("Complete reading-preview tail must be inside the viewport", bounds.top >= viewport.top && bounds.bottom <= viewport.bottom)
         capture(name)
     }
 

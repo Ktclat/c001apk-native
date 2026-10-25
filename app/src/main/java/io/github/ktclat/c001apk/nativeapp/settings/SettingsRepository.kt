@@ -37,6 +37,7 @@ import kotlinx.serialization.Serializable
 class SettingsRepository(private val store: JsonStateStore<AppSettings>) {
     val settings = store.data.map { it.validated() }
     suspend fun update(transform: (AppSettings) -> AppSettings) = store.update { transform(it.validated()).validated() }
+    suspend fun selectFollow(type: io.github.ktclat.c001apk.nativeapp.domain.FollowType?) = update { it.selectFollow(type) }
     companion object {
         fun create(context: Context) = SettingsRepository(PreferenceJsonStore.create(context, "settings", AppSettings.serializer(), AppSettings(), AppSettings::validated))
     }

@@ -19,7 +19,6 @@ import kotlinx.coroutines.launch
 fun NativeUpdateScreen(onBack: () -> Unit, service: NativeUpdateService? = null, onOpenDiagnostics: (() -> Unit)? = null) {
     val context = LocalContext.current
     val updater = service ?: remember(context) { NativeUpdateService(context.applicationContext) }
-    var enabled by remember { mutableStateOf(updater.enabled) }
     var result by remember { mutableStateOf<NativeUpdateResult?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
@@ -29,7 +28,7 @@ fun NativeUpdateScreen(onBack: () -> Unit, service: NativeUpdateService? = null,
             Text("当前版本 ${BuildConfig.VERSION_NAME}")
             onOpenDiagnostics?.let { openDiagnostics -> TextButton(onClick = openDiagnostics) { Text("关于构建与窗口（本地诊断）") } }
             Text("仅检查 Ktclat/c001apk-native 正式发布，不会下载 Flutter 版或自动安装。")
-            Row { Text("启动时检查原生版本", Modifier.weight(1f)); Switch(enabled, { enabled = it; updater.enabled = it }) }
+            io.github.ktclat.c001apk.nativeapp.settings.NativeAutomaticUpdateSetting(updater)
             Button(enabled = result != NativeUpdateResult.Busy, onClick = { scope.launch { result = NativeUpdateResult.Busy; result = updater.check(BuildConfig.VERSION_NAME) } }) { Text("检查更新") }
             when (val state = result) {
                 NativeUpdateResult.NoRelease -> Text("原生仓库暂无正式版本。不会回退到 Flutter 安装包。")

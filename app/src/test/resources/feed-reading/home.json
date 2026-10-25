@@ -1,0 +1,56 @@
+{
+  "data": [
+    {
+      "id": 42001,
+      "entityType": "feed",
+      "uid": 901,
+      "username": "合成作者",
+      "userInfo": {
+        "uid": 901,
+        "username": "合成作者",
+        "userAvatar": "https://image.coolapk.com/synthetic-author.jpg"
+      },
+      "dateline": 1770000000,
+      "device_title": "合成设备",
+      "infoHtml": "<span>来自测试设备</span>",
+      "replynum": 3,
+      "likenum": 12,
+      "userAction": {
+        "like": 1
+      },
+      "picArr": [
+        "https://image.coolapk.com/synthetic-feed@640x480.jpg"
+      ],
+      "tags": "测试,阅读",
+      "message_title": "",
+      "title": "仅是分享页摘要，不能替代正文",
+      "message": "HOME_LIST_SUMMARY_ONLY"
+    },
+    {
+      "id": 42002,
+      "entityType": "feed",
+      "uid": 901,
+      "username": "合成作者",
+      "userInfo": {
+        "uid": 901,
+        "username": "合成作者",
+        "userAvatar": "https://image.coolapk.com/synthetic-author.jpg"
+      },
+      "dateline": 1770000000,
+      "device_title": "合成设备",
+      "infoHtml": "<span>来自测试设备</span>",
+      "replynum": 3,
+      "likenum": 12,
+      "userAction": {
+        "like": 1
+      },
+      "picArr": [
+        "https://image.coolapk.com/synthetic-feed@640x480.jpg"
+      ],
+      "tags": "测试,阅读",
+      "message_title": "",
+      "title": "仅是分享页摘要，不能替代正文",
+      "message": "ARTICLE_LIST_SUMMARY_NOT_FULL_BODY"
+    }
+  ]
+}

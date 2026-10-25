@@ -55,15 +55,24 @@ sealed interface NativeUpdateResult {
     data class Failed(val message: String) : NativeUpdateResult
 }
 
+interface NativeUpdatePreference {
+    val enabled: Boolean
+    suspend fun setEnabledAndPersist(value: Boolean)
+}
+
 /** Separate client and preference namespace: never sends Coolapk credentials to GitHub. */
-class NativeUpdateService(context: Context) {
+class NativeUpdateService(context: Context) : NativeUpdatePreference {
     private val preferences = context.getSharedPreferences("native-release-updates", Context.MODE_PRIVATE)
     private val checking = AtomicBoolean(false)
     private val checkedAutomatically = AtomicBoolean(false)
     private val client = OkHttpClient.Builder().followRedirects(false).connectTimeout(8, TimeUnit.SECONDS).readTimeout(8, TimeUnit.SECONDS).build()
-    var enabled: Boolean
+    override var enabled: Boolean
         get() = preferences.getBoolean("enabled", true)
         set(value) { preferences.edit().putBoolean("enabled", value).apply() }
+    /** User-triggered settings writes can report durable storage failure instead of assuming apply succeeded. */
+    override suspend fun setEnabledAndPersist(value: Boolean) { withContext(Dispatchers.IO) {
+        check(preferences.edit().putBoolean("enabled", value).commit()) { "Unable to save native update preference" }
+    } }
     fun skip(version: ReleaseVersion) { preferences.edit().putString("skipped", version.toString()).apply() }
     suspend fun check(currentVersion: String, automatic: Boolean = false): NativeUpdateResult {
         if (automatic && (!enabled || checkedAutomatically.get())) return NativeUpdateResult.Suppressed

@@ -58,6 +58,9 @@ private object MediaImageLoader {
     }
 }
 
+/** Share the existing public-media loader with cache management; never create another disk cache. */
+internal fun publicMediaImageLoader(context: Context): ImageLoader = MediaImageLoader.get(context)
+
 /** Offline render fixtures can inject image bytes without touching production clients or making requests. */
 val LocalMediaImageLoader = staticCompositionLocalOf<ImageLoader?> { null }
 
@@ -65,7 +68,7 @@ val LocalMediaImageLoader = staticCompositionLocalOf<ImageLoader?> { null }
 private fun mediaLoader(): ImageLoader {
     LocalMediaImageLoader.current?.let { return it }
     val context = LocalContext.current
-    return remember(context) { MediaImageLoader.get(context) }
+    return remember(context) { publicMediaImageLoader(context) }
 }
 
 @Composable

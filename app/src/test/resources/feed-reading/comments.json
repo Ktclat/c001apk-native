@@ -1,0 +1,22 @@
+{
+  "data": [
+    {
+      "id": 50002,
+      "entityType": "feed_reply",
+      "uid": 902,
+      "username": "合成评论者",
+      "message": "回复我的评论 REPLY_ME",
+      "replynum": 0,
+      "likenum": 2
+    },
+    {
+      "id": 50003,
+      "entityType": "feed_reply",
+      "uid": 902,
+      "username": "合成评论者",
+      "message": "正常评论 COMMENT_API_SUFFIX",
+      "replynum": 0,
+      "likenum": 2
+    }
+  ]
+}

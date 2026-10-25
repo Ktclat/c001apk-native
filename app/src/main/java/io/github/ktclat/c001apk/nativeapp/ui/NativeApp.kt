@@ -203,7 +203,8 @@ fun NativeApp(model: BrowseViewModel, container: AppContainer, settings: AppSett
     val key = route ?: if (root == 1 && accountState.activeId != null && !settings.secretFollow) "following:${settings.followType}" else keys[homeTab]
     val savedKeys = remember { mutableSetOf<String>() }
     LaunchedEffect(routeHistory, route) {
-        val retain = keys.toSet() + routeHistory + listOfNotNull(route)
+        val retainedRoutes = routeHistory + listOfNotNull(route)
+        val retain = keys.toSet() + retainedRoutes + retainedSourceListKeys(retainedRoutes)
         savedKeys.filterNot { it in retain }.toList().forEach { holder.removeState(it); savedKeys.remove(it) }
     }
     BackHandler(route != null || searchOpen || root != 0) {
@@ -285,12 +286,50 @@ fun NativeApp(model: BrowseViewModel, container: AppContainer, settings: AppSett
         "notifications" -> { HostedScreen("消息", goBack) { NotificationScreen(accounts.socialRepository, accountState.generation, { conversation, uid -> navigate("chat:${android.net.Uri.encode(conversation)}:$uid") }) }; return }
         "compose" -> { HostedScreen("发布动态", goBack) { SocialComposerScreen(accounts.socialRepository, accountState.generation, showTitle = false, onSent = { model.load("home", refresh = true); goBack() }) }; return }
 
-        "settings" -> { SettingsScreen(settings, { updated -> scope.launch { try { container.settings.update { updated } } catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled } catch (_: Exception) { localError = "设置保存失败，请重试" } } }, goBack,
+        "settings" -> {
+            SideEffect { savedKeys.add("settings") }
+            holder.SaveableStateProvider("settings") { SettingsScreen(settings, { updated -> scope.launch { try { container.settings.update { updated } } catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled } catch (_: Exception) { localError = "设置保存失败，请重试" } } }, goBack,
             { navigate("library:${it.name}") }, { navigate("blacklist") }, { navigate("local-follows") }, onNavigate = navigate,
-            isLoggedIn = accountState.activeId != null, accountCount = accountState.accounts.size); return }
+            isLoggedIn = accountState.activeId != null, accountCount = accountState.accounts.size, nativeUpdates = container.nativeUpdates,
+            onSettingsEdit = { edit -> scope.launch {
+                try { container.settings.update(edit) }
+                catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
+                catch (_: Exception) { localError = "设置保存失败，请重试" }
+            } },
+            onFollowSelection = { type -> scope.launch {
+                try { container.settings.selectFollow(type) }
+                catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
+                catch (_: Exception) { localError = "关注分类保存失败，请重试" }
+            } }) }; return }
         "library:FAVORITES", "library:HISTORY" -> { LocalLibraryScreen(container.local, LibraryKind.valueOf(route!!.substringAfter(":")), goBack, { navigate("feed:$it") }); return }
         "local-follows" -> { LocalFollowsScreen(container.local, goBack, { navigate("user:$it") }); return }
         "blacklist" -> { BlacklistScreen(container.local, goBack); return }
+    }
+    sourceListRoute(route)?.let { linked ->
+        HostedScreen(linked.title, goBack) {
+            SideEffect { savedKeys.add(requireNotNull(route)) }
+            holder.SaveableStateProvider(requireNotNull(route)) {
+            SourceListTabs(linked, refresh = { model.load(it, refresh = true) }) { linkedKey ->
+                val blacklist = (localLoad as? LocalLoadState.Ready)?.value?.blacklist
+                if (blacklist == null) Notice("本地过滤设置", if (localLoad == LocalLoadState.Failed) "无法读取过滤规则，原有数据未被覆盖" else "正在读取过滤规则")
+                else {
+                    LaunchedEffect(linkedKey) { model.load(linkedKey) }
+                    DisposableEffect(model, linkedKey) { onDispose { model.cancelLinkedRead(linkedKey) } }
+                    SideEffect { savedKeys.add(linkedKey) }
+                    val raw = states[linkedKey] ?: BrowseState(loading = true)
+                    val visible = remember(raw, blacklist) { raw.copy(items = filterBlocked(raw.items, blacklist)) }
+                    holder.SaveableStateProvider(linkedKey) {
+                        ContentList(visible, linkedKey, accounts, accountState, retry = { model.load(linkedKey, refresh = !raw.moreError, more = raw.moreError) },
+                            more = { model.load(linkedKey, more = true) }, navigate = navigate, openLink = openLink,
+                            favorite = { item -> scope.launch { try { container.local.favorite(item) }
+                                catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
+                                catch (_: Exception) { localError = "收藏保存失败，请重试" } } })
+                    }
+                }
+            }
+            }
+        }
+        return
     }
     if (route?.startsWith("feed:") == true) {
         val sourceMenu = remember(accountState.activeId, accountState.generation, route) { DetailSourceMenuState() }
@@ -353,7 +392,13 @@ fun NativeApp(model: BrowseViewModel, container: AppContainer, settings: AppSett
                     }
                 }
             } else {
-            TopAppBar(title = { Text(if (route != null) "浏览" else listOf("c001apk Native", "关注", "我的")[root]) },
+            TopAppBar(title = {
+                if (route == null && root == 1 && accountState.activeId != null) FollowContentMenu(settings) { type ->
+                    scope.launch { try { container.settings.selectFollow(type) }
+                        catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
+                        catch (_: Exception) { localError = "关注分类保存失败，请重试" } }
+                } else Text(if (route?.startsWith("event:") == true) "活动详情" else if (route != null) "浏览" else listOf("c001apk Native", "本地关注", "我的")[root])
+            },
                 navigationIcon = { if (route != null) IconButton(onClick = goBack) { Icon(FlutterMaterialIcons.ArrowBack, "返回") } },
                 actions = {
                     if (root == 2 && route == null) {
@@ -393,6 +438,7 @@ fun NativeApp(model: BrowseViewModel, container: AppContainer, settings: AppSett
             when {
                 route != null || (root == 0 && homeTab != 0) || (root == 1 && accountState.activeId != null && !settings.secretFollow) -> {
                     LaunchedEffect(key) { model.load(key) }
+                    DisposableEffect(model, key) { onDispose { model.cancelLinkedRead(key) } }
                     SideEffect { savedKeys.add(key) }
                     holder.SaveableStateProvider(key) {
                         val rawState = states[key] ?: BrowseState(loading = true)
@@ -406,6 +452,7 @@ fun NativeApp(model: BrowseViewModel, container: AppContainer, settings: AppSett
                         }
                         ContentList(visibleState, key, accounts, accountState,
                             listState = rootListState,
+                            localUserRepository = container.local,
                             retry = { model.load(key, refresh = true) }, more = { model.load(key, more = true) },
                             navigate = navigate, openLink = openLink, favorite = { item -> scope.launch {
                                 try { container.local.favorite(item) } catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
@@ -420,7 +467,8 @@ fun NativeApp(model: BrowseViewModel, container: AppContainer, settings: AppSett
                         dockAtTop.read = { !rootListState.canScrollBackward }
                         dockScrollActive.value = { rootListState.isScrollInProgress }
                     }
-                    InstalledAppsScreen(listState = rootListState) { navigate("app:$it") }
+                    InstalledAppsScreen(listState = rootListState, showUpdateEntry = settings.checkAppUpdates,
+                        onOpenUpdates = { navigate("app-updates") }) { navigate("app:$it") }
                 }
                 root == 1 -> holder.SaveableStateProvider("root-local-follow") {
                     val rootListState = browseListStates["root-local-follow"] ?: rememberLazyListState()
@@ -469,12 +517,15 @@ private fun Notice(title: String, message: String) {
 }
 
 @Composable
-private fun ContentList(state: BrowseState, key: String, accounts: AccountRuntime, accountState: AccountState, retry: () -> Unit, more: () -> Unit, navigate: (String) -> Unit, openLink: (String) -> Unit, favorite: (ContentItem) -> Unit, listState: LazyListState = rememberLazyListState()) {
+private fun ContentList(state: BrowseState, key: String, accounts: AccountRuntime, accountState: AccountState, retry: () -> Unit, more: () -> Unit, navigate: (String) -> Unit, openLink: (String) -> Unit, favorite: (ContentItem) -> Unit, listState: LazyListState = rememberLazyListState(), localUserRepository: LocalRepository? = null) {
     ObserveRootReselect(listState)
     val rootHeader = LocalScrollableRootHeader.current
     val displayItems = remember(state.items) { state.items.distinctBy { "${it.kind}:${it.id}:${it.title}" } }
     LazyColumn(modifier = Modifier.fillMaxSize().testTag("content-list").floatingDockRecovery(LocalFloatingDockReveal.current), state = listState, contentPadding = PaddingValues(start = 10.dp, top = 10.dp, end = 10.dp, bottom = 10.dp + LocalFloatingBottomSpace.current), verticalArrangement = Arrangement.spacedBy(10.dp)) {
         rootHeader?.let { header -> item(key = "root-header") { header() } }
+        if (localUserRepository != null && key.startsWith("user:") && validUid(key.substringAfter(':'))) item(key = "local-user-follow") {
+            LocalUserFollowControl(key.substringAfter(':'), localUserRepository, accountState.activeId != null) { navigate("local-follows") }
+        }
         if (key.startsWith("replies:")) item { TextButton(onClick = { navigate("compose-reply:feed:${key.removePrefix("replies:")}") }) { Text("回复动态") } }
         if (state.error != null) item {
             Card { Column(Modifier.padding(16.dp)) { Text(state.error); TextButton(onClick = retry) { Text("重试") } } }
@@ -494,12 +545,14 @@ private fun ContentList(state: BrowseState, key: String, accounts: AccountRuntim
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun ContentCard(item: ContentItem, navigate: (String) -> Unit, openLink: (String) -> Unit, favorite: (ContentItem) -> Unit, accounts: AccountRuntime, accountState: AccountState, onChanged: () -> Unit, isDetail: Boolean) {
+    if (item.kind == "event" && item.event != null) { EventDetailCard(item, openLink); return }
     if (item.kind == "feed") {
         InteractiveFeedCard(item, accounts, accountState, navigate, openLink, favorite, onChanged, detail = isDetail)
         return
     }
     if (item.kind == "feed_reply") { InteractiveFeedReplyRow(item, accounts, accountState, navigate, openLink, onChanged); return }
     if (item.entityTemplate == "iconLinkGridCard") { IconLinkGridCard(item, openLink); return }
+    homeCardTemplate(item)?.let { template -> HomeTemplateCard(item, template, openLink, onChanged); return }
     Card(Modifier.fillMaxWidth()) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             if (item.children.isNotEmpty() || item.childrenIncomplete || !item.entityTemplate.isNullOrBlank()) Text("此卡片的模板或嵌套内容暂不支持")

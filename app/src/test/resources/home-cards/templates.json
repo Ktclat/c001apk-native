@@ -1,0 +1,290 @@
+{
+  "data": [
+    {
+      "id": "card-0",
+      "entityId": "card-0",
+      "entityType": "card",
+      "entityTemplate": "imageCarouselCard_1",
+      "title": "首页合成栏目 1",
+      "url": "/page?url=SYNTHETIC_HOME_SECTION",
+      "description": "这是一条完整的首页提示，不应变成“不支持模板”。",
+      "entities": [
+        {
+          "id": "9100",
+          "entityType": "feed",
+          "title": "离线内容 1",
+          "username": "合成用户 1",
+          "userAvatar": "https://fixture.invalid/icon-1.png",
+          "pic": "https://fixture.invalid/icon-1.png",
+          "logo": "https://fixture.invalid/icon-2.png",
+          "url": "/feed/9100"
+        },
+        {
+          "id": "9101",
+          "entityType": "feed",
+          "title": "离线内容 2",
+          "username": "合成用户 2",
+          "userAvatar": "https://fixture.invalid/icon-2.png",
+          "pic": "https://fixture.invalid/icon-2.png",
+          "logo": "https://fixture.invalid/icon-3.png",
+          "url": "/feed/9101"
+        },
+        {
+          "id": "9102",
+          "entityType": "feed",
+          "title": "离线内容 3",
+          "username": "合成用户 3",
+          "userAvatar": "https://fixture.invalid/icon-3.png",
+          "pic": "https://fixture.invalid/icon-3.png",
+          "logo": "https://fixture.invalid/icon-4.png",
+          "url": "/feed/9102"
+        }
+      ]
+    },
+    {
+      "id": "card-1",
+      "entityId": "card-1",
+      "entityType": "card",
+      "entityTemplate": "iconMiniScrollCard",
+      "title": "首页合成栏目 2",
+      "url": "/page?url=SYNTHETIC_HOME_SECTION",
+      "description": "这是一条完整的首页提示，不应变成“不支持模板”。",
+      "entities": [
+        {
+          "id": "9100",
+          "entityType": "feed",
+          "title": "离线内容 1",
+          "username": "合成用户 1",
+          "userAvatar": "https://fixture.invalid/icon-1.png",
+          "pic": "https://fixture.invalid/icon-1.png",
+          "logo": "https://fixture.invalid/icon-2.png",
+          "url": "/feed/9100"
+        },
+        {
+          "id": "9101",
+          "entityType": "feed",
+          "title": "离线内容 2",
+          "username": "合成用户 2",
+          "userAvatar": "https://fixture.invalid/icon-2.png",
+          "pic": "https://fixture.invalid/icon-2.png",
+          "logo": "https://fixture.invalid/icon-3.png",
+          "url": "/feed/9101"
+        },
+        {
+          "id": "9102",
+          "entityType": "feed",
+          "title": "离线内容 3",
+          "username": "合成用户 3",
+          "userAvatar": "https://fixture.invalid/icon-3.png",
+          "pic": "https://fixture.invalid/icon-3.png",
+          "logo": "https://fixture.invalid/icon-4.png",
+          "url": "/feed/9102"
+        }
+      ]
+    },
+    {
+      "id": "card-2",
+      "entityId": "card-2",
+      "entityType": "card",
+      "entityTemplate": "iconMiniGridCard",
+      "title": "首页合成栏目 3",
+      "url": "/page?url=SYNTHETIC_HOME_SECTION",
+      "description": "这是一条完整的首页提示，不应变成“不支持模板”。",
+      "entities": [
+        {
+          "id": "9100",
+          "entityType": "feed",
+          "title": "离线内容 1",
+          "username": "合成用户 1",
+          "userAvatar": "https://fixture.invalid/icon-1.png",
+          "pic": "https://fixture.invalid/icon-1.png",
+          "logo": "https://fixture.invalid/icon-2.png",
+          "url": "/feed/9100"
+        },
+        {
+          "id": "9101",
+          "entityType": "feed",
+          "title": "离线内容 2",
+          "username": "合成用户 2",
+          "userAvatar": "https://fixture.invalid/icon-2.png",
+          "pic": "https://fixture.invalid/icon-2.png",
+          "logo": "https://fixture.invalid/icon-3.png",
+          "url": "/feed/9101"
+        },
+        {
+          "id": "9102",
+          "entityType": "feed",
+          "title": "离线内容 3",
+          "username": "合成用户 3",
+          "userAvatar": "https://fixture.invalid/icon-3.png",
+          "pic": "https://fixture.invalid/icon-3.png",
+          "logo": "https://fixture.invalid/icon-4.png",
+          "url": "/feed/9102"
+        }
+      ]
+    },
+    {
+      "id": "card-3",
+      "entityId": "card-3",
+      "entityType": "card",
+      "entityTemplate": "iconScrollCard",
+      "title": "首页合成栏目 4",
+      "url": "/page?url=SYNTHETIC_HOME_SECTION",
+      "description": "这是一条完整的首页提示，不应变成“不支持模板”。",
+      "entities": [
+        {
+          "id": "9100",
+          "entityType": "feed",
+          "title": "离线内容 1",
+          "username": "合成用户 1",
+          "userAvatar": "https://fixture.invalid/icon-1.png",
+          "pic": "https://fixture.invalid/icon-1.png",
+          "logo": "https://fixture.invalid/icon-2.png",
+          "url": "/feed/9100"
+        },
+        {
+          "id": "9101",
+          "entityType": "feed",
+          "title": "离线内容 2",
+          "username": "合成用户 2",
+          "userAvatar": "https://fixture.invalid/icon-2.png",
+          "pic": "https://fixture.invalid/icon-2.png",
+          "logo": "https://fixture.invalid/icon-3.png",
+          "url": "/feed/9101"
+        },
+        {
+          "id": "9102",
+          "entityType": "feed",
+          "title": "离线内容 3",
+          "username": "合成用户 3",
+          "userAvatar": "https://fixture.invalid/icon-3.png",
+          "pic": "https://fixture.invalid/icon-3.png",
+          "logo": "https://fixture.invalid/icon-4.png",
+          "url": "/feed/9102"
+        }
+      ]
+    },
+    {
+      "id": "card-4",
+      "entityId": "card-4",
+      "entityType": "card",
+      "entityTemplate": "imageSquareScrollCard",
+      "title": "首页合成栏目 5",
+      "url": "/page?url=SYNTHETIC_HOME_SECTION",
+      "description": "这是一条完整的首页提示，不应变成“不支持模板”。",
+      "entities": [
+        {
+          "id": "9100",
+          "entityType": "feed",
+          "title": "离线内容 1",
+          "username": "合成用户 1",
+          "userAvatar": "https://fixture.invalid/icon-1.png",
+          "pic": "https://fixture.invalid/icon-1.png",
+          "logo": "https://fixture.invalid/icon-2.png",
+          "url": "/feed/9100"
+        },
+        {
+          "id": "9101",
+          "entityType": "feed",
+          "title": "离线内容 2",
+          "username": "合成用户 2",
+          "userAvatar": "https://fixture.invalid/icon-2.png",
+          "pic": "https://fixture.invalid/icon-2.png",
+          "logo": "https://fixture.invalid/icon-3.png",
+          "url": "/feed/9101"
+        },
+        {
+          "id": "9102",
+          "entityType": "feed",
+          "title": "离线内容 3",
+          "username": "合成用户 3",
+          "userAvatar": "https://fixture.invalid/icon-3.png",
+          "pic": "https://fixture.invalid/icon-3.png",
+          "logo": "https://fixture.invalid/icon-4.png",
+          "url": "/feed/9102"
+        }
+      ]
+    },
+    {
+      "id": "card-5",
+      "entityId": "card-5",
+      "entityType": "card",
+      "entityTemplate": "imageTextScrollCard",
+      "title": "首页合成栏目 6",
+      "url": "/page?url=SYNTHETIC_HOME_SECTION",
+      "description": "这是一条完整的首页提示，不应变成“不支持模板”。",
+      "entities": [
+        {
+          "id": "9100",
+          "entityType": "feed",
+          "title": "离线内容 1",
+          "username": "合成用户 1",
+          "userAvatar": "https://fixture.invalid/icon-1.png",
+          "pic": "https://fixture.invalid/icon-1.png",
+          "logo": "https://fixture.invalid/icon-2.png",
+          "url": "/feed/9100"
+        },
+        {
+          "id": "9101",
+          "entityType": "feed",
+          "title": "离线内容 2",
+          "username": "合成用户 2",
+          "userAvatar": "https://fixture.invalid/icon-2.png",
+          "pic": "https://fixture.invalid/icon-2.png",
+          "logo": "https://fixture.invalid/icon-3.png",
+          "url": "/feed/9101"
+        },
+        {
+          "id": "9102",
+          "entityType": "feed",
+          "title": "离线内容 3",
+          "username": "合成用户 3",
+          "userAvatar": "https://fixture.invalid/icon-3.png",
+          "pic": "https://fixture.invalid/icon-3.png",
+          "logo": "https://fixture.invalid/icon-4.png",
+          "url": "/feed/9102"
+        }
+      ]
+    },
+    {
+      "id": "card-6",
+      "entityId": "card-6",
+      "entityType": "card",
+      "entityTemplate": "titleCard",
+      "title": "首页合成栏目 7",
+      "url": "/page?url=SYNTHETIC_HOME_SECTION",
+      "description": "这是一条完整的首页提示，不应变成“不支持模板”。",
+      "entities": []
+    },
+    {
+      "id": "card-7",
+      "entityId": "card-7",
+      "entityType": "card",
+      "entityTemplate": "messageCard",
+      "title": "首页合成栏目 8",
+      "url": "/page?url=SYNTHETIC_HOME_SECTION",
+      "description": "这是一条完整的首页提示，不应变成“不支持模板”。",
+      "entities": []
+    },
+    {
+      "id": "card-8",
+      "entityId": "card-8",
+      "entityType": "card",
+      "entityTemplate": "noMoreDataCard",
+      "title": "首页合成栏目 9",
+      "url": "/page?url=SYNTHETIC_HOME_SECTION",
+      "description": "这是一条完整的首页提示，不应变成“不支持模板”。",
+      "entities": []
+    },
+    {
+      "id": "card-9",
+      "entityId": "card-9",
+      "entityType": "card",
+      "entityTemplate": "refreshCard",
+      "title": "首页合成栏目 10",
+      "url": "/page?url=SYNTHETIC_HOME_SECTION",
+      "description": "这是一条完整的首页提示，不应变成“不支持模板”。",
+      "entities": []
+    }
+  ]
+}

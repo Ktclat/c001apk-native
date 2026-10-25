@@ -14,6 +14,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.semantics.*
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
+import io.github.ktclat.c001apk.nativeapp.platform.NativeUpdateService
 import io.github.ktclat.c001apk.nativeapp.local.LibraryKind
 import io.github.ktclat.c001apk.nativeapp.ui.ProfileIcons
 import io.github.ktclat.c001apk.nativeapp.ui.FlutterMaterialIcons
@@ -21,9 +24,9 @@ import io.github.ktclat.c001apk.nativeapp.BuildConfig
 
 enum class SettingsSection(val title: String, val description: String) {
     APPEARANCE("外观与字体", "配色、字体与悬浮 Tab 导航"),
-    CONTENT("关注与内容", "本地关注与悄悄关注"),
+    CONTENT("关注与内容", "账号关注分类与本地关注"),
     PRIVACY("浏览与隐私", "黑名单、浏览历史与外部链接"),
-    STORAGE("存储与更新", "本地记录、版本与更新检查"),
+    STORAGE("存储与更新", "图片缓存、本地记录与更新检查"),
     PROTOCOL("协议与设备", "设备与客户端请求参数")
 }
 @Composable private fun sectionIcon(section: SettingsSection): ImageVector = when(section) {
@@ -44,7 +47,14 @@ enum class SettingsSection(val title: String, val description: String) {
     onNavigate: (String) -> Unit,
     isLoggedIn: Boolean = false,
     accountCount: Int = 0,
+    nativeUpdates: NativeUpdateService? = null,
+    imageCache: ImageCacheController? = null,
+    onFollowSelection: (io.github.ktclat.c001apk.nativeapp.domain.FollowType?) -> Unit = { onSettingsChange(settings.selectFollow(it)) },
+    onSettingsEdit: ((AppSettings) -> AppSettings) -> Unit = { transform -> onSettingsChange(transform(settings)) },
 ) {
+    val context = LocalContext.current
+    val updater = nativeUpdates ?: remember(context) { NativeUpdateService(context.applicationContext) }
+    val cache = imageCache ?: remember(context) { ImageCacheController.create(context.applicationContext) }
     var selectedName by rememberSaveable { mutableStateOf<String?>(null) }
     val selected = selectedName?.let { SettingsSection.valueOf(it) }
     var draftScale by remember(settings.fontScale) { mutableFloatStateOf(settings.fontScale) }
@@ -56,7 +66,7 @@ enum class SettingsSection(val title: String, val description: String) {
             IconButton(onClick = { if (!wide && selected != null) selectedName = null else onBack() }) { Icon(FlutterMaterialIcons.ArrowBack, "返回") }
         }) }) { padding ->
             Row(Modifier.fillMaxSize().padding(padding).consumeWindowInsets(padding).imePadding()) {
-                if (wide || selected == null) LazyColumn(Modifier.then(if (wide) Modifier.width(320.dp) else Modifier.fillMaxWidth()).fillMaxHeight(), contentPadding = PaddingValues(bottom = 24.dp)) {
+                if (wide || selected == null) LazyColumn(Modifier.testTag("settings-category-list").then(if (wide) Modifier.width(320.dp) else Modifier.fillMaxWidth()).fillMaxHeight(), contentPadding = PaddingValues(bottom = 24.dp)) {
                     SettingsSection.entries.forEach { section -> item {
                         NavigationSetting(section.title, section.description, sectionIcon(section), selected = wide && detail == section) { selectedName = section.name }
                     } }
@@ -67,18 +77,18 @@ enum class SettingsSection(val title: String, val description: String) {
                 if (wide) VerticalDivider()
                 if (wide || selected != null) Box(Modifier.weight(1f).fillMaxHeight(), contentAlignment = Alignment.TopCenter) {
                     // A different category starts a fresh detail list, matching Flutter's keyed page.
-                    key(detail) { LazyColumn(Modifier.widthIn(max = 760.dp).fillMaxSize(), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    key(detail) { LazyColumn(Modifier.testTag("settings-detail-list").widthIn(max = 760.dp).fillMaxSize(), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         if (wide) item { Text(detail.title, style = MaterialTheme.typography.titleLarge, modifier = Modifier.padding(bottom = 8.dp)) }
                         when(detail) {
                             SettingsSection.APPEARANCE -> {
             item { Text("外观", style = MaterialTheme.typography.titleMedium) }
-            item { FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) { ThemeMode.entries.forEach { mode -> FilterChip(selected = settings.theme == mode, onClick = { onSettingsChange(settings.copy(theme = mode)) }, label = { Text(when(mode) { ThemeMode.SYSTEM -> "系统"; ThemeMode.LIGHT -> "浅色"; ThemeMode.DARK -> "深色" }) }) } } }
-            item { SettingSwitch("动态取色（Android 12 及以上）", settings.dynamicColor) { onSettingsChange(settings.copy(dynamicColor = it)) } }
-            item { FixedColorPicker(settings, onSettingsChange) }
+            item { FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) { ThemeMode.entries.forEach { mode -> FilterChip(selected = settings.theme == mode, onClick = { onSettingsEdit { current -> current.copy(theme = mode) } }, label = { Text(when(mode) { ThemeMode.SYSTEM -> "系统"; ThemeMode.LIGHT -> "浅色"; ThemeMode.DARK -> "深色" }) }) } } }
+            item { SettingSwitch("动态取色（Android 12 及以上）", settings.dynamicColor) { onSettingsEdit { current -> current.copy(dynamicColor = it) } } }
+            item { FixedColorPicker(settings) { index -> onSettingsEdit { it.copy(themeColor = index) } } }
             item { Text("界面字体", style = MaterialTheme.typography.titleMedium) }
             items(FontChoice.entries.size) { index ->
                 val font = FontChoice.entries[index]
-                Row(Modifier.fillMaxWidth().heightIn(min=56.dp).selectable(selected=settings.font==font, role=Role.RadioButton, onClick={ onSettingsChange(settings.copy(font=font)) })) {
+                Row(Modifier.fillMaxWidth().heightIn(min=56.dp).selectable(selected=settings.font==font, role=Role.RadioButton, onClick={ onSettingsEdit { current -> current.copy(font=font) } })) {
                     RadioButton(selected=settings.font==font, onClick=null)
                     Column(Modifier.weight(1f).padding(vertical=8.dp)) {
                         Text(when(font) { FontChoice.SYSTEM -> "跟随系统"; FontChoice.MATERIAL -> "Material 原版"; FontChoice.NOTO_SANS -> "思源黑体 · 清爽" })
@@ -86,29 +96,33 @@ enum class SettingsSection(val title: String, val description: String) {
                     }
                 }
             }
-            item { Text("应用字号：${(draftScale * 100).toInt()}%（叠加系统字号）"); Slider(modifier = Modifier.semantics { contentDescription = "应用字号"; stateDescription = "${(draftScale * 100).toInt()}%" }, value = draftScale, onValueChange = { draftScale = it }, onValueChangeFinished = { onSettingsChange(settings.copy(fontScale = draftScale)) }, valueRange = 0.8f..1.6f, steps = 7) }
-            item { FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) { ReadingPreset.entries.forEach { preset -> FilterChip(settings.readingPreset == preset, { onSettingsChange(settings.copy(readingPreset = preset)) }, label = { Text(if (preset == ReadingPreset.COMFORTABLE) "舒适阅读" else "原版排版") }) } } }
-            item { SettingSwitch("悬浮导航栏", settings.floatingNavigation) { onSettingsChange(settings.copy(floatingNavigation = it)) } }
+            item { Text("应用字号：${(draftScale * 100).toInt()}%（叠加系统字号）"); Slider(modifier = Modifier.semantics { contentDescription = "应用字号"; stateDescription = "${(draftScale * 100).toInt()}%" }, value = draftScale, onValueChange = { draftScale = it }, onValueChangeFinished = { val selectedScale = draftScale; onSettingsEdit { current -> current.copy(fontScale = selectedScale) } }, valueRange = 0.8f..1.6f, steps = 15) }
+            item { TextButton(onClick = { draftScale = 1f; onSettingsEdit { current -> current.copy(fontScale = 1f) } }) { Text("恢复默认字号") } }
+            item { FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) { ReadingPreset.entries.forEach { preset -> FilterChip(settings.readingPreset == preset, { onSettingsEdit { current -> current.copy(readingPreset = preset) } }, label = { Text(if (preset == ReadingPreset.COMFORTABLE) "舒适阅读" else "原版排版") }) } } }
+            item { SettingSwitch("悬浮导航栏", settings.floatingNavigation, "向后浏览时隐藏，反向滚动显示；键盘弹出时隐藏") { onSettingsEdit { current -> current.copy(floatingNavigation = it) } } }
+            item { ReadingPreview(settings) }
 
                             }
                             SettingsSection.CONTENT -> {
-                                if (isLoggedIn) item { SettingSwitch("悄悄关注（仅保存在本机）", settings.secretFollow) { onSettingsChange(settings.copy(secretFollow = it)) } }
+                                if (isLoggedIn) item { FollowContentChoices(settings, onFollowSelection) }
                                 else item { Text("本地关注", style = MaterialTheme.typography.titleMedium); Text("游客可在用户主页直接关注，并在底栏“关注”查看内容。名单仅保存在本机。") }
                                 item { NavigationSetting("管理本地关注", "查看本机关注名单、进入用户主页或取消关注", ProfileIcons.PersonAddOutlined, onClick = onOpenFollows) }
                                 item { Text("表情图片显示尚未接入，当前保留内容中的表情文字标记。", style = MaterialTheme.typography.bodySmall) }
                             }
                             SettingsSection.PRIVACY -> {
                                 item { NavigationSetting("用户与话题黑名单", "管理屏蔽的用户、话题与关键词", FlutterMaterialIcons.Block, onClick = onOpenBlacklist) }
-                                item { SettingSwitch("记录浏览历史", settings.recordHistory) { onSettingsChange(settings.copy(recordHistory = it)) } }
-                                item { SettingSwitch("在浏览器中打开", settings.openInBrowser) { onSettingsChange(settings.copy(openInBrowser = it)) } }
+                                item { SettingSwitch("记录浏览历史", settings.recordHistory, "关闭后不再新增记录，已保存的历史不会删除") { onSettingsEdit { current -> current.copy(recordHistory = it) } } }
+                                item { SettingSwitch("在浏览器中打开", settings.openInBrowser, "仅影响外部网页；酷安动态、用户和话题仍在应用内打开") { onSettingsEdit { current -> current.copy(openInBrowser = it) } } }
                                 item { Text("收藏、历史与本地关注不会随账号切换而删除。", style = MaterialTheme.typography.bodySmall) }
                             }
                             SettingsSection.STORAGE -> {
+                                item { NativeAutomaticUpdateSetting(updater) }
+                                item { SettingSwitch("显示已安装应用更新入口", settings.checkAppUpdates, "在首页“应用”列表显示手动检查入口；不会自动扫描、查询或安装") { onSettingsEdit { current -> current.copy(checkAppUpdates = it) } } }
                                 item { NavigationSetting("c001apk 原生版更新", "自动检查开关、手动检查与正式版本", FlutterMaterialIcons.Update) { onNavigate("native-updates") } }
                                 item { NavigationSetting("检查已安装应用更新", "选择应用后查询，不会自动安装", FlutterMaterialIcons.Smartphone) { onNavigate("app-updates") } }
                                 item { NavigationSetting("本地收藏", "查看保存在本机的动态", ProfileIcons.ArchiveOutlined) { onOpenLibrary(LibraryKind.FAVORITES) } }
                                 item { NavigationSetting("浏览历史", "查看本机浏览记录", ProfileIcons.History) { onOpenLibrary(LibraryKind.HISTORY) } }
-                                item { Text("图片缓存清理尚未接入；不会把账号、本地收藏或历史当作缓存删除。", style = MaterialTheme.typography.bodySmall) }
+                                item { ImageCacheSetting(cache) }
                             }
                             SettingsSection.PROTOCOL -> {
                                 item { Text("设备标识与协议参数", style = MaterialTheme.typography.titleMedium) }
@@ -127,11 +141,17 @@ enum class SettingsSection(val title: String, val description: String) {
         ListItem(headlineContent = { Text(title) }, supportingContent = { Text(subtitle) }, leadingContent = { Icon(icon, null) }, trailingContent = { Icon(ProfileIcons.KeyboardArrowRightOutlined, null) }, modifier = Modifier.fillMaxWidth().heightIn(min = 64.dp).clickable(onClick = onClick), colors = ListItemDefaults.colors(containerColor = androidx.compose.ui.graphics.Color.Transparent))
     }
 }
-@Composable private fun SettingSwitch(label: String, checked: Boolean, onChange: (Boolean) -> Unit) {
-    Row(Modifier.fillMaxWidth().heightIn(min = 56.dp).toggleable(value = checked, role = Role.Switch, onValueChange = onChange), horizontalArrangement = Arrangement.SpaceBetween) { Text(label, Modifier.weight(1f).padding(top = 12.dp, end = 8.dp)); Switch(checked, onCheckedChange = null) }
+@Composable internal fun SettingSwitch(label: String, checked: Boolean, description: String? = null, enabled: Boolean = true, onChange: (Boolean) -> Unit) {
+    Row(Modifier.fillMaxWidth().heightIn(min = 56.dp).toggleable(value = checked, enabled = enabled, role = Role.Switch, onValueChange = onChange), verticalAlignment = Alignment.CenterVertically) {
+        Column(Modifier.weight(1f).padding(vertical = 12.dp, horizontal = 0.dp).padding(end = 8.dp)) {
+            Text(label)
+            description?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+        }
+        Switch(checked, onCheckedChange = null, enabled = enabled)
+    }
 }
 
-@Composable private fun FixedColorPicker(settings: AppSettings, onChange: (AppSettings) -> Unit) {
+@Composable private fun FixedColorPicker(settings: AppSettings, onColorSelected: (Int) -> Unit) {
     var expanded by remember { mutableStateOf(false) }
     Column {
         Text("主题颜色", style=MaterialTheme.typography.titleSmall)
@@ -139,8 +159,20 @@ enum class SettingsSection(val title: String, val description: String) {
         Box {
             OutlinedButton(onClick={ expanded=true }, enabled=!settings.dynamicColor) { Text(themeSeeds[settings.themeColor].label) }
             DropdownMenu(expanded=expanded, onDismissRequest={expanded=false}, modifier=Modifier.heightIn(max=320.dp)) {
-                themeSeeds.forEachIndexed { index, seed -> DropdownMenuItem(text={Text(seed.label)}, onClick={expanded=false; onChange(settings.copy(themeColor=index))}) }
+                themeSeeds.forEachIndexed { index, seed -> DropdownMenuItem(text={Text(seed.label)}, onClick={expanded=false; onColorSelected(index)}) }
             }
+        }
+    }
+}
+
+@Composable private fun ReadingPreview(settings: AppSettings) {
+    val reading = remember(settings.font, settings.readingPreset) { readingStyles(settings.readingPreset, settings.font) }
+    OutlinedCard(Modifier.fillMaxWidth().testTag("settings-reading-preview")) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text("阅读预览", style = MaterialTheme.typography.labelLarge)
+            Text("把想法写下来", style = reading.title)
+            Text("这是一段动态正文。字体与阅读排版会应用到信息流、详情和评论；应用字号会叠加系统字号。", style = reading.body)
+            Text("评论文字 · 轻松阅读每一次交流", style = reading.reply, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
 }
