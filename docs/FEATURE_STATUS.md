@@ -1,8 +1,21 @@
 # Native implementation status and parity gaps
 
+## Current main baseline — 2026-10-25
+
+`main` now contains the tested Android-native development baseline, not only the license. It was fast-forwarded from `0886d0851065b2a869c2d200f32f3216fca9c551` to `49c225942e1a9c966304902f323c884c3345bd5c`, preserving all 43 development commits. [PR #1](https://github.com/Ktclat/c001apk-native/pull/1) is now merged. New work may be pushed directly after independent review and the applicable test/build gates; a new PR is not required for this personal repository.
+
+- Baseline source tree: `6c4970ed155d4f1d43f32330058fcaa3e77eeda3`.
+- [CI44](https://github.com/Ktclat/c001apk-native/actions/runs/40086463155) verified the identical tree: debug assembly, **917 tests across 142 suites, zero failures/errors/skips**, and lint with **zero errors, 42 warnings and one hint**. Its synthetic merge checkout was `c963dda9255c43e137c4670268e70bdac524428d`, not the foundation head SHA.
+- [CI45](https://github.com/Ktclat/c001apk-native/actions/runs/40177566057) **passed on promoted main `49c2259`**: debug assembly, the same **917 tests / 142 suites with zero failures/errors/skips**, and lint with **zero errors, 42 warnings and one hint**. Independent artifact verification confirmed clean main provenance, the same 201-input source fingerprint, three pinned fonts, eight license files and the existing icon. Its APK SHA-256 is `93a2c008b1ab29a1024d0eac56a400b504108b7b522a94aad92b42718e7f8d82`; size is 17,831,700 bytes. This is synthetic/build verification, not a device or live-service pass.
+- Included development work covers the Compose app and account/session safeguards, ordinary and structured readers, composer, gallery retry, restored Home icon grid, text-emoticon picker, offline About/licenses, categorized Settings, scoped unread counts, My refresh, and default scroll-linked floating navigation. This is a tested development baseline, **not complete Flutter functional/UI parity**.
+- New Markdown/raw-source and other current local candidates are **not included** in this baseline. See [upstream sync scope](UPSTREAM_SYNC.md) and the detailed verification history before attributing a feature or test result to a build.
+- Home HTTP403/live-service acceptance, real-device/TalkBack/IME/performance, stable release signing and full parity remain open. Debug certificates can differ between builds; do not uninstall or clear user data merely to overcome a signature conflict. Do not claim imported upstream changes have fixed403.
+
+Older checkpoints below describe the state at the time they were recorded. Statements such as “main unchanged,” “PR1 remains draft,” or “integration pending” in those historical records are **not the current branch status**. Failed or inconclusive attempts remain documented and are not retroactively passes.
+
 **NOT ACCEPTED for full Flutter functional/UI parity.** Recognizable source UI and working behavior are both required; neither source inspection nor synthetic tests establish live-service/device acceptance.
 
-## Passive Home diagnostics: CI24 passed; final documentation gate pending
+## Historical passive Home diagnostics: CI24 checkpoint
 
 [Draft PR #7](https://github.com/Ktclat/c001apk-native/pull/7) at `376b65f9cb78d579cbabe643ef954c1587cc944d` adds a bounded, local-only request journal to the existing explicit diagnostics Copy action. [CI24](https://github.com/Ktclat/c001apk-native/actions/runs/39920063354) passed ordinary debug assembly, **723 tests across 118 XML suites**, zero failures/errors/skips, and lint with **zero errors, 42 warnings and one hint**. Independent source-bound artifact and five synthetic readability-frame reviews passed. Final documentation CI and guarded implementation integration remain pending; this is not a 403 fix, diagnostic APK delivery approval or main merge approval.
 
