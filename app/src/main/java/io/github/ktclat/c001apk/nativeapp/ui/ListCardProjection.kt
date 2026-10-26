@@ -3,6 +3,10 @@ package io.github.ktclat.c001apk.nativeapp.ui
 
 import io.github.ktclat.c001apk.nativeapp.domain.ContentItem
 
+/** Explicit Flutter terminal marker only; unknown templates are not end-of-list evidence. */
+internal fun isExplicitUserListEnd(item: ContentItem): Boolean = item.kind == "noMoreDataCard" ||
+    item.kind == "card" && item.entityTemplate == "noMoreDataCard"
+
 internal fun contentListIdentity(item: ContentItem): String? =
     (item.sourceEntityId?.takeIf(String::isNotBlank) ?: item.id.takeIf(String::isNotBlank))
         ?.let { id ->

@@ -1,5 +1,7 @@
 # Reachable user-space header increment
 
+Subsequent bounded work links the following/fans counts to real user lists and adds public information/last-active presentation. See [user connections parity](USER_CONNECTIONS_PARITY.md); the historical scope and evidence below describe the earlier header-only increment.
+
 ## Source contract
 
 Reference Flutter commit: `0d9ed002980d935c1c9351393e9f16784aa78903`.

@@ -34,4 +34,20 @@ class UserSpaceDecoderTest {
         val user = decode("""{"uid":"7","username":"<b>literal</b>","userInfo":{"username":"","userAvatar":"https://example.invalid/avatar.png"}}""")
         assertEquals("<b>literal</b>", user.userName); assertEquals("https://example.invalid/avatar.png", user.avatarUrl)
     }
+    @Test fun publicInfoUsesExactWireSecondsAndUnknownGenderNotDefaults() {
+        val profile = decodeUserSpace(Json.parseToJsonElement("""{"uid":7,"gender":0,"regdate":100,"logintime":"200"}"""), "7", 300).userProfile!!
+        assertEquals(0, profile.gender); assertEquals(100L, profile.registeredAtSeconds); assertEquals(200L, profile.lastActiveSeconds)
+        assertEquals(1, decode("""{"uid":7,"gender":1}""").userProfile!!.gender)
+        for (raw in listOf("null", "-1", "2", "true", "\"unknown\"", "\"+1\""))
+            assertNull(decode("""{"uid":7,"gender":$raw}""").userProfile!!.gender)
+    }
+    @Test fun missingZeroNegativeFutureMillisecondsAndOverflowDatesRemainUnknown() {
+        for (raw in listOf("null", "0", "-1", "301", "1770000000000", "9223372036854775808", "1.5", "\"1e2\"")) {
+            val profile = decodeUserSpace(Json.parseToJsonElement("""{"uid":7,"regdate":$raw,"logintime":$raw}"""), "7", 300).userProfile!!
+            assertNull(profile.registeredAtSeconds); assertNull(profile.lastActiveSeconds)
+        }
+        val current = decodeUserSpace(Json.parseToJsonElement("""{"uid":7,"regdate":300,"logintime":300}"""), "7", 300).userProfile!!
+        assertEquals(300L, current.lastActiveSeconds)
+    }
+
 }

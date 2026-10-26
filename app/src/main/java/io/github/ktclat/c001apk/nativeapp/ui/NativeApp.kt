@@ -63,6 +63,7 @@ import androidx.compose.material.icons.outlined.FavoriteBorder
 import androidx.compose.material.icons.outlined.Person
 import io.github.ktclat.c001apk.nativeapp.domain.PendingPageRead
 import io.github.ktclat.c001apk.nativeapp.domain.ContentItem
+import io.github.ktclat.c001apk.nativeapp.domain.UserConnectionKind
 import io.github.ktclat.c001apk.nativeapp.platform.*
 import io.github.ktclat.c001apk.nativeapp.diagnostics.NativeDiagnosticsScreen
 
@@ -203,6 +204,9 @@ fun NativeApp(model: BrowseViewModel, container: AppContainer, settings: AppSett
     val keys = listOf("apps", "home", "hot", "topics", "products", "pictures")
     val key = route ?: if (root == 1 && accountState.activeId != null && !settings.secretFollow) "following:${settings.followType}" else keys[homeTab]
     val savedKeys = remember { mutableSetOf<String>() }
+    val notificationStates = remember(accounts.socialRepository, accountState.activeId, accountState.generation) { NotificationNavigationState() }
+    DisposableEffect(notificationStates) { onDispose { notificationStates.clear() } }
+    SideEffect { notificationStates.retainRoutes(routeHistory + listOfNotNull(route)) }
     LaunchedEffect(routeHistory, route) {
         val retainedRoutes = routeHistory + listOfNotNull(route)
         val retain = keys.toSet() + retainedRoutes + retainedSourceListKeys(retainedRoutes)
@@ -251,7 +255,7 @@ fun NativeApp(model: BrowseViewModel, container: AppContainer, settings: AppSett
                 Button(onClick = { navigate("login") }) { Text("登录") }
             } else NotificationScreen(accounts.socialRepository, accountState.generation,
                 onConversation = { conversation, uid -> navigate("chat:${android.net.Uri.encode(conversation)}:$uid") },
-                initialCategory = initialCategory)
+                initialCategory = initialCategory, onNavigate = navigate, retainedState = notificationStates.screen(initialCategory))
         }
         return
     }
@@ -284,7 +288,9 @@ fun NativeApp(model: BrowseViewModel, container: AppContainer, settings: AppSett
         "app-updates" -> { InstalledAppUpdatesScreen(container.appUpdates, goBack) { navigate("app:$it") }; return }
         "accounts" -> { HostedScreen("账号", goBack) { AccountManager(accounts.store, { navigate("login") }) }; return }
         "login" -> { HostedScreen("登录", goBack) { PasswordLogin(accounts.loginCoordinator, accounts.loginTransport, goBack) }; return }
-        "notifications" -> { HostedScreen("消息", goBack) { NotificationScreen(accounts.socialRepository, accountState.generation, { conversation, uid -> navigate("chat:${android.net.Uri.encode(conversation)}:$uid") }) }; return }
+        "notifications" -> { HostedScreen("消息", goBack) { NotificationScreen(accounts.socialRepository, accountState.generation,
+            onConversation = { conversation, uid -> navigate("chat:${android.net.Uri.encode(conversation)}:$uid") },
+            onNavigate = navigate, retainedState = notificationStates.screen(NoticeCategory.MENTIONS)) }; return }
         "compose" -> { HostedScreen("发布动态", goBack) { SocialComposerScreen(accounts.socialRepository, accountState.generation, showTitle = false, onSent = { model.load("home", refresh = true); goBack() }) }; return }
 
         "settings" -> {
@@ -333,12 +339,31 @@ fun NativeApp(model: BrowseViewModel, container: AppContainer, settings: AppSett
         }
         return
     }
+    UserConnectionKind.entries.firstOrNull { route?.startsWith("${it.routePrefix}:") == true }?.let { kind ->
+        val connectionKey = requireNotNull(route)
+        val uid = connectionKey.substringAfter(':')
+        val title = if (personalListAccountId(accountState) == uid) {
+            if (kind == UserConnectionKind.FOLLOWING) "我关注的人" else "关注我的人"
+        } else kind.title
+        HostedScreen(title, goBack, actions = {
+            IconButton(enabled = validUid(uid) && localLoad is LocalLoadState.Ready, onClick = { model.load(connectionKey, refresh = true) }) {
+                Icon(FlutterMaterialIcons.Refresh, "刷新用户列表")
+            }
+        }) {
+            SideEffect { savedKeys.add(connectionKey) }
+            holder.SaveableStateProvider(connectionKey) {
+                UserConnectionsScreen(uid, connectionKey, model, localLoad, navigate, openLink)
+            }
+        }
+        return
+    }
     if (route?.startsWith("user:") == true) {
         val uid = route!!.substringAfter(':')
         val profileKey = "user-profile:$uid"
         val feedKey = "user:$uid"
         val blocked = (localLoad as? LocalLoadState.Ready)?.value?.blacklist?.userBlackList?.contains(uid) == true
         HostedScreen("用户主页", goBack, actions = {
+            UserProfileInfoAction(uid, states[profileKey])
             IconButton(enabled = validUid(uid), onClick = {
                 model.load(profileKey, refresh = true)
                 if (localLoad is LocalLoadState.Ready && !blocked) model.load(feedKey, refresh = true)

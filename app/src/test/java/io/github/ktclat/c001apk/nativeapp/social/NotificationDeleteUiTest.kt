@@ -44,10 +44,16 @@ class NotificationDeleteUiTest {
         val generation = accounts.state.value.generation
         compose.setContent { MaterialTheme { NotificationScreen(repo, generation) } }
         try {
-            compose.waitUntil(5_000) { compose.onAllNodesWithText("notification row").fetchSemanticsNodes().size == 1 }
+            compose.waitUntil(5_000) { compose.onAllNodesWithText("feed row").fetchSemanticsNodes().size == 1 }
         } catch (e: androidx.compose.ui.test.ComposeTimeoutException) {
             throw AssertionError("Loopback requests=${server.requestCount}; UI=${compose.onRoot().printToString()}", e)
         }
+        // Feed/reply rows are visible before scrolling and must never acquire notification deletion.
+        compose.onAllNodesWithText("删除").assertCountEquals(0)
+        // Rich actor/destination rows are taller: inspect the real scrollable third row,
+        // rather than assuming all three records fit the default320×470 test viewport.
+        compose.onNodeWithTag("notification-list").performScrollToNode(hasText("notification row"))
+        compose.onNodeWithText("notification row").assertIsDisplayed()
         compose.onAllNodesWithText("删除").assertCountEquals(1)
         compose.onNodeWithText("删除").performClick()
         compose.onNodeWithText("确认删除？").assertIsDisplayed()

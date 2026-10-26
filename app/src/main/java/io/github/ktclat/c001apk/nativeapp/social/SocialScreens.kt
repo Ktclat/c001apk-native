@@ -59,25 +59,28 @@ fun SocialComposerScreen(repository: SocialRepository, generation: Long, initial
 @Composable
 fun NotificationScreen(repository: SocialRepository, generation: Long,
     onConversation: (conversationKey: String, uid: String) -> Unit = { _, _ -> },
-    initialCategory: NoticeCategory = NoticeCategory.MENTIONS) {
-    key(generation, initialCategory) {
-        var category by remember { mutableStateOf(initialCategory) }
+    initialCategory: NoticeCategory = NoticeCategory.MENTIONS,
+    onNavigate: (String) -> Unit = {}, retainedState: NotificationScreenState? = null) {
+    key(repository, generation, initialCategory) {
+        val state = retainedState ?: remember { NotificationScreenState(initialCategory) }
         var menu by remember { mutableStateOf(false) }
+        val category = state.category
         Column(Modifier.fillMaxSize()) {
             Box { TextButton(onClick = { menu = true }) { Text(category.title) }
                 DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
-                    NoticeCategory.entries.forEach { item -> DropdownMenuItem(text = { Text(item.title) }, onClick = { category = item; menu = false }) }
+                    NoticeCategory.entries.forEach { item -> DropdownMenuItem(text = { Text(item.title) }, onClick = { state.category = item; menu = false }) }
                 }
             }
-            key(category) { SocialRowsScreen(conversationList = category == NoticeCategory.MESSAGES, load = { repository.notices(category, it) }, onClick = { row ->
-                row.conversationKey?.let { onConversation(it, row.uid) }
-            }, actions = { row, refresh ->
-                if (category == NoticeCategory.MESSAGES && row.conversationKey != null) {
-                    ConversationActions(repository, generation, row, refresh)
-                } else if (category != NoticeCategory.MESSAGES && canDeleteNotification(row) && row.notificationScope?.generation == generation) {
-                    SocialDeleteButton(repository, generation, DeleteTarget.NOTIFICATION, row.id, notificationRow = row, onConfirmed = refresh)
+            key(category) {
+                if (category == NoticeCategory.MESSAGES) SocialRowsScreen(conversationList = true,
+                    load = { repository.notices(category, it, generation) },
+                    onClick = { row -> if (repository.isCurrentGeneration(generation)) row.conversationKey?.let { onConversation(it, row.uid) } },
+                    actions = { row, refresh -> if (row.conversationKey != null) ConversationActions(repository, generation, row, refresh) })
+                else NotificationListScreen(repository, generation, category, state.page(category), onNavigate) { row, refresh ->
+                    if (canDeleteNotification(row) && row.notificationScope?.generation == generation)
+                        SocialDeleteButton(repository, generation, DeleteTarget.NOTIFICATION, row.id, notificationRow = row, onConfirmed = refresh)
                 }
-            }) }
+            }
         }
     }
 }

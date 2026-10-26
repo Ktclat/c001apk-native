@@ -28,32 +28,39 @@ class SocialRepository internal constructor(private val accounts: AccountStore,
         if (!accounts.isCurrent(snapshot)) throw CancellationException("Session changed")
         result
     }
-    suspend fun notices(category: NoticeCategory, cursor: PageCursor = PageCursor()): ApiResult<Page<SocialRow>> =
-        rows(category.path, cursor)
+    suspend fun notices(category: NoticeCategory, cursor: PageCursor = PageCursor(), expectedGeneration: Long? = null): ApiResult<Page<SocialRow>> =
+        rows(category.path, cursor, expectedGeneration = expectedGeneration)
     suspend fun chat(conversationKey: String, cursor: PageCursor = PageCursor()): ApiResult<Page<SocialRow>> {
         if (conversationKey.isBlank() || conversationKey.length > 256) return invalid()
         return rows("v6/message/chat", cursor, mapOf("ukey" to conversationKey))
     }
-    private suspend fun rows(path: String, cursor: PageCursor, extra: Map<String,String> = emptyMap()): ApiResult<Page<SocialRow>> {
+    private suspend fun rows(path: String, cursor: PageCursor, extra: Map<String,String> = emptyMap(), expectedGeneration: Long? = null): ApiResult<Page<SocialRow>> {
+        val notificationList = NoticeCategory.entries.any { it != NoticeCategory.MESSAGES && it.path == path }
+        if (notificationList && cursor.page < 1) return invalid()
         val query = extra + buildMap {
             put("page", cursor.page.toString()); cursor.firstItem?.let { put("firstItem", it) }; cursor.lastItem?.let { put("lastItem", it) }
         }
-        return try { authenticatedScoped { transport, snapshot -> when (val result = transport.get(path, query)) {
+        return try { authenticatedScoped { transport, snapshot ->
+            if (expectedGeneration != null && snapshot.generation != expectedGeneration) throw CancellationException("Session changed")
+            when (val result = transport.get(path, query)) {
             is ApiResult.Failure -> result
             is ApiResult.Success -> {
                 val array = result.value as? JsonArray ?: return@authenticatedScoped invalid()
                 if (array.size > 500 || array.any { it !is JsonObject }) return@authenticatedScoped invalid()
-                val ended = array.filterIsInstance<JsonObject>().any { it.text("entityType") == "noMoreDataCard" }
-                val rows = array.filterIsInstance<JsonObject>().filter { it.text("entityType") != "noMoreDataCard" }.map { obj -> SocialRow(
-                    obj.text("id").ifBlank { if (path == "v6/message/list") obj.text("ukey") else "" }, obj.text("message"),
-                    obj.text("messageUsername").ifBlank { obj.text("username") }.ifBlank { obj.text("fromusername") }, obj.text("messageUid").ifBlank { obj.text("uid") }.ifBlank { obj.text("fromuid") },
-                    obj.text("ukey").takeIf { it.isNotBlank() }, obj.text("is_top") == "1",
-                    safeMessageImage(obj.text("message_pic")), obj.text("message_pic").isNotBlank(), obj.text("entityType"),
-                    if (NoticeCategory.entries.any { it != NoticeCategory.MESSAGES && it.path == path } && obj.text("entityType") == "notification" && validId(obj.text("id")))
-                        NotificationDeleteScope(notificationOwner, obj.text("id"), snapshot.generation) else null) }
-                if (rows.any { it.id.isBlank() }) return@authenticatedScoped invalid()
+                fun isEndMarker(obj: JsonObject) = obj.text("entityType") == "noMoreDataCard" ||
+                    notificationList && obj.text("entityType") == "card" && obj.text("entityTemplate") == "noMoreDataCard"
+                val ended = array.filterIsInstance<JsonObject>().any(::isEndMarker)
+                val rows = array.filterIsInstance<JsonObject>().filterNot(::isEndMarker).map { obj -> SocialRow(
+                    obj.text("id").ifBlank { if (path == "v6/message/list") obj.text("ukey") else "" }, obj.text("message").let { if (notificationList) it.take(4000) else it },
+                    obj.text("messageUsername").ifBlank { obj.text("username") }.ifBlank { obj.text("fromusername") }.let { if (notificationList) it.take(200) else it }, obj.text("messageUid").ifBlank { obj.text("uid") }.ifBlank { obj.text("fromuid") }.let { if (notificationList) it.take(128) else it },
+                    obj.text("ukey").takeIf { !notificationList && it.isNotBlank() }, !notificationList && obj.text("is_top") == "1",
+                    if (notificationList) null else safeMessageImage(obj.text("message_pic")), !notificationList && obj.text("message_pic").isNotBlank(), obj.text("entityType"),
+                    if (notificationList && obj.text("entityType") == "notification" && validId(obj.text("id")))
+                        NotificationDeleteScope(notificationOwner, obj.text("id"), snapshot.generation) else null,
+                    if (notificationList) decodeNotificationContent(obj) else null) }
+                if (rows.any { it.id.isBlank() || notificationList && (it.id.length > 128 || it.entityType.length > 64) }) return@authenticatedScoped invalid()
                 val last = rows.lastOrNull()?.id?.takeIf { it.isNotBlank() }
-                ApiResult.Success(Page(rows, if (ended || last == null || last == cursor.lastItem) null else
+                ApiResult.Success(Page(rows, if (ended || last == null || (!notificationList && last == cursor.lastItem) || (notificationList && cursor.page == Int.MAX_VALUE)) null else
                     PageCursor(cursor.page + 1, cursor.firstItem ?: rows.first().id, last)))
             }
         } } } catch (_: LoginRequired) { loginFailure() }

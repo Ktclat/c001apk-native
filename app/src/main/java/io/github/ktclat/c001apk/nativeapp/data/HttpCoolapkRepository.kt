@@ -261,6 +261,10 @@ class HttpCoolapkRepository(
         if (!numeric(id) || type !in setOf("all", "square")) return failure(FailureKind.INVALID_ARGUMENT)
         return list("v6/dyhArticle/list", cursor, mapOf("dyhId" to id, "type" to type))
     }
+    override suspend fun userConnections(uid: String, kind: UserConnectionKind, cursor: PageCursor): ApiResult<Page<ContentItem>> {
+        if (!(uid.length in 1..32 && numeric(uid) && uid.any { it != '0' })) return failure(FailureKind.INVALID_ARGUMENT)
+        return list(kind.path, cursor, mapOf("uid" to uid), allowRepeatedCursor = true)
+    }
     override suspend fun userProfile(uid: String): ApiResult<ContentItem> {
         if (!(uid.length in 1..32 && numeric(uid) && uid.any { it != '0' })) return failure(FailureKind.INVALID_ARGUMENT)
         return request("v6/user/space", mapOf("uid" to uid)) { decodeUserSpace(it, uid) }
@@ -290,7 +294,7 @@ class HttpCoolapkRepository(
         if (value.isBlank() || (numericOnly && !numeric(value))) return failure(FailureKind.INVALID_ARGUMENT)
         return request(path, extra + (key to value)) { ApiDecoder.item(it) }
     }
-    private suspend fun list(path: String, cursor: PageCursor, params: Map<String, String>, api2: Boolean = false): ApiResult<Page<ContentItem>> {
+    private suspend fun list(path: String, cursor: PageCursor, params: Map<String, String>, api2: Boolean = false, allowRepeatedCursor: Boolean = false): ApiResult<Page<ContentItem>> {
         val query = params.toMutableMap().apply {
             put("page", cursor.page.toString())
             cursor.firstItem?.takeIf { it.isNotBlank() }?.let { put("firstItem", it) }
@@ -308,7 +312,12 @@ class HttpCoolapkRepository(
                     // Known listCard wrappers group source entities; all other templates keep top-level cursors.
                     val boundary = listCardCursorBoundary(items)
                     val last = boundary.lastId
-                    val next = if (!boundary.complete || last == null || last == cursor.lastItem) null else PageCursor(cursor.page + 1, cursor.firstItem ?: boundary.firstId, last)
+                    // Flutter relationship lists advance by page even when raw relationship IDs repeat.
+                    // Other readers retain their existing repeated-boundary termination policy.
+                    val next = if (!boundary.complete || last == null ||
+                        (!allowRepeatedCursor && last == cursor.lastItem) ||
+                        (allowRepeatedCursor && cursor.page == Int.MAX_VALUE)) null
+                    else PageCursor(cursor.page + 1, cursor.firstItem ?: boundary.firstId, last)
                     ApiResult.Success(Page(items, next))
                 } catch (e: ApiProblem) { e.failure }
             }

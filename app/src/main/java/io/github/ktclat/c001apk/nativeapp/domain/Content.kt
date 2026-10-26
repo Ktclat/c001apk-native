@@ -136,6 +136,8 @@ interface CoolapkRepository {
     suspend fun replyThread(replyId: String, cursor: PageCursor = PageCursor()): ApiResult<Page<ContentItem>>
     suspend fun pictures(tag: String, type: String, cursor: PageCursor = PageCursor()): ApiResult<Page<ContentItem>>
     suspend fun dyhArticles(id: String, type: String, cursor: PageCursor = PageCursor()): ApiResult<Page<ContentItem>>
+    /** Explicit public target UID, separate from own-account personal lists. */
+    suspend fun userConnections(uid: String, kind: UserConnectionKind, cursor: PageCursor = PageCursor()): ApiResult<Page<ContentItem>>
     suspend fun userProfile(uid: String): ApiResult<ContentItem>
     suspend fun userFeed(uid: String, cursor: PageCursor = PageCursor()): ApiResult<Page<ContentItem>>
     suspend fun chronologicalUserFeed(uid: String, cursor: PageCursor = PageCursor()): ApiResult<Page<ContentItem>>

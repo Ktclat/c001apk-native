@@ -13,7 +13,9 @@ import kotlinx.coroutines.launch
 data class BrowseState(val items: List<ContentItem> = emptyList(), val loading: Boolean = false,
     val error: String? = null, val failure: ApiResult.Failure? = null, val next: PageCursor? = null, val loaded: Boolean = false,
     /** Retry a failed next cursor without restarting the successfully loaded list. */
-    val moreError: Boolean = false)
+    val moreError: Boolean = false,
+    /** Local user-list bound; retain the wire cursor without implying server exhaustion. */
+    val displayLimitReached: Boolean = false)
 
 class BrowseViewModel(private val repository: CoolapkRepository = HttpCoolapkRepository()) : ViewModel() {
     internal val previewGeometry = PreviewGeometryStore()
@@ -62,7 +64,7 @@ class BrowseViewModel(private val repository: CoolapkRepository = HttpCoolapkRep
         if (pageRetry != null && old.failure?.pageRead !== pageRetry) return
         if (detailRetry != null && old.failure?.detailRead !== detailRetry && old.items.none { it.accountDetailRetry === detailRetry }) return
         if (key in mutable.value) mutable.update { (it - key) + (key to old) }
-        if (old.loading || (!refresh && !more && old.loaded) || (more && old.next == null)) return
+        if (old.loading || (!refresh && !more && old.loaded) || (more && (old.next == null || old.displayLimitReached))) return
         if (old.failure?.pageRead !== pageRetry) old.failure?.pageRead?.cancel()
         if (old.failure?.detailRead !== detailRetry) old.failure?.detailRead?.cancel()
         old.items.mapNotNull { it.accountDetailRetry }.filter { it !== detailRetry }.forEach { it.cancel() }
@@ -99,6 +101,8 @@ class BrowseViewModel(private val repository: CoolapkRepository = HttpCoolapkRep
                 key.startsWith("dyh:") -> repository.dyhArticles(key.removePrefix("dyh:"), "all", cursor)
                 key.startsWith("coolpic:") -> repository.pictures(key.removePrefix("coolpic:"), "recommend", cursor)
                 key.startsWith("app:") -> repository.appDetail(key.removePrefix("app:")).asPage()
+                key.startsWith("user-following:") -> repository.userConnections(key.substringAfter(':'), UserConnectionKind.FOLLOWING, cursor)
+                key.startsWith("user-fans:") -> repository.userConnections(key.substringAfter(':'), UserConnectionKind.FANS, cursor)
                 key.startsWith("user-profile:") -> repository.userProfile(key.removePrefix("user-profile:")).asPage()
                 key.startsWith("user:") -> repository.userFeed(key.removePrefix("user:"), cursor)
                 key.startsWith("topic:") -> repository.topicDetail(key.removePrefix("topic:")).asPage()
@@ -126,13 +130,16 @@ class BrowseViewModel(private val repository: CoolapkRepository = HttpCoolapkRep
             }
             mutable.update { current ->
                 bounded((current - key) + (key to when (result) {
-                    is ApiResult.Success -> if (key.startsWith("feed:") && old.items.firstOrNull()?.publicRead == true &&
+                    is ApiResult.Success -> if (isUserConnectionsKey(key)) userConnectionsPage(old, result.value, more)
+                    else if (key.startsWith("feed:") && old.items.firstOrNull()?.publicRead == true &&
                         old.items.firstOrNull()?.fullPostBody.let { it is FullPostBody.Available || it is FullPostBody.Structured } &&
                         result.value.items.firstOrNull()?.fullPostBody is FullPostBody.Unavailable) {
                         old.copy(loading = false, error = "新响应没有可完整读取的正文，仍保留上次已读取的内容", loaded = true)
                     } else BrowseState(
                         items = if (more) mergeRawContentPages(old.items + result.value.items) else result.value.items,
-                        next = result.value.nextCursor, loaded = true)
+                        // Scope server-declared termination to the public user feed, including verified retries.
+                        next = result.value.nextCursor.takeUnless { key.startsWith("user:") &&
+                            expandSupportedListCards(result.value.items).any(::isExplicitUserListEnd) }, loaded = true)
                     is ApiResult.Failure -> old.copy(loading = false, error = result.message, failure = result, loaded = true, moreError = more)
                 }), setOfNotNull(activeKey, key, activeKey?.takeIf { it.startsWith("ordered:") }?.split(':')?.getOrNull(1)?.let { "feed:$it" }))
             }

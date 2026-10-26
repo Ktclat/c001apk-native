@@ -57,6 +57,7 @@ class UserProfileNativeAppTest {
     private var profileFailure = false
     private var feedFailure = false
     private var emptyFeed = false
+    private var feedMarker: String? = null
     private var missingMetadata = false
     private var longMetadata = false
     private var longPreview = false
@@ -148,6 +149,34 @@ class UserProfileNativeAppTest {
         awaitText("合成用户动态7")
         assertEquals(1, calls("/v6/user/space")); assertEquals(1, calls("/v6/user/feedList"))
         capture("after-long-preview-child-back")
+    }
+    @Test fun canonicalUserFeedEndMarkerRemovesMoreWithoutRemovingSourceCard() {
+        feedMarker = "card"; show(initialRoute = "user:7"); awaitTag("user-name:7"); awaitTag("feed:707")
+        compose.onNodeWithTag("content-list").performScrollToNode(hasTestTag("home-template:feed-end"))
+        compose.onNodeWithText("合成分页终点").assertIsDisplayed()
+        assertNull(browseModel.states.value.getValue("user:7").next)
+        compose.onNodeWithTag("content-more").assertDoesNotExist(); capture("after-canonical-feed-end")
+        compose.runOnIdle { browseModel.load("user:7", more = true) }; compose.waitForIdle()
+        assertEquals(1, calls("/v6/user/feedList"))
+    }
+    @Test fun legacyUserFeedEndMarkerAlsoStopsFurtherReads() {
+        feedMarker = "noMoreDataCard"; show(initialRoute = "user:7"); awaitTag("user-name:7"); awaitTag("feed:707")
+        assertNull(browseModel.states.value.getValue("user:7").next)
+        assertEquals("noMoreDataCard", browseModel.states.value.getValue("user:7").items.last().kind)
+        compose.onNodeWithTag("content-more").assertDoesNotExist()
+        compose.runOnIdle { browseModel.load("user:7", more = true) }; compose.waitForIdle()
+        assertEquals(1, calls("/v6/user/feedList"))
+    }
+    @Test fun unknownUserFeedCardDoesNotPretendToBeTerminal() {
+        feedMarker = "unknown"; show(initialRoute = "user:7"); awaitTag("user-name:7"); awaitTag("feed:707")
+        assertNotNull(browseModel.states.value.getValue("user:7").next)
+        compose.onNodeWithTag("content-list").performScrollToNode(hasTestTag("content-more"))
+        compose.onNodeWithTag("content-more").assertIsDisplayed(); capture("after-unknown-feed-card")
+        compose.onNodeWithTag("content-more").performClick()
+        compose.waitUntil(15000) { calls("/v6/user/feedList") == 2 }
+        val more = requests.last { it.url.encodedPath == "/v6/user/feedList" }
+        assertEquals("2", more.url.queryParameter("page")); assertEquals("707", more.url.queryParameter("firstItem"))
+        assertEquals("feed-end", more.url.queryParameter("lastItem"))
     }
     @Test fun emptyFeedKeepsProfileAndExplicitRefreshReloadsBothSlices() {
         emptyFeed = true; show(initialRoute = "user:7")
@@ -272,7 +301,7 @@ class UserProfileNativeAppTest {
             val body = when (path) {
                 "/v6/main/indexV8" -> """{"data":[${post("42", "7", "合成首页动态")}]}"""
                 "/v6/user/space" -> if (missingMetadata) """{"data":{"uid":"$uid"}}""" else """{"data":{"uid":"$uid","username":"根级名称不应覆盖嵌套名称","userInfo":{"uid":"$uid","username":"$profileName"},"userAvatar":"$profileAvatar","cover":"${SyntheticFeedImageLoader.LANDSCAPE}","level":6,"feed":24,"be_like_num":106,"follow":12,"fans":48}}"""
-                "/v6/user/feedList" -> if (emptyFeed) """{"data":[]}""" else """{"data":[${post("70$uid", uid, "合成用户动态$uid" + if (longPreview) "返回时仍应保留长预览高度。".repeat(30) else "")}]}"""
+                "/v6/user/feedList" -> if (emptyFeed) """{"data":[]}""" else """{"data":[${post("70$uid", uid, "合成用户动态$uid" + if (longPreview) "返回时仍应保留长预览高度。".repeat(30) else "")}${feedMarker?.let { ",{\"id\":\"feed-end\",\"entityType\":\"${if (it == "noMoreDataCard") it else "card"}\",\"entityTemplate\":\"${if (it == "unknown") "unknownCard" else "noMoreDataCard"}\",\"title\":\"合成分页终点\"}" }.orEmpty()}]}"""
                 "/v6/feed/detail" -> """{"data":${post(request.url.queryParameter("id")!!, "8", "合成详情正文")}}"""
                 else -> """{"data":[]}"""
             }

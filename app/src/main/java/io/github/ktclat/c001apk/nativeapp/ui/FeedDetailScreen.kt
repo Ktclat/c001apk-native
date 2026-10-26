@@ -145,7 +145,7 @@ import kotlinx.coroutines.launch
                     }
                 }
             }
-            item(key = "comment-controls") {
+            if (showFeedCommentControls(post, visiblePosts.isNotEmpty())) item(key = "comment-controls") {
                 HorizontalDivider()
                 Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)) {
                     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
@@ -185,3 +185,8 @@ internal fun mergeHighlightedReplies(highlighted: List<ContentItem>, replies: Li
     val latest = replies.associateBy(::key)
     return (highlighted.map { latest[key(it)] ?: it } + replies).distinctBy(::key)
 }
+
+/** A failed absent detail does not establish zero comments or a safe reply target. Retained
+ * validated/public content and independent comment failures keep their existing controls. */
+internal fun showFeedCommentControls(post: BrowseState, hasVisiblePost: Boolean): Boolean =
+    !(post.loaded && !post.loading && post.failure != null && !hasVisiblePost)

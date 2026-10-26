@@ -14,6 +14,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import io.github.ktclat.c001apk.nativeapp.account.*
 import io.github.ktclat.c001apk.nativeapp.domain.ContentItem
+import io.github.ktclat.c001apk.nativeapp.domain.UserConnectionKind
 import io.github.ktclat.c001apk.nativeapp.feature.media.PublicImage
 import io.github.ktclat.c001apk.nativeapp.local.*
 
@@ -55,7 +56,7 @@ import io.github.ktclat.c001apk.nativeapp.local.*
             more = { if (blacklist != null && !blocked) model.load(feedKey, more = true) },
             navigate = navigate, openLink = openLink, favorite = favorite,
             header = {
-                UserProfileHeader(uid, profileState) { model.load(profileKey, refresh = true) }
+                UserProfileHeader(uid, profileState, onConnections = { navigate(it.route(uid)) }) { model.load(profileKey, refresh = true) }
                 LocalUserFollowControl(uid, local, accountState.activeId != null,
                     name = profile?.userName.orEmpty(), avatar = profile?.avatarUrl) { navigate("local-follows") }
                 if (blocked) Text("已屏蔽此用户的动态", Modifier.padding(16.dp).testTag("user-feed-blocked"), color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -65,7 +66,7 @@ import io.github.ktclat.c001apk.nativeapp.local.*
 }
 
 @OptIn(ExperimentalLayoutApi::class)
-@Composable internal fun UserProfileHeader(uid: String, state: BrowseState, retry: () -> Unit) {
+@Composable internal fun UserProfileHeader(uid: String, state: BrowseState, onConnections: (UserConnectionKind) -> Unit, retry: () -> Unit) {
     val item = state.items.firstOrNull()?.takeIf { it.userId == uid && it.userProfile != null }
     val profile = item?.userProfile
     Surface(Modifier.fillMaxWidth().testTag("user-profile:$uid"), shape = RoundedCornerShape(12.dp),
@@ -86,12 +87,20 @@ import io.github.ktclat.c001apk.nativeapp.local.*
                         Text("UID: $uid", style = MaterialTheme.typography.bodyMedium)
                         profile.level?.let { Text("Lv.$it", color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.labelLarge) }
                     }
-                    // Informational only: no inert following/fans buttons without mounted destinations.
-                    val metrics = listOfNotNull(profile.feedCount?.let { "$it 动态" }, profile.likesReceived?.let { "$it 赞" },
-                        profile.followingCount?.let { "$it 关注" }, profile.fansCount?.let { "$it 粉丝" })
-                    if (metrics.isNotEmpty()) FlowRow(horizontalArrangement = Arrangement.spacedBy(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        metrics.forEach { Text(it, style = MaterialTheme.typography.bodyMedium) }
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        profile.feedCount?.let { Text("$it 动态", style = MaterialTheme.typography.bodyMedium) }
+                        profile.likesReceived?.let { Text("$it 赞", style = MaterialTheme.typography.bodyMedium) }
                     }
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        TextButton(onClick = { onConnections(UserConnectionKind.FOLLOWING) }, modifier = Modifier.heightIn(min = 48.dp).testTag("user-following:$uid")) {
+                            Text(profile.followingCount?.let { "$it 关注" } ?: "关注")
+                        }
+                        TextButton(onClick = { onConnections(UserConnectionKind.FANS) }, modifier = Modifier.heightIn(min = 48.dp).testTag("user-fans:$uid")) {
+                            Text(profile.fansCount?.let { "$it 粉丝" } ?: "粉丝")
+                        }
+                    }
+                    profileLastActive(profile.lastActiveSeconds)?.let { Text(it, style = MaterialTheme.typography.bodyMedium) }
+
                 }
             }
             if (item == null || state.error != null || state.loading) Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {

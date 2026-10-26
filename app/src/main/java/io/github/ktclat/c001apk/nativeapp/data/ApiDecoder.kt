@@ -34,8 +34,13 @@ internal object ApiDecoder {
             // Keep access/security failures above authoritative and never echo server text.
             val unavailableApp = kind == FailureKind.BUSINESS && requestPath == "v6/apk/detail" &&
                 status == -2 && root.text("message").let { "应用不存在" in it || "未上架" in it }
+            // Flutter's guest_detail_test fixture uses this exact feed/detail code/message.
+            // Do not assign a global meaning to 404 or echo arbitrary server content.
+            val unavailableFeed = kind == FailureKind.BUSINESS && requestPath == "v6/feed/detail" &&
+                code == 404 && status == null && marker.isEmpty() && root.text("message") == "动态不存在"
             throw ApiProblem(failure(kind).let {
-                if (unavailableApp) it.copy(message = "该应用未在酷安上架") else it
+                if (unavailableApp) it.copy(message = "该应用未在酷安上架")
+                else if (unavailableFeed) it.copy(message = "该动态不存在或暂不可见") else it
             }.copy(challenge = if (kind == FailureKind.CAPTCHA) challenge(root) else null))
         }
         return root["data"] ?: invalid()

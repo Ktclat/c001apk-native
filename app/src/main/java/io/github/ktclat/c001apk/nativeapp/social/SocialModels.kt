@@ -11,7 +11,7 @@ enum class NoticeCategory(val title: String, val path: String) {
     MESSAGES("私信", "v6/message/list"), SYSTEM("系统通知", "v6/notification/list")
 }
 data class SocialRow(val id: String, val message: String, val userName: String, val uid: String,
-    val conversationKey: String? = null, val pinned: Boolean = false, val imageUrl: String? = null, val hasImage: Boolean = false, val entityType: String = "", val notificationScope: NotificationDeleteScope? = null)
+    val conversationKey: String? = null, val pinned: Boolean = false, val imageUrl: String? = null, val hasImage: Boolean = false, val entityType: String = "", val notificationScope: NotificationDeleteScope? = null, val notification: NotificationContent? = null)
 data class ComposerDraft(val text: String, val selfOnly: Boolean = false, val targetType: String? = null,
     val targetId: String? = null, val replyId: String? = null, val replyToReply: Boolean = false,
     val replyAndForward: Boolean = false)
