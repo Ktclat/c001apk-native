@@ -18,7 +18,6 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.*
 import androidx.compose.ui.text.font.FontWeight
@@ -28,9 +27,7 @@ import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import coil.compose.AsyncImage
-import coil.compose.LocalImageLoader
-import io.github.ktclat.c001apk.nativeapp.feature.media.LocalMediaImageLoader
+import io.github.ktclat.c001apk.nativeapp.feature.media.PublicImage
 import io.github.ktclat.c001apk.nativeapp.feature.media.MediaGrid
 import io.github.ktclat.c001apk.nativeapp.settings.LocalReadingStyles
 import io.github.ktclat.c001apk.nativeapp.ui.FlutterMaterialIcons
@@ -67,7 +64,7 @@ fun NativeFeedCard(model: FeedCardModel, actions: FeedCardActions, modifier: Mod
                 // 35dp visual avatar, expanded to a non-overlapping 48dp profile target.
                 Box(Modifier.size(48.dp).semantics { contentDescription = "查看${model.author.ifBlank { "作者" }}的主页" }.then(if (actions.openAuthor != null) Modifier.clickable(onClickLabel = "查看${model.author}的主页", onClick = actions.openAuthor) else Modifier), contentAlignment = Alignment.Center) {
                     if (model.avatar.isNullOrBlank()) Surface(Modifier.size(35.dp), shape = CircleShape, color = palette.onSurface.copy(alpha = .12f)) { Box(contentAlignment = Alignment.Center) { Icon(FlutterMaterialIcons.Person, null, Modifier.size(24.dp), tint = palette.onSurfaceVariant) } }
-                    else AsyncImage(model.avatar, null, modifier = Modifier.size(35.dp).clip(CircleShape), contentScale = ContentScale.Crop, imageLoader = LocalMediaImageLoader.current ?: LocalImageLoader.current)
+                    else PublicImage(model.avatar, modifier = Modifier.size(35.dp).clip(CircleShape), avatar = true)
                 }
                 Spacer(Modifier.width(4.dp))
                 Column(Modifier.weight(1f)) {
@@ -117,7 +114,7 @@ fun NativeFeedCard(model: FeedCardModel, actions: FeedCardActions, modifier: Mod
                 Spacer(Modifier.height(10.dp))
                 Surface(shape = RoundedCornerShape(12.dp), color = palette.surface) {
                     Row(Modifier.fillMaxWidth().heightIn(min = 48.dp).clickable(onClickLabel = "打开${link.title}") { actions.openLink(link.url) }.padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
-                        if (link.image != null) AsyncImage(link.image, null, modifier = Modifier.size(40.dp).clip(RoundedCornerShape(8.dp)), contentScale = ContentScale.Crop, imageLoader = LocalMediaImageLoader.current ?: LocalImageLoader.current)
+                        if (link.image != null) PublicImage(link.image, modifier = Modifier.size(40.dp).clip(RoundedCornerShape(8.dp)))
                         else Box(Modifier.size(40.dp).testTag("feed-link-icon:${model.id}").clip(RoundedCornerShape(8.dp)).background(palette.primary), contentAlignment = Alignment.Center) {
                             Icon(FlutterMaterialIcons.LinkRounded, null, Modifier.size(24.dp), tint = palette.onPrimary)
                         }
@@ -169,8 +166,7 @@ fun NativeFeedCard(model: FeedCardModel, actions: FeedCardActions, modifier: Mod
 /** Source miniCardItem uses the existing decoded logo at 18dp, never an authenticated image client. */
 @Composable
 private fun RelationLogo(relation: FeedRelation) {
-    AsyncImage(relation.image, null, modifier = Modifier.size(18.dp).testTag("feed-relation-icon:${relation.id}").clip(RoundedCornerShape(4.dp)),
-        contentScale = ContentScale.Crop, imageLoader = LocalMediaImageLoader.current ?: LocalImageLoader.current)
+    PublicImage(relation.image, modifier = Modifier.size(18.dp).testTag("feed-relation-icon:${relation.id}").clip(RoundedCornerShape(4.dp)))
 }
 
 @Composable

@@ -31,6 +31,6 @@ internal fun decodeEventDetail(value: JsonElement, requestedId: String): Content
     }
     val deadline = (obj["time_reg_end"] as? JsonPrimitive)?.contentOrNull?.toLongOrNull()?.takeIf { it in 1..253_402_300_799L }
     return ContentItem(requestedId, "event", title = title,
-        imageUrls = listOfNotNull(field("pic").takeIf { it.startsWith("https://") && it.length <= FullPostBodyBounds.MAX_LINK_UNITS }),
+        imageUrls = listOfNotNull(field("pic").takeIf { it.length <= FullPostBodyBounds.MAX_LINK_UNITS }?.let(::publicImageUrl)),
         event = EventContent(sections, deadline, action))
 }

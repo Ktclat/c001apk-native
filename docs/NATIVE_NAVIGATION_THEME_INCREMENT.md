@@ -30,11 +30,20 @@ standard navigation-bar / rail geometry.
   without decorative travel. Existing accessibility recovery remains on labeled
   toolbar/scroll controls; a partly hidden dock is also recoverable. Partly
   clipped tabs reject touch/focus actions and are excluded from semantics.
-- Horizontal dragging **inside either floating or standard bottom tab rows** selects the tab currently
-  under the finger, including reversals and RTL. Selected-tab/callback updates
-  do not restart the active gesture. Repeated movement within one tab does not
-  trigger repeated selections or scroll-to-top. Taps/reselection and semantic
-  selection remain unchanged; vertical gestures do not select tabs.
+- **2026-10-26 floating-dock correction:** crossing a tab no longer changes the
+  page. A horizontal drag commits only after a **200 ms quiet period**, or on a
+  valid final release. Movement within the same tab restarts that timer too;
+  cumulative displacement below 4 dp tolerates hand jitter. Crossed pages do
+  not receive navigation callbacks or start their reads. The selected pill
+  continues to represent the actual page, not an uncommitted hover.
+- One held pointer can pause, continue and reverse, including RTL. Same-tab
+  dragging does not dispatch tap/reselection work. Leaving the row, cancellation,
+  disabling/removing the dock, backgrounding, or a newer root selection drops
+  pending work. A prior selection must be acknowledged before another callback,
+  so Back before recomposition cannot be overwritten by a follow-on commit.
+- **Standard bottom navigation retains live scrubbing.** Taps/reselection,
+  semantic selection, the rail and progressive vertical hide/reveal are unchanged;
+  vertical gestures do not select tabs.
 - The overlay's reserved tail space is unchanged while hidden; controls at the
   end of root lists remain reachable. Translation is clipped to the overlay
   viewport rather than drawing into platform gesture space.

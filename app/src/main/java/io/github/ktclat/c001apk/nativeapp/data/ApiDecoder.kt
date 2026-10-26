@@ -197,7 +197,7 @@ internal object ApiDecoder {
     private fun JsonObject.count(key: String): Int? = text(key).toLongOrNull()
         ?.takeIf { it >= 0 }?.coerceAtMost(Int.MAX_VALUE.toLong())?.toInt()
     private fun JsonObject.optionalText(key: String): String? = text(key).takeIf { it.isNotBlank() }
-    private fun safeImage(value: String): String? = value.takeIf { it.startsWith("https://") }
+    private fun safeImage(value: String): String? = publicImageUrl(value)
     fun invalid(): Nothing = throw ApiProblem(failure(FailureKind.INVALID_RESPONSE))
     private fun JsonObject.text(key: String) = (get(key) as? JsonPrimitive)?.contentOrNull.orEmpty().take(12_000)
 }

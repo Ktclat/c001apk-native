@@ -14,15 +14,12 @@ import io.github.ktclat.c001apk.nativeapp.feature.feed.canToggle
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.text.style.TextOverflow
-import coil.compose.AsyncImage
-import coil.compose.LocalImageLoader
+import io.github.ktclat.c001apk.nativeapp.feature.media.PublicImage
 import io.github.ktclat.c001apk.nativeapp.domain.ContentItem
 import io.github.ktclat.c001apk.nativeapp.feature.feed.feedRelativeTime
-import io.github.ktclat.c001apk.nativeapp.feature.media.LocalMediaImageLoader
 import io.github.ktclat.c001apk.nativeapp.feature.media.MediaGrid
 import io.github.ktclat.c001apk.nativeapp.settings.LocalReadingStyles
 
@@ -32,7 +29,7 @@ import io.github.ktclat.c001apk.nativeapp.settings.LocalReadingStyles
     Row(Modifier.fillMaxWidth().padding(start = 10.dp, end = 16.dp, top = 8.dp, bottom = 8.dp)) {
         Box(Modifier.size(48.dp).semantics { contentDescription = "查看${reply.userName.ifBlank { "作者" }}主页" }.clickable(enabled = reply.userId.isNotBlank()) { navigate("user:${reply.userId}") }, contentAlignment = Alignment.TopCenter) {
             if (reply.avatarUrl.isNullOrBlank()) Surface(Modifier.padding(top = 8.dp).size(32.dp), shape = CircleShape, color = MaterialTheme.colorScheme.onSurface.copy(alpha = .12f)) { Box(contentAlignment = Alignment.Center) { Icon(FlutterMaterialIcons.Person, null, Modifier.size(22.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant) } }
-            else AsyncImage(reply.avatarUrl, null, modifier = Modifier.padding(top = 8.dp).size(32.dp).clip(CircleShape), imageLoader = LocalMediaImageLoader.current ?: LocalImageLoader.current, contentScale = ContentScale.Crop)
+            else PublicImage(reply.avatarUrl, modifier = Modifier.padding(top = 8.dp).size(32.dp).clip(CircleShape), avatar = true)
         }
         Column(Modifier.weight(1f)) {
             Text(reply.userName.ifBlank { "作者信息未提供" }, fontSize = 15.sp, lineHeight = 20.sp, color = MaterialTheme.colorScheme.primary)

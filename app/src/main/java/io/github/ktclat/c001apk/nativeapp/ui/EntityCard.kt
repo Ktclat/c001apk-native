@@ -12,18 +12,15 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import coil.compose.AsyncImage
-import coil.compose.LocalImageLoader
+import io.github.ktclat.c001apk.nativeapp.feature.media.PublicImage
 import io.github.ktclat.c001apk.nativeapp.domain.ContentItem
 import io.github.ktclat.c001apk.nativeapp.domain.validCollectionId
 import io.github.ktclat.c001apk.nativeapp.feature.feed.feedRelativeTime
-import io.github.ktclat.c001apk.nativeapp.feature.media.LocalMediaImageLoader
 import io.github.ktclat.c001apk.nativeapp.feature.media.MediaGrid
 import io.github.ktclat.c001apk.nativeapp.platform.AppLink
 import io.github.ktclat.c001apk.nativeapp.platform.parseAppLink
@@ -78,18 +75,11 @@ internal fun EntityCard(item: ContentItem, navigate: (String) -> Unit, openLink:
                 }
             } else Modifier).padding(10.dp)) {
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                val url = image
-                var failed by remember(url) { mutableStateOf(false) }
-                Box(Modifier.width(if (item.kind == "collection") 53.dp else 40.dp).height(40.dp)
-                    .testTag("entity-icon:${item.kind}:${item.id}")
-                    .clip(if (metadata?.circular == true || item.kind in setOf("user", "contacts")) CircleShape else RoundedCornerShape(8.dp))
-                    .background(MaterialTheme.colorScheme.surfaceVariant), contentAlignment = Alignment.Center) {
-                    if (url != null && !failed) AsyncImage(url, "$title${if (metadata?.circular == true) "头像" else "图标"}",
-                        imageLoader = LocalMediaImageLoader.current ?: LocalImageLoader.current,
-                        contentScale = ContentScale.Crop, onError = { failed = true }, modifier = Modifier.fillMaxSize())
-                    else Icon(if (item.kind in setOf("user", "contacts")) FlutterMaterialIcons.Person else FlutterMaterialIcons.Image,
-                        if (failed) "图片加载失败" else "未提供图片", tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(24.dp))
-                }
+                val circular = metadata?.circular == true || item.kind in setOf("user", "contacts")
+                PublicImage(image, "$title${if (circular) "头像" else "图标"}", avatar = circular,
+                    modifier = Modifier.width(if (item.kind == "collection") 53.dp else 40.dp).height(40.dp)
+                        .testTag("entity-icon:${item.kind}:${item.id}")
+                        .clip(if (circular) CircleShape else RoundedCornerShape(8.dp)))
                 Spacer(Modifier.width(10.dp))
                 Column(Modifier.weight(1f)) {
                     Text(title, fontSize = 15.sp, lineHeight = 21.sp, maxLines = 3, overflow = TextOverflow.Ellipsis)

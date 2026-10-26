@@ -24,7 +24,7 @@ class OwnProfileDecoderTest {
         }
     }
     @Test fun badAvatarOriginsAndCredentialsAreNotForwardedToImageLoader() {
-        listOf("http://avatar.coolapk.com/a", "https://coolapk.com.evil.test/a", "https://u:p@avatar.coolapk.com/a", "file:///a", "https://avatar.coolapk.com:444/a").forEach {
+        listOf("http://other.example/a", "https://coolapk.com.evil.test/a", "https://u:p@avatar.coolapk.com/a", "file:///a", "https://avatar.coolapk.com:444/a").forEach {
             assertNull(decode("""{"uid":123,"userAvatar":"$it"}""").avatarUrl)
         }
     }

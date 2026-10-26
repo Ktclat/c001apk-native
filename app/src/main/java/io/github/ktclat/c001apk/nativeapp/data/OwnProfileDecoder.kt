@@ -17,7 +17,7 @@ internal fun decodeOwnProfile(value: JsonElement, expectedUid: String): OwnProfi
         // URI component decoding, unlike form decoding, preserves literal plus signs.
         runCatching { URLDecoder.decode(it.replace("+", "%2B"), "UTF-8") }.getOrDefault(it)
     }
-    val avatar = text("userAvatar")?.takeIf { it.length <= 4096 }?.toHttpUrlOrNull()?.takeIf {
+    val avatar = text("userAvatar")?.takeIf { it.length <= 4096 }?.let(::publicImageUrl)?.toHttpUrlOrNull()?.takeIf {
         it.isHttps && it.username.isEmpty() && it.password.isEmpty() && it.port == 443 &&
             (it.host == "coolapk.com" || it.host.endsWith(".coolapk.com") ||
              it.host == "coolapkmarket.com" || it.host.endsWith(".coolapkmarket.com"))

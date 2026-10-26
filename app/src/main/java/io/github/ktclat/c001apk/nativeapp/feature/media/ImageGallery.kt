@@ -52,11 +52,23 @@ import kotlinx.coroutines.withContext
 private object MediaImageLoader {
     @Volatile private var instance: ImageLoader? = null
     fun get(context: Context): ImageLoader = instance ?: synchronized(this) {
-        instance ?: ImageLoader.Builder(context.applicationContext).components {
-            if (android.os.Build.VERSION.SDK_INT >= 28) add(ImageDecoderDecoder.Factory()) else add(GifDecoder.Factory())
-        }.build().also { instance = it }
+        instance ?: buildPublicMediaImageLoader(context).also { instance = it }
     }
 }
+
+/** One production factory for every public-media surface; Call.Factory is only a transport seam. */
+internal fun buildPublicMediaImageLoader(
+    context: Context,
+    calls: okhttp3.Call.Factory = publicImageClient(),
+): ImageLoader = ImageLoader.Builder(context.applicationContext).callFactory(calls).components {
+    if (android.os.Build.VERSION.SDK_INT >= 28) add(ImageDecoderDecoder.Factory()) else add(GifDecoder.Factory())
+}.build()
+
+/** No API/session cookies, credentials, identity headers, or HTTPS-to-cleartext redirects. */
+internal fun publicImageClient(): okhttp3.OkHttpClient = okhttp3.OkHttpClient.Builder()
+    .cookieJar(okhttp3.CookieJar.NO_COOKIES)
+    .authenticator(okhttp3.Authenticator.NONE).proxyAuthenticator(okhttp3.Authenticator.NONE)
+    .followSslRedirects(false).build()
 
 /** Share the existing public-media loader with cache management; never create another disk cache. */
 internal fun publicMediaImageLoader(context: Context): ImageLoader = MediaImageLoader.get(context)

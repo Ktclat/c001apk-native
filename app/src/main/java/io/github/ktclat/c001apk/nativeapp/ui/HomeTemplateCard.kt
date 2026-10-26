@@ -16,8 +16,6 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.Role
@@ -28,10 +26,8 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import coil.compose.AsyncImage
-import coil.imageLoader
+import io.github.ktclat.c001apk.nativeapp.feature.media.PublicImage
 import io.github.ktclat.c001apk.nativeapp.domain.ContentItem
-import io.github.ktclat.c001apk.nativeapp.feature.media.LocalMediaImageLoader
 import io.github.ktclat.c001apk.nativeapp.platform.AppLink
 import io.github.ktclat.c001apk.nativeapp.platform.parseAppLink
 import kotlinx.coroutines.launch
@@ -180,15 +176,5 @@ private fun HomeCarousel(id: String, entries: List<HomeCardEntry>, openLink: (St
 
 @Composable
 private fun HomeCardImage(url: String?, modifier: Modifier, circle: Boolean = false) {
-    val loader = LocalMediaImageLoader.current ?: LocalContext.current.imageLoader
-    var status by remember(url) { mutableIntStateOf(0) }
-    Box(modifier.clip(if (circle) CircleShape else RoundedCornerShape(10.dp))
-        .background(MaterialTheme.colorScheme.surfaceVariant), contentAlignment = Alignment.Center) {
-        if (status != 1) Text(if (status == 2) "!" else "◇", modifier = Modifier.semantics {
-            if (status == 2) contentDescription = "图片加载失败"
-        }, fontSize = 12.sp, textAlign = TextAlign.Center,
-            color = MaterialTheme.colorScheme.onSurfaceVariant)
-        if (url != null) AsyncImage(url, contentDescription = null, imageLoader = loader, contentScale = ContentScale.Crop,
-            onSuccess = { status = 1 }, onError = { status = 2 }, modifier = Modifier.fillMaxSize())
-    }
+    PublicImage(url, modifier = modifier.clip(if (circle) CircleShape else RoundedCornerShape(10.dp)), avatar = circle)
 }

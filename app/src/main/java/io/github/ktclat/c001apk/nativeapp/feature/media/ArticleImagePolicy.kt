@@ -9,6 +9,7 @@ import java.net.Proxy
 import java.net.ProxySelector
 import java.net.SocketAddress
 import java.net.URI
+import io.github.ktclat.c001apk.nativeapp.data.publicImageUrl
 
 internal enum class ArticleImageFailure {
     BLOCKED_URL, BLOCKED_ADDRESS, UNSUPPORTED_PROXY, ENCODED_LIMIT, SOURCE_LIMIT,
@@ -28,9 +29,10 @@ internal object ArticleImagePolicy {
 
     fun safeUrl(raw: String): String? {
         if (raw.length > MAX_URL || raw.isEmpty() || raw.any { it <= ' ' }) return null
-        val uri = try { URI(raw) } catch (_: Exception) { return null }
+        val normalized = publicImageUrl(raw) ?: return null
+        val uri = try { URI(normalized) } catch (_: Exception) { return null }
         if (uri.rawUserInfo != null || uri.rawFragment != null) return null
-        return raw.toHttpUrlOrNull()?.takeIf {
+        return normalized.toHttpUrlOrNull()?.takeIf {
             it.isHttps && it.host == "image.coolapk.com" && it.port == 443 &&
                 it.username.isEmpty() && it.password.isEmpty() && it.fragment == null
         }?.toString()?.takeIf { it.length <= MAX_URL }

@@ -328,24 +328,56 @@ class NativeAppDockPolicyIntegrationTest {
         recordEvidence("reported-flutter-mapping-restored-end")
     }
 
-    @Test fun oneHeldPointerScrubsAcrossActualRootChangesAndReturnsWithoutReloadingHome() = scrubActualRoots(floating = true)
+    @Test fun oneHeldPointerPausesBeforeActualRootChangesAndReturnsWithoutReloadingHome() = scrubActualRoots(floating = true)
+    @Test fun backSupersedesPendingFloatingDragAndReleaseCannotUndoIt() {
+        render(exploration = true)
+        rootTab("我的").performClick()
+        compose.mainClock.autoAdvance = false
+        val bounds = listOf("首页", "关注", "我的").map { rootTab(it).fetchSemanticsNode().boundsInRoot }
+        val dockBounds = dock.fetchSemanticsNode().boundsInRoot
+        dock.performTouchInput { down(bounds[2].center - dockBounds.topLeft); moveTo(bounds[1].center - dockBounds.topLeft) }
+        compose.runOnUiThread { compose.activity.onBackPressedDispatcher.onBackPressed() }
+        compose.mainClock.advanceTimeBy(400)
+        assertRootSelection("首页")
+        dock.performTouchInput { up() }
+        compose.mainClock.advanceTimeBy(400)
+        assertRootSelection("首页")
+        assertEquals(1, homeCalls.get())
+    }
+
     @Test fun standardBottomTabsAlsoScrubAcrossActualRootsWithoutReloadingHome() = scrubActualRoots(floating = false)
 
     private fun scrubActualRoots(floating: Boolean) {
         render(exploration = true)
         if (!floating) compose.runOnIdle { uiSettings.value = uiSettings.value.copy(floatingNavigation = false) }
+        if (floating) compose.mainClock.autoAdvance = false
         val navigation = if (floating) dock else compose.onNodeWithTag("standard-navigation")
         val bounds = listOf("首页", "关注", "我的").map { rootTab(it).fetchSemanticsNode().boundsInRoot }
         val dockBounds = navigation.fetchSemanticsNode().boundsInRoot
         fun point(index: Int) = bounds[index].center - dockBounds.topLeft
         navigation.performTouchInput { down(point(0)); moveTo(point(1), delayMillis = 80) }
+        if (floating) {
+            assertRootSelection("首页")
+            recordEvidence("settled-drag-pending-follow-still-home")
+            compose.mainClock.advanceTimeBy(240)
+        }
         assertRootSelection("关注")
         navigation.performTouchInput { moveTo(point(2), delayMillis = 80) }
+        if (floating) {
+            assertRootSelection("关注")
+            compose.mainClock.advanceTimeBy(640)
+            recordEvidence("settled-drag-paused-my")
+        }
         assertRootSelection("我的")
         compose.onNodeWithContentDescription("设置").assertIsDisplayed()
         navigation.performTouchInput { moveTo(point(1), delayMillis = 80) }
+        if (floating) {
+            assertRootSelection("我的")
+            compose.mainClock.advanceTimeBy(240)
+        }
         assertRootSelection("关注")
         navigation.performTouchInput { moveTo(point(0), delayMillis = 80); up() }
+        if (floating) compose.mainClock.advanceTimeBy(400)
         assertRootSelection("首页")
         if (floating) assertDockGeometry() else dock.assertDoesNotExist()
         assertEquals("Scrubbing returns to the existing Home state, without a reselect/reload", 1, homeCalls.get())

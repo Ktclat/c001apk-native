@@ -27,12 +27,9 @@ import io.github.ktclat.c001apk.nativeapp.domain.NotificationCounts
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
-import io.github.ktclat.c001apk.nativeapp.feature.media.LocalMediaImageLoader
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextOverflow
-import coil.compose.AsyncImage
-import coil.compose.LocalImageLoader
+import io.github.ktclat.c001apk.nativeapp.feature.media.PublicImage
 
 /** Source: message_page.dart and message_{header,first,second,third}_card.dart.
  * Server profile fields are nullable. Never substitute local counts or zeros.
@@ -87,8 +84,7 @@ fun MyDashboard(accountState: AccountState, scrollState: ScrollState, bottomPadd
                 Surface(shape = CircleShape, color = MaterialTheme.colorScheme.surfaceContainerHighest, modifier = Modifier.size(48.dp)) {
                     Box(contentAlignment = Alignment.Center) {
                         Icon(ProfileIcons.PersonOutline, null)
-                        ownProfile?.avatarUrl?.let { url -> AsyncImage(url, "头像", modifier = Modifier.fillMaxSize().clip(CircleShape),
-                            imageLoader = LocalMediaImageLoader.current ?: LocalImageLoader.current, contentScale = ContentScale.Crop) }
+                        ownProfile?.avatarUrl?.let { url -> PublicImage(url, "头像", modifier = Modifier.fillMaxSize().clip(CircleShape), avatar = true) }
                     }
                 }
                 Spacer(Modifier.width(10.dp))

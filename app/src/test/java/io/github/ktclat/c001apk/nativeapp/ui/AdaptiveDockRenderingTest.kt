@@ -171,6 +171,36 @@ class AdaptiveDockRenderingTest {
         assertTrue("Fixture attempted an unapproved request: $unexpected", unexpected.isEmpty())
     }
 
+    @Test fun rapidDockCrossingSkipsFollowRequestsAndSettledFollowLoadsOnlyOnce() {
+        render(1f, InsetsCase())
+        val bounds = listOf("首页", "关注", "我的").map { rootTab(it).fetchSemanticsNode().boundsInRoot }
+        val dockBounds = dock.fetchSemanticsNode().boundsInRoot
+        fun point(index: Int) = bounds[index].center - dockBounds.topLeft
+        compose.mainClock.autoAdvance = false
+        capture("settle-drag-before-home")
+        dock.performTouchInput { down(point(0)); moveTo(point(1), delayMillis = 30); moveTo(point(2), delayMillis = 30) }
+        assertRootSelection("首页")
+        assertEquals("Crossing Follow must not begin its repository read", 0, followingCalls.get())
+        capture("settle-drag-crossed-follow-and-my-still-home")
+        compose.mainClock.advanceTimeBy(640)
+        assertRootSelection("我的")
+        assertEquals("Only the settled destination may load", 0, followingCalls.get())
+        capture("settle-drag-paused-my")
+        dock.performTouchInput { moveTo(point(1), delayMillis = 30); up() }
+        compose.mainClock.advanceTimeBy(400)
+        compose.mainClock.autoAdvance = true
+        awaitText("合成在线关注 0")
+        assertRootSelection("关注")
+        assertEquals(1, followingCalls.get())
+        capture("settle-drag-released-follow")
+        compose.mainClock.autoAdvance = false
+        dock.performTouchInput { down(point(1)); moveTo(point(1) + Offset(30f, 0f)); up() }
+        compose.mainClock.advanceTimeBy(400)
+        assertRootSelection("关注")
+        assertEquals("Same-tab drag must not reselect or reload Follow", 1, followingCalls.get())
+        assertEquals("Navigation must preserve the existing Home read", 1, homeCalls.get())
+    }
+
     // Full 4-window x 2-font x 2-navigation-inset matrix, each exercising all five root surfaces.
     @Test @Config(qualifiers = "w400dp-h890dp-480dpi")
     fun aspect400x890_font100_nav24() = rootMatrix(1f, 24)

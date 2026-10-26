@@ -88,7 +88,7 @@ fun FloatingNavigation(selected: Int, reduceMotion: Boolean, onSelect: (Int) -> 
                     scaleY = 2f - pulse.value
                 }.background(MaterialTheme.colorScheme.primaryContainer, RoundedCornerShape(50)))
             Row(Modifier.fillMaxSize().selectableGroup()
-                .navigationTabDrag(selected, labels.size, enabled, onSelect)) {
+                .navigationTabDrag(selected, labels.size, enabled, settleMillis = FLOATING_TAB_SETTLE_MILLIS, onSelect = onSelect)) {
             labels.forEachIndexed { index, label ->
                 val active = selected == index
                 Box(Modifier.weight(1f).fillMaxHeight().clip(RoundedCornerShape(50))

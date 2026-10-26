@@ -7,7 +7,10 @@ import io.github.ktclat.c001apk.nativeapp.data.ClientProtocol
 import io.github.ktclat.c001apk.nativeapp.data.HttpCoolapkRepository
 import io.github.ktclat.c001apk.nativeapp.domain.CoolapkRepository
 
-class NativeApplication : Application() {
+class NativeApplication : Application(), coil.ImageLoaderFactory {
+    override fun newImageLoader(): coil.ImageLoader =
+        io.github.ktclat.c001apk.nativeapp.feature.media.publicMediaImageLoader(this)
+
     val container: AppContainer by lazy {
         check(Build.VERSION.SDK_INT < 28 || !Application.getProcessName().endsWith(":public_web")) { "Main stores cannot be opened in the public web process" }
         AppContainer(this)

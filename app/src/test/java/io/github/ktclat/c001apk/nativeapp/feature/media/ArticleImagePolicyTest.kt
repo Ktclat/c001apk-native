@@ -15,8 +15,11 @@ import java.net.URI
 class ArticleImagePolicyTest {
     @Test fun exactAnonymousHttpsUrlOnly() {
         assertNotNull(ArticleImagePolicy.safeUrl("https://image.coolapk.com/a.jpg"))
+        assertEquals("https://image.coolapk.com/a.jpg", ArticleImagePolicy.safeUrl("http://image.coolapk.com/a.jpg"))
+        assertEquals("https://image.coolapk.com/a.jpg", ArticleImagePolicy.safeUrl("//image.coolapk.com/a.jpg"))
+        assertNull(ArticleImagePolicy.safeUrl("http://avatar.coolapk.com/a.jpg"))
         assertNotNull(ArticleImagePolicy.safeUrl("https://image.coolapk.com:443/a.jpg?q=1"))
-        listOf("http://image.coolapk.com/a", "https://image.coolapk.com:444/a", "https://image.coolapk.com.evil/a",
+        listOf("http://other.example/a", "https://image.coolapk.com:444/a", "https://image.coolapk.com.evil/a",
             "https://user@image.coolapk.com/a", "https://@image.coolapk.com/a", "https://image.coolapk.com/a#",
             "https://127.0.0.1/a", " https://image.coolapk.com/a", "https://image.coolapk.com/\\a").forEach {
             assertNull(it, ArticleImagePolicy.safeUrl(it))

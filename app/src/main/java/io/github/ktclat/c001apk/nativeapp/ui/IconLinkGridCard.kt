@@ -17,8 +17,6 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.Role
@@ -26,10 +24,8 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import coil.compose.AsyncImage
-import coil.imageLoader
+import io.github.ktclat.c001apk.nativeapp.feature.media.PublicImage
 import io.github.ktclat.c001apk.nativeapp.domain.ContentItem
-import io.github.ktclat.c001apk.nativeapp.feature.media.LocalMediaImageLoader
 import io.github.ktclat.c001apk.nativeapp.platform.AppLink
 import io.github.ktclat.c001apk.nativeapp.platform.parseAppLink
 import kotlinx.coroutines.launch
@@ -61,7 +57,6 @@ internal fun iconLinkLabel(raw: String): IconLinkLabel {
 internal fun IconLinkGridCard(item: ContentItem, openLink: (String) -> Unit) {
     val entries = item.children.take(ICON_LINK_LIMIT)
     val pages = entries.chunked(5)
-    val loader = LocalMediaImageLoader.current ?: LocalContext.current.imageLoader
     val scope = rememberCoroutineScope()
     Card(Modifier.fillMaxWidth().testTag("icon-link-grid"), shape = RoundedCornerShape(12.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.inverseOnSurface)) {
@@ -89,15 +84,7 @@ internal fun IconLinkGridCard(item: ContentItem, openLink: (String) -> Unit) {
                                             .clickable(enabled = supported, role = Role.Button) { openLink(child.targetUrl.orEmpty()) }
                                             .padding(horizontal = 4.dp, vertical = 5.dp),
                                             horizontalAlignment = Alignment.CenterHorizontally) {
-                                            var loaded by remember(child.imageUrls.firstOrNull()) { mutableStateOf(false) }
-                                            Box(Modifier.size(30.dp).clip(RoundedCornerShape(8.dp))
-                                                .background(MaterialTheme.colorScheme.surfaceVariant), contentAlignment = Alignment.Center) {
-                                                if (!loaded) Text("◇", fontSize = 18.sp)
-                                                child.imageUrls.firstOrNull()?.let { image ->
-                                                    AsyncImage(image, null, imageLoader = loader, contentScale = ContentScale.Crop,
-                                                        onSuccess = { loaded = true }, onError = { loaded = false }, modifier = Modifier.fillMaxSize())
-                                                }
-                                            }
+                                            PublicImage(child.imageUrls.firstOrNull(), modifier = Modifier.size(30.dp).clip(RoundedCornerShape(8.dp)))
                                             Text(label.text, fontSize = 12.sp, lineHeight = 16.sp, textAlign = TextAlign.Center, maxLines = 2,
                                                 overflow = TextOverflow.Ellipsis,
                                                 modifier = if (label.truncated) Modifier.semantics { contentDescription = label.accessible } else Modifier)
