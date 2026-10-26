@@ -86,6 +86,7 @@ class ReachableEntityNativeAppTest {
     "/v6/user/followList" -> { assertEquals("123", request.url.queryParameter("uid")); check(fixture == "personal-follow"); source }
     "/v6/collection/list" -> { assertEquals("0", request.url.queryParameter("showDefault")); assertNull(request.url.queryParameter("uid")); check(fixture == "personal-collection"); source }
     "/v6/main/indexV8" -> if (fixture == "feed-relations") source else """{"data":[]}"""
+    "/v6/user/space" -> { assertEquals("1002", request.url.queryParameter("uid")); """{"data":{"uid":"1002","username":"合成联系人"}}""" }
     "/v6/user/feedList" -> { assertEquals("1002", request.url.queryParameter("uid")); """{"data":[{"id":"9301","entityType":"feed","username":"合成作者","message":"已打开联系人"}]}""" }
     "/v6/collection/itemList" -> {
      assertEquals("2001", request.url.queryParameter("id")); assertEquals("123", request.url.queryParameter("uid"))
@@ -125,6 +126,10 @@ class ReachableEntityNativeAppTest {
   }
   compose.onNodeWithText(expected).assertIsDisplayed()
   fun awaitText(text: String, key: String? = null) {
+   if (key?.startsWith("user:") == true) {
+    compose.waitUntil(10_000) { compose.onRoot().fetchSemanticsNode(); model.states.value[key]?.let { it.loaded && !it.loading } == true }
+    compose.onNodeWithTag("content-list").performScrollToNode(hasTestTag("feed:9301"))
+   }
    compose.waitUntil(15_000) {
     val visible = compose.onAllNodesWithText(text).fetchSemanticsNodes().isNotEmpty()
     visible && (key == null || model.states.value[key]?.let { it.loaded && !it.loading } == true)

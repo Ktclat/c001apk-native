@@ -121,7 +121,7 @@ class RepositoryTest {
         assertEquals("/v6/product/detail", server.takeRequest().requestUrl!!.encodedPath)
         enqueue("""{"data":{"uid":7,"username":"synthetic"}}""")
         repository.userProfile("7")
-        assertEquals("7", server.takeRequest().requestUrl!!.queryParameter("uid"))
+        assertEquals("/v6/user/space?uid=7", server.takeRequest().path)
         enqueue("""{"data":[]}""")
         repository.userFeed("7")
         assertEquals("/v6/user/feedList", server.takeRequest().requestUrl!!.encodedPath)

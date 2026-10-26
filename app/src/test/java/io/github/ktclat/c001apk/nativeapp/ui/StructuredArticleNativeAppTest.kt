@@ -169,7 +169,7 @@ class StructuredArticleNativeAppTest {
         val client = OkHttpClient.Builder().addInterceptor { chain ->
             val request = chain.request(); val path = request.url.encodedPath
             if (request.method != "GET" || request.url.host !in setOf("api.coolapk.com", "api2.coolapk.com") ||
-                path !in setOf("/v6/main/indexV8", "/v6/feed/detail", "/v6/feed/replyList", "/v6/user/feedList", "/v6/user/profile")) {
+                path !in setOf("/v6/main/indexV8", "/v6/feed/detail", "/v6/feed/replyList", "/v6/user/feedList", "/v6/user/space")) {
                 unexpected += "${request.method} ${request.url}"; throw IOException("Unknown synthetic request; sockets disabled")
             }
             requests += request
@@ -182,7 +182,7 @@ class StructuredArticleNativeAppTest {
                     if (gateDetail && detailCalls(id) == 1) check(detailRelease.await(15, TimeUnit.SECONDS))
                     buildJsonObject { put("data", value) }
                 }
-                "/v6/user/profile" -> buildJsonObject { put("data", buildJsonObject { put("uid", "7"); put("username", "Synthetic user seven") }) }
+                "/v6/user/space" -> buildJsonObject { put("data", buildJsonObject { put("uid", "7"); put("username", "Synthetic user seven") }) }
                 else -> buildJsonObject { put("data", buildJsonArray {}) }
             }
             Response.Builder().request(request).protocol(Protocol.HTTP_1_1).code(200).message("synthetic")

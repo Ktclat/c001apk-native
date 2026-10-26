@@ -4,7 +4,6 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.selection.toggleable
-import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -21,6 +20,7 @@ import io.github.ktclat.c001apk.nativeapp.local.LibraryKind
 import io.github.ktclat.c001apk.nativeapp.ui.ProfileIcons
 import io.github.ktclat.c001apk.nativeapp.ui.FlutterMaterialIcons
 import io.github.ktclat.c001apk.nativeapp.BuildConfig
+import kotlin.math.roundToInt
 
 enum class SettingsSection(val title: String, val description: String) {
     APPEARANCE("外观与字体", "配色、字体与悬浮 Tab 导航"),
@@ -57,7 +57,9 @@ enum class SettingsSection(val title: String, val description: String) {
     val cache = imageCache ?: remember(context) { ImageCacheController.create(context.applicationContext) }
     var selectedName by rememberSaveable { mutableStateOf<String?>(null) }
     val selected = selectedName?.let { SettingsSection.valueOf(it) }
-    var draftScale by remember(settings.fontScale) { mutableFloatStateOf(settings.fontScale) }
+    var appearanceDetailName by rememberSaveable { mutableStateOf<String?>(null) }
+    // Keep the draft in the parent saveable owner, not the modal window’s separate registry.
+    var appearanceDraftScale by rememberSaveable { mutableFloatStateOf(settings.fontScale) }
     BoxWithConstraints(Modifier.fillMaxSize()) {
         val wide = maxWidth >= 840.dp
         val detail = selected ?: SettingsSection.APPEARANCE
@@ -85,20 +87,9 @@ enum class SettingsSection(val title: String, val description: String) {
             item { FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) { ThemeMode.entries.forEach { mode -> FilterChip(selected = settings.theme == mode, onClick = { onSettingsEdit { current -> current.copy(theme = mode) } }, label = { Text(when(mode) { ThemeMode.SYSTEM -> "系统"; ThemeMode.LIGHT -> "浅色"; ThemeMode.DARK -> "深色" }) }) } } }
             item { SettingSwitch("动态取色（Android 12 及以上）", settings.dynamicColor) { onSettingsEdit { current -> current.copy(dynamicColor = it) } } }
             item { FixedColorPicker(settings) { index -> onSettingsEdit { it.copy(themeColor = index) } } }
-            item { Text("界面字体", style = MaterialTheme.typography.titleMedium) }
-            items(FontChoice.entries.size) { index ->
-                val font = FontChoice.entries[index]
-                Row(Modifier.fillMaxWidth().heightIn(min=56.dp).selectable(selected=settings.font==font, role=Role.RadioButton, onClick={ onSettingsEdit { current -> current.copy(font=font) } })) {
-                    RadioButton(selected=settings.font==font, onClick=null)
-                    Column(Modifier.weight(1f).padding(vertical=8.dp)) {
-                        Text(when(font) { FontChoice.SYSTEM -> "跟随系统"; FontChoice.MATERIAL -> "Material 原版"; FontChoice.NOTO_SANS -> "思源黑体 · 清爽" })
-                        Text(when(font) { FontChoice.SYSTEM -> "采用设备的 sans-serif 字体映射"; FontChoice.MATERIAL -> "采用 Material 默认映射，可能与系统字体相同"; FontChoice.NOTO_SANS -> "内置 Noto Sans CJK SC，离线显示一致" }, style=MaterialTheme.typography.bodySmall)
-                    }
-                }
-            }
-            item { Text("应用字号：${(draftScale * 100).toInt()}%（叠加系统字号）"); Slider(modifier = Modifier.semantics { contentDescription = "应用字号"; stateDescription = "${(draftScale * 100).toInt()}%" }, value = draftScale, onValueChange = { draftScale = it }, onValueChangeFinished = { val selectedScale = draftScale; onSettingsEdit { current -> current.copy(fontScale = selectedScale) } }, valueRange = 0.8f..1.6f, steps = 15) }
-            item { TextButton(onClick = { draftScale = 1f; onSettingsEdit { current -> current.copy(fontScale = 1f) } }) { Text("恢复默认字号") } }
-            item { FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) { ReadingPreset.entries.forEach { preset -> FilterChip(settings.readingPreset == preset, { onSettingsEdit { current -> current.copy(readingPreset = preset) } }, label = { Text(if (preset == ReadingPreset.COMFORTABLE) "舒适阅读" else "原版排版") }) } } }
+            item { NavigationSetting("界面字体", "当前：${settings.font.label} · 比较字形与选择字体", ProfileIcons.PaletteOutlined) { appearanceDetailName = AppearanceDetail.FONT.name } }
+            item { NavigationSetting("正文排版", "当前：${settings.readingPreset.label} · 对比正文、标题与评论", ProfileIcons.FeedOutlined) { appearanceDetailName = AppearanceDetail.READING.name } }
+            item { NavigationSetting("应用字号", "当前：${(settings.fontScale * 100).roundToInt()}% · 预览后应用", ProfileIcons.SettingsOutlined) { appearanceDraftScale = settings.fontScale; appearanceDetailName = AppearanceDetail.SCALE.name } }
             item { SettingSwitch("悬浮导航栏", settings.floatingNavigation, "向后浏览时隐藏，反向滚动显示；键盘弹出时隐藏") { onSettingsEdit { current -> current.copy(floatingNavigation = it) } } }
             item { ReadingPreview(settings) }
 
@@ -135,6 +126,11 @@ enum class SettingsSection(val title: String, val description: String) {
             }
         }
     }
+    appearanceDetailName?.let { name ->
+        AppearanceSettingsDetail(AppearanceDetail.valueOf(name), settings, appearanceDraftScale,
+            onDraftScaleChange = { appearanceDraftScale = it }, onDismiss = { appearanceDetailName = null }, onSettingsEdit = onSettingsEdit)
+    }
+
 }
 @Composable private fun NavigationSetting(title: String, subtitle: String, icon: ImageVector, selected: Boolean = false, onClick: () -> Unit) {
     Surface(color = if (selected) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.surface) {
@@ -165,13 +161,13 @@ enum class SettingsSection(val title: String, val description: String) {
     }
 }
 
-@Composable private fun ReadingPreview(settings: AppSettings) {
+@Composable internal fun ReadingPreview(settings: AppSettings, modifier: Modifier = Modifier) {
     val reading = remember(settings.font, settings.readingPreset) { readingStyles(settings.readingPreset, settings.font) }
-    OutlinedCard(Modifier.fillMaxWidth().testTag("settings-reading-preview")) {
+    OutlinedCard(modifier.fillMaxWidth().testTag("settings-reading-preview")) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text("阅读预览", style = MaterialTheme.typography.labelLarge)
-            Text("把想法写下来", style = reading.title)
-            Text("这是一段动态正文。字体与阅读排版会应用到信息流、详情和评论；应用字号会叠加系统字号。", style = reading.body)
+            Text("把想法写下来", style = reading.title, modifier = Modifier.testTag("settings-preview-title"))
+            Text("这是一段动态正文。字体与阅读排版会应用到信息流、详情和评论；应用字号会叠加系统字号。", style = reading.body, modifier = Modifier.testTag("settings-preview-body"))
             Text("评论文字 · 轻松阅读每一次交流", style = reading.reply, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }

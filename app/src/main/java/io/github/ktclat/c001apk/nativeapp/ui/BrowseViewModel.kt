@@ -99,6 +99,7 @@ class BrowseViewModel(private val repository: CoolapkRepository = HttpCoolapkRep
                 key.startsWith("dyh:") -> repository.dyhArticles(key.removePrefix("dyh:"), "all", cursor)
                 key.startsWith("coolpic:") -> repository.pictures(key.removePrefix("coolpic:"), "recommend", cursor)
                 key.startsWith("app:") -> repository.appDetail(key.removePrefix("app:")).asPage()
+                key.startsWith("user-profile:") -> repository.userProfile(key.removePrefix("user-profile:")).asPage()
                 key.startsWith("user:") -> repository.userFeed(key.removePrefix("user:"), cursor)
                 key.startsWith("topic:") -> repository.topicDetail(key.removePrefix("topic:")).asPage()
                 key.startsWith("page:") -> repository.page(key.removePrefix("page:"), cursor = cursor)

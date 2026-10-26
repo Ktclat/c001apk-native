@@ -75,6 +75,28 @@ class SettingsParityPersistenceTest {
             assertEquals(ThemeMode.DARK, restored.theme); assertFalse(restored.checkAppUpdates); assertFalse(restored.recordHistory)
         } finally { job.cancelAndJoin(); directory.deleteRecursively() }
     }
+    @Test fun appearanceFieldsSurviveDiskRecreationWithoutChangingOtherSettings() = runBlocking {
+        val directory = Files.createTempDirectory("appearance-restart").toFile()
+        val file = File(directory, "settings.preferences_pb")
+        var job = SupervisorJob()
+        fun create() = SettingsRepository(PreferenceJsonStore(
+            PreferenceDataStoreFactory.create(scope = CoroutineScope(Dispatchers.IO + job), produceFile = { file }),
+            "settings", AppSettings.serializer(), AppSettings(), AppSettings::validated))
+        try {
+            val repo = create()
+            repo.update { it.copy(theme = ThemeMode.DARK, recordHistory = false, checkAppUpdates = false) }
+            repo.update { it.copy(font = FontChoice.SYSTEM) }
+            repo.update { it.copy(readingPreset = ReadingPreset.ORIGINAL) }
+            repo.update { it.copy(fontScale = 1.6f) }
+            val before = repo.settings.first()
+            job.cancelAndJoin(); job = SupervisorJob()
+            val reopened = create().settings.first()
+            assertEquals(before, reopened)
+            assertEquals(FontChoice.SYSTEM, reopened.font); assertEquals(ReadingPreset.ORIGINAL, reopened.readingPreset)
+            assertEquals(1.6f, reopened.fontScale); assertEquals(ThemeMode.DARK, reopened.theme)
+            assertFalse(reopened.recordHistory); assertFalse(reopened.checkAppUpdates)
+        } finally { job.cancelAndJoin(); directory.deleteRecursively() }
+    }
     @Test fun invalidEditedValueCannotReplaceStoredSettings() = runBlocking {
         withStore { repo ->
             val before = repo.settings.first()

@@ -333,6 +333,28 @@ fun NativeApp(model: BrowseViewModel, container: AppContainer, settings: AppSett
         }
         return
     }
+    if (route?.startsWith("user:") == true) {
+        val uid = route!!.substringAfter(':')
+        val profileKey = "user-profile:$uid"
+        val feedKey = "user:$uid"
+        val blocked = (localLoad as? LocalLoadState.Ready)?.value?.blacklist?.userBlackList?.contains(uid) == true
+        HostedScreen("用户主页", goBack, actions = {
+            IconButton(enabled = validUid(uid), onClick = {
+                model.load(profileKey, refresh = true)
+                if (localLoad is LocalLoadState.Ready && !blocked) model.load(feedKey, refresh = true)
+            }) { Icon(FlutterMaterialIcons.Refresh, "刷新用户主页") }
+        }) {
+            SideEffect { savedKeys.add(feedKey) }
+            holder.SaveableStateProvider(feedKey) {
+                UserProfileScreen(uid, model, accounts, accountState, container.local, localLoad, navigate, openLink) { item ->
+                    scope.launch { try { container.local.favorite(item) }
+                        catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
+                        catch (_: Exception) { localError = "收藏保存失败，请重试" } }
+                }
+            }
+        }
+        return
+    }
     if (route?.startsWith("feed:") == true) {
         val sourceMenu = remember(accountState.activeId, accountState.generation, route) { DetailSourceMenuState() }
         DisposableEffect(sourceMenu) { onDispose { sourceMenu.dispose() } }
@@ -454,7 +476,6 @@ fun NativeApp(model: BrowseViewModel, container: AppContainer, settings: AppSett
                         }
                         ContentList(visibleState, key, accounts, accountState,
                             listState = rootListState,
-                            localUserRepository = container.local,
                             verificationRetry = { pending -> model.load(key, refresh = !rawState.moreError, more = rawState.moreError, pageRetry = pending) },
                             retry = { model.load(key, refresh = !rawState.moreError, more = rawState.moreError) }, more = { model.load(key, more = true) },
                             navigate = navigate, openLink = openLink, favorite = { item -> scope.launch {
@@ -520,15 +541,13 @@ private fun Notice(title: String, message: String) {
 }
 
 @Composable
-private fun ContentList(state: BrowseState, key: String, accounts: AccountRuntime, accountState: AccountState, retry: () -> Unit, more: () -> Unit, navigate: (String) -> Unit, openLink: (String) -> Unit, favorite: (ContentItem) -> Unit, listState: LazyListState = rememberLazyListState(), localUserRepository: LocalRepository? = null, verificationRetry: ((PendingPageRead) -> Unit)? = null) {
+internal fun ContentList(state: BrowseState, key: String, accounts: AccountRuntime, accountState: AccountState, retry: () -> Unit, more: () -> Unit, navigate: (String) -> Unit, openLink: (String) -> Unit, favorite: (ContentItem) -> Unit, listState: LazyListState = rememberLazyListState(), verificationRetry: ((PendingPageRead) -> Unit)? = null, header: (@Composable () -> Unit)? = null) {
     ObserveRootReselect(listState)
     val rootHeader = LocalScrollableRootHeader.current
     val displayItems = remember(state.items) { contentListItems(state.items) }
     LazyColumn(modifier = Modifier.fillMaxSize().testTag("content-list").floatingDockRecovery(LocalFloatingDockReveal.current), state = listState, contentPadding = PaddingValues(start = 10.dp, top = 10.dp, end = 10.dp, bottom = 10.dp + LocalFloatingBottomSpace.current), verticalArrangement = Arrangement.spacedBy(10.dp)) {
         rootHeader?.let { header -> item(key = "root-header") { header() } }
-        if (localUserRepository != null && key.startsWith("user:") && validUid(key.substringAfter(':'))) item(key = "local-user-follow") {
-            LocalUserFollowControl(key.substringAfter(':'), localUserRepository, accountState.activeId != null) { navigate("local-follows") }
-        }
+        header?.let { content -> item(key = "route-header") { Column(verticalArrangement = Arrangement.spacedBy(10.dp)) { content() } } }
         if (key.startsWith("replies:")) item { TextButton(onClick = { navigate("compose-reply:feed:${key.removePrefix("replies:")}") }) { Text("回复动态") } }
         if (state.error != null) item {
             Card { Column(Modifier.padding(16.dp)) {

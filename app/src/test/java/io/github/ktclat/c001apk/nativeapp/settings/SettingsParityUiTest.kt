@@ -134,8 +134,10 @@ class SettingsParityUiTest {
             assertEquals(ThemeMode.SYSTEM, queued.fold(before) { current, edit -> edit(current) }.theme)
             queued.clear(); queued += { it.copy(fontScale = 1.2f) }
         }
-        compose.onNodeWithTag("settings-detail-list").performScrollToNode(hasText("恢复默认字号"))
-        compose.onNodeWithText("恢复默认字号").performClick()
+        compose.onNodeWithTag("settings-detail-list").performScrollToNode(hasText("应用字号"))
+        compose.onNodeWithText("应用字号").performClick()
+        compose.onNodeWithText("恢复默认字号").performScrollTo().performClick()
+        compose.onNodeWithText("应用").performScrollTo().performClick()
         compose.runOnIdle { assertEquals(1f, queued.fold(before) { current, edit -> edit(current) }.fontScale) }
     }
     @Test fun accountFollowChoicesAreRealAndGuestsCannotTriggerServerChoice() {

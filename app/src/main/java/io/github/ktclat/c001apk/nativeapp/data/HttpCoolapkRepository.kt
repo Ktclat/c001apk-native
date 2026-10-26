@@ -261,7 +261,10 @@ class HttpCoolapkRepository(
         if (!numeric(id) || type !in setOf("all", "square")) return failure(FailureKind.INVALID_ARGUMENT)
         return list("v6/dyhArticle/list", cursor, mapOf("dyhId" to id, "type" to type))
     }
-    override suspend fun userProfile(uid: String) = objectRequest("v6/user/profile", "uid", uid, numericOnly = true)
+    override suspend fun userProfile(uid: String): ApiResult<ContentItem> {
+        if (!(uid.length in 1..32 && numeric(uid) && uid.any { it != '0' })) return failure(FailureKind.INVALID_ARGUMENT)
+        return request("v6/user/space", mapOf("uid" to uid)) { decodeUserSpace(it, uid) }
+    }
     override suspend fun userFeed(uid: String, cursor: PageCursor): ApiResult<Page<ContentItem>> {
         if (!numeric(uid)) return failure(FailureKind.INVALID_ARGUMENT)
         return list("v6/user/feedList", cursor, mapOf("uid" to uid, "showAnonymous" to "0", "isIncludeTop" to "1", "showDoing" to "0"))

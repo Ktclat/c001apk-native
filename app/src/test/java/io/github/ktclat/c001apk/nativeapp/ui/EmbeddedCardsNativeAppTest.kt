@@ -104,6 +104,7 @@ class EmbeddedCardsNativeAppTest {
                     }
                     source
                 }
+                "/v6/user/space" -> { assertEquals("1002", request.url.queryParameter("uid")); """{"data":{"uid":"1002","username":"合成联系人"}}""" }
                 "/v6/user/feedList" -> {
                     assertEquals("1002", request.url.queryParameter("uid"))
                     destinations += "user:1002"
@@ -142,6 +143,10 @@ class EmbeddedCardsNativeAppTest {
         val model = BrowseViewModel(repository)
         fun awaitDestination(key: String, text: String) {
             try {
+                if (key.startsWith("user:")) {
+                    compose.waitUntil(10_000) { compose.onRoot().fetchSemanticsNode(); model.states.value[key]?.let { it.loaded && !it.loading } == true }
+                    compose.onNodeWithTag("content-list").performScrollToNode(hasTestTag("feed:9301"))
+                }
                 compose.waitUntil(10_000) {
                     // Query rendered semantics first so Android/Compose pending work is drained,
                     // rather than polling StateFlow while Robolectric's main looper is idle.

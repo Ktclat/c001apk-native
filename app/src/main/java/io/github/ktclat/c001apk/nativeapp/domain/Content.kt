@@ -43,6 +43,8 @@ data class ContentItem(
     val entityCard: EntityCardMetadata? = null,
     /** Source entity identity is separate from record id (which remains the raw cursor id). */
     val sourceEntityId: String? = null,
+    /** Present only on a validated public user-space response, never inferred from a feed. */
+    val userProfile: UserSpaceProfile? = null,
 
 )
 data class EntityCardMetadata(

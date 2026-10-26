@@ -22,7 +22,8 @@ class SettingsUiTest {
         compose.onNode(hasScrollToIndexAction()).performScrollToNode(hasText("悬浮导航栏"))
         compose.onNodeWithText("悬浮导航栏").assertIsOff().performClick()
         compose.runOnIdle { assertEquals(true,result?.floatingNavigation) }
-        compose.onNode(hasScrollToIndexAction()).performScrollToNode(hasContentDescription("应用字号"))
+        compose.onNode(hasScrollToIndexAction()).performScrollToNode(hasText("应用字号"))
+        compose.onNodeWithText("应用字号").performClick()
         compose.onNodeWithContentDescription("应用字号").assertExists()
     }
 }

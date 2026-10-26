@@ -128,6 +128,7 @@ class NativeSettingsParityRootTest {
         val repository = Proxy.newProxyInstance(CoolapkRepository::class.java.classLoader,
             arrayOf(CoolapkRepository::class.java)) { _, method, args ->
             if (method.name == "following") { followRequests += args!![0] as FollowType; ApiResult.Success(Page(emptyList<ContentItem>(), null)) }
+            else if (method.name == "userProfile") ApiResult.Success(ContentItem("42", "user", userId = "42", userProfile = io.github.ktclat.c001apk.nativeapp.domain.UserSpaceProfile()))
             else if (method.name == "home" || method.name == "userFeed") { browseCalls.incrementAndGet(); ApiResult.Success(Page(emptyList<ContentItem>(), null)) }
             else throw AssertionError("Unexpected synthetic browse call ${method.name}")
         } as CoolapkRepository
@@ -325,6 +326,90 @@ class NativeSettingsParityRootTest {
         capture("content-short-landscape-large-font")
         back()
         compose.onNodeWithText("外观与字体").assertExists()
+    }
+
+    @Test fun actualAppearancePickersPersistAndRenderEachChoiceUsingItsOwnStyles() {
+        render(); section("外观与字体")
+        row("界面字体").performClick()
+        captureAppearanceSheet("appearance-font-comparison")
+        compose.onNodeWithTag("font-choice-SYSTEM").performScrollTo().performClick()
+        awaitText("当前：跟随系统 · 比较字形与选择字体")
+        assertEquals(FontChoice.SYSTEM, runBlocking { container.settings.settings.first() }.font)
+        row("界面字体").performClick()
+        compose.onNodeWithTag("font-choice-SYSTEM").assertIsSelected()
+        compose.onNodeWithContentDescription("关闭界面字体").performClick()
+        row("正文排版").performClick()
+        captureAppearanceSheet("appearance-reading-comparison")
+        compose.onNodeWithTag("reading-choice-ORIGINAL").performScrollTo().performClick()
+        awaitText("当前：原版排版 · 对比正文、标题与评论")
+        assertEquals(ReadingPreset.ORIGINAL, runBlocking { container.settings.settings.first() }.readingPreset)
+        row("应用字号").performClick()
+        compose.onNodeWithContentDescription("应用字号").performScrollTo().performSemanticsAction(SemanticsActions.SetProgress) { it(1.6f) }
+        captureAppearanceSheet("appearance-size-draft-160")
+        compose.onNodeWithText("取消").performScrollTo().performClick()
+        assertEquals(1f, runBlocking { container.settings.settings.first() }.fontScale)
+        row("应用字号").performClick()
+        compose.onNodeWithContentDescription("应用字号").performScrollTo().performSemanticsAction(SemanticsActions.SetProgress) { it(1.15f) }
+        compose.onNodeWithText("应用").performScrollTo().performClick()
+        awaitText("当前：115% · 预览后应用")
+        assertEquals(1.15f, runBlocking { container.settings.settings.first() }.fontScale)
+        compose.onNodeWithTag("settings-detail-list").performScrollToNode(hasTestTag("settings-preview-body"))
+        val results = mutableListOf<androidx.compose.ui.text.TextLayoutResult>()
+        compose.onNodeWithTag("settings-preview-body").performSemanticsAction(SemanticsActions.GetTextLayoutResult) { it(results) }
+        assertEquals(appFontFamily(FontChoice.SYSTEM), results.single().layoutInput.style.fontFamily)
+        assertEquals(readingStyles(ReadingPreset.ORIGINAL, FontChoice.SYSTEM).body.fontSize, results.single().layoutInput.style.fontSize)
+        assertEquals(1.15f, results.single().layoutInput.density.fontScale, .001f)
+        restorer.emulateSavedInstanceStateRestore(); injectInsets()
+        row("应用字号").performClick()
+        compose.onNodeWithText("预览字号：115%").assertExists()
+        compose.onNodeWithContentDescription("关闭应用字号").performClick()
+        assertEquals(0, browseCalls.get()); assertEquals(0, accountTransportCalls.get())
+    }
+
+    @Test @Config(qualifiers = "w822dp-h369dp-land-520dpi")
+    fun actualShortDarkLargeFontPickersScrollAndDialogBackKeepsAppearanceCategory() {
+        render(fontScale = 2f, landscape = true, dark = true); section("外观与字体")
+        row("界面字体").performClick()
+        compose.onNodeWithTag("font-choice-NOTO_SANS").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithContentDescription("关闭界面字体").assertIsDisplayed().assertHeightIsAtLeast(48.dp)
+        captureAppearanceSheet("appearance-font-dark-short-font200")
+        compose.runOnUiThread { org.robolectric.shadows.ShadowDialog.getLatestDialog().onBackPressed() }
+        compose.onNodeWithTag("appearance-detail").assertDoesNotExist()
+        compose.onNodeWithTag("settings-detail-list").assertExists()
+        row("正文排版").performClick()
+        compose.onNodeWithTag("reading-choice-ORIGINAL").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithContentDescription("关闭正文排版").assertIsDisplayed()
+        captureAppearanceSheet("appearance-reading-dark-short-font200")
+        compose.onNodeWithContentDescription("关闭正文排版").performClick()
+        row("应用字号").performClick()
+        compose.onNodeWithContentDescription("应用字号").performScrollTo().performSemanticsAction(SemanticsActions.SetProgress) { it(1.6f) }
+        compose.onNodeWithText("应用").performScrollTo().assertIsDisplayed().assertHeightIsAtLeast(48.dp)
+        captureAppearanceSheet("appearance-size-dark-short-font200-tail")
+        compose.onNodeWithText("取消").performClick()
+        assertEquals(1f, runBlocking { container.settings.settings.first() }.fontScale)
+        compose.onNodeWithTag("settings-detail-list").assertExists()
+        assertEquals(0, browseCalls.get()); assertEquals(0, accountTransportCalls.get())
+    }
+
+    private fun captureAppearanceSheet(name: String) {
+        compose.waitForIdle(); directory.mkdirs()
+        val dialog = org.robolectric.shadows.ShadowDialog.getLatestDialog()
+        check(dialog.isShowing)
+        val bitmap = compose.runOnUiThread {
+            val decor = requireNotNull(dialog.window).decorView
+            check(decor.width > 0 && decor.height > 0)
+            Bitmap.createBitmap(decor.width, decor.height, Bitmap.Config.ARGB_8888).also { decor.draw(Canvas(it)) }
+        }
+        try { File(directory, "$name.png").outputStream().use { check(bitmap.compress(Bitmap.CompressFormat.PNG, 100, it)) } }
+        finally { bitmap.recycle() }
+        File(directory, "$name.json").writeText(buildJsonObject {
+            put("syntheticOnly", true); put("actualDialogWindow", true)
+            put("sourceFingerprint", NativeBuildInfo.SOURCE_FINGERPRINT)
+            put("widthPx", requireNotNull(dialog.window).decorView.width)
+            put("heightPx", requireNotNull(dialog.window).decorView.height)
+            put("systemFontScale", compose.activity.resources.configuration.fontScale)
+            put("accountTransportCalls", accountTransportCalls.get()); put("browseCalls", browseCalls.get())
+        }.toString())
     }
 
     private fun capture(name: String) {

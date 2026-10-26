@@ -10,11 +10,13 @@ import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.text.style.TextOverflow
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 
 /** Explicit local action. No account session or network repository is accepted by this component. */
-@Composable fun LocalUserFollowControl(uid: String, repository: LocalRepository, isLoggedIn: Boolean, onManage: () -> Unit) {
+@OptIn(ExperimentalLayoutApi::class)
+@Composable fun LocalUserFollowControl(uid: String, repository: LocalRepository, isLoggedIn: Boolean, name: String = "", avatar: String? = null, onManage: () -> Unit) {
     if (!validUid(uid)) return
     key(uid, repository) {
         val load by remember(repository) { repository.loadStates() }.collectAsState(initial = LocalLoadState.Loading)
@@ -28,8 +30,12 @@ import kotlinx.coroutines.launch
         fun save(remove: Boolean) {
             if (busy || follows == null) return
             busy = true
+            // Public space metadata has larger read bounds than the persisted local-follow schema.
+            // Preserve the action when optional metadata is long; never truncate a URL into another URL.
+            val savedName = name.take(200).let { if (it.lastOrNull()?.isHighSurrogate() == true) it.dropLast(1) else it }
+            val savedAvatar = avatar?.takeIf { it.length <= 2048 }
             scope.launch {
-                try { if (remove) repository.unfollow(uid) else repository.follow(LocalFollowUser(uid)); error = null }
+                try { if (remove) repository.unfollow(uid) else repository.follow(LocalFollowUser(uid, savedName, savedAvatar)); error = null }
                 catch (cancelled: CancellationException) { throw cancelled }
                 catch (_: Exception) { error = "本地关注保存失败，请重试；原有名单未重置。" }
                 finally { busy = false }
@@ -37,11 +43,11 @@ import kotlinx.coroutines.launch
         }
         OutlinedCard(Modifier.fillMaxWidth().testTag("local-user-follow:$uid")) {
             Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("用户 $uid", style = MaterialTheme.typography.titleMedium)
+                Text(name.ifBlank { "用户 $uid" }, style = MaterialTheme.typography.titleMedium, maxLines = 2, overflow = TextOverflow.Ellipsis)
                 Text("${label}仅保存在本机，不会关注或取消账号中的关注。" + if (isLoggedIn) "在底栏“关注”选择“悄悄关注”查看本机名单的动态。" else "可在底栏“关注”查看本机名单的动态。", style = MaterialTheme.typography.bodySmall)
                 if (load == LocalLoadState.Failed) Text("无法读取本地关注，原有数据未覆盖。请返回后重试。", color = MaterialTheme.colorScheme.error)
                 error?.let { Text(it, color = MaterialTheme.colorScheme.error, modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite }) }
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     Button(enabled = follows != null && !busy, onClick = { if (following) remove = true else save(false) }) {
                         Text(if (following) "取消$label" else label)
                     }
