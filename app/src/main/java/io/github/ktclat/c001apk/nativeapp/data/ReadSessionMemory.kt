@@ -8,12 +8,16 @@ import java.net.URLEncoder
 /** Accepted read validation + SESSID only. No account credentials, WebView jar or disk access.
  * Continuations remain one-shot; only an accepted blank-field validate cookie can serve later
  * public API GETs, matching Flutter's 24h maximum but deliberately remaining memory-only.
+ * Optional notice-route guards enclose only final field assignments, never clocks, cookie parsing,
+ * identity callbacks or ordinary AccountStore cookie acceptance. Lock order is memory → attempt;
+ * neither accepted entries nor raw account sessions retain a route guard.
  */
 internal class ReadSessionMemory(
     private val clock: () -> Long = { System.nanoTime() / 1_000_000 },
     private val wallClock: () -> Long = System::currentTimeMillis,
 ) {
-    internal class Capture internal constructor(val raw: RequestSession, internal var version: Long) {
+    internal class Capture internal constructor(val raw: RequestSession, internal var version: Long,
+        internal val cacheMutation: ((() -> Boolean) -> Boolean)) {
         lateinit var session: RequestSession
         internal var validationRevoked = false
     }
@@ -33,11 +37,16 @@ internal class ReadSessionMemory(
             entry = Entry(existing.raw, existing.cookies, null, existing.deadline, Long.MAX_VALUE); version++
         }
     }
-    @Synchronized fun capture(raw: RequestSession): Capture {
+    fun capture(raw: RequestSession): Capture = capture(raw, null)
+    @Synchronized fun capture(raw: RequestSession, cacheMutation: ((() -> Boolean) -> Boolean)?): Capture {
         expire()
-        if (binding?.let { !strict(it) || (it.readOwner != null && !sameOwner(it, raw)) } == true) drop()
-        binding = raw
-        val captured = Capture(raw, version)
+        // Optional notice-route admission: a stale/cancelled capture must not replace a newer
+        // binding. Existing public/personal/count callers retain their original direct flow.
+        if (cacheMutation != null && !strict(raw)) throw CancellationException("Read session changed")
+        val mutate = cacheMutation ?: { action: () -> Boolean -> action() }
+        val replace = binding?.let { !strict(it) || (it.readOwner != null && !sameOwner(it, raw)) } == true
+        if (!mutate { if (replace) drop(); binding = raw; true }) throw CancellationException("Read owner changed")
+        val captured = Capture(raw, version, mutate)
         val accepted = entry?.takeIf { sameOwner(it.raw, raw) }
         val cookies = accepted?.cookies.orEmpty()
         fun validation(): String? = if (!captured.validationRevoked && current(raw, captured.version)) accepted?.validation else null
@@ -60,7 +69,10 @@ internal class ReadSessionMemory(
                     else entry?.let { old ->
                         val updated = ReadCookiePolicy.update(old.cookies, url, headers)
                         // A changed server session cannot keep an old validation. Rotation does not extend TTL.
-                        if (updated != old.cookies) { entry = Entry(raw, updated, null, old.deadline, Long.MAX_VALUE); version++ }
+                        if (updated != old.cookies) {
+                            val replacement = Entry(raw, updated, null, old.deadline, Long.MAX_VALUE)
+                            captured.cacheMutation { entry = replacement; version++; true }
+                        }
                     }
                 }
             } },
@@ -74,9 +86,11 @@ internal class ReadSessionMemory(
     /** Only this exact rejected read advances; late challenges cannot erase newer accepted state. */
     @Synchronized fun revokeOnChallenge(capture: Capture): Boolean {
         if (!current(capture.raw, capture.version)) return false
-        entry = null; version++
-        capture.version = version; capture.validationRevoked = true
-        return true
+        return capture.cacheMutation {
+            entry = null; version++
+            capture.version = version; capture.validationRevoked = true
+            true
+        }
     }
     @Synchronized fun publish(capture: Capture, cookies: List<Cookie>, proof: String? = null): Boolean {
         if (!current(capture.raw, capture.version)) return false
@@ -90,8 +104,7 @@ internal class ReadSessionMemory(
         val prior = entry?.takeIf { sameOwner(it.raw, capture.raw) }?.cookies.orEmpty()
         val merged = ReadCookiePolicy.merge(prior, cookies)
         val validationExpiry = merged.minOfOrNull { it.expiresAt } ?: Long.MAX_VALUE
-        entry = Entry(capture.raw, merged, validation?.takeIf { wallClock() < validationExpiry }, clock() + 86_400_000, validationExpiry)
-        binding = capture.raw; version++
-        return true
+        val replacement = Entry(capture.raw, merged, validation?.takeIf { wallClock() < validationExpiry }, clock() + 86_400_000, validationExpiry)
+        return capture.cacheMutation { entry = replacement; binding = capture.raw; version++; true }
     }
 }

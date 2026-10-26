@@ -171,8 +171,9 @@ class NotificationNavigationNativeAppTest {
         compose.onNodeWithText("重新登录").performClick(); awaitText("密码")
         assertEquals(1,calls("/v6/notification/atMeList"))
     }
-    @Test fun readChallengeRemainsExplicitWithoutClaimingVerificationOrAutomaticRetry() {
+    @Test fun readChallengeOffersHumanEntryWithoutClaimingVerificationOrAutomaticRetry() {
         listFailure = "captcha"; show("notifications:MENTIONS"); awaitTag("notification-error")
+        awaitTag("notice-human-verify")
         compose.onNodeWithText("服务端要求验证码，当前请求未完成").assertExists()
         compose.onNodeWithText("暂无内容").assertDoesNotExist()
         compose.waitForIdle(); assertEquals(1,calls("/v6/notification/atMeList"))

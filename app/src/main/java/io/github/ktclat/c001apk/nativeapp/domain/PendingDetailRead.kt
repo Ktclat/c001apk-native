@@ -99,3 +99,6 @@ typealias PendingPageRead = PendingRead<Page<ContentItem>>
 /** Account-required read capabilities; never accepted by mutation/login adapters. */
 typealias PendingPersonalRead = PendingRead<Page<PersonalEntry>>
 typealias PendingCountsRead = PendingRead<NotificationCounts>
+
+/** Notice-list reads only; never a conversation, acknowledgement, delete or send capability. */
+typealias PendingNoticeRead = PendingRead<Page<io.github.ktclat.c001apk.nativeapp.social.SocialRow>>

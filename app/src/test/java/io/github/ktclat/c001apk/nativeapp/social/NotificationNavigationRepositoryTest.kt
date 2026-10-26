@@ -34,7 +34,8 @@ class NotificationNavigationRepositoryTest {
         accounts.saveAuthenticated("1","synthetic","synthetic-device",listOf(Cookie.Builder().name("token").value("synthetic-token")
             .domain("coolapk.com").path("/").secure().expiresAt(System.currentTimeMillis()+3_600_000).build()),accounts.snapshot())
         repository = SocialRepository(accounts) { snapshot -> CoolapkHttpTransport(endpoints = ApiEndpoints(server.url("/"),server.url("/")),
-            requestSession = { RequestSession(cookieFor = { null },isCurrent = { accounts.isCurrent(snapshot) },acceptCookies = { _,_ -> },deviceCode = snapshot.deviceId) }) }
+            requestSession = { RequestSession(cookieFor = { null },isCurrent = { accounts.isCurrent(snapshot) },acceptCookies = { _,_ -> },deviceCode = snapshot.deviceId,
+                isSessionCurrent = { accounts.isCurrentRead(snapshot) }, isReadSessionCurrent = { accounts.isCurrentRead(snapshot) }) }) }
     }
     @After fun close() { server.shutdown() }
     @Test fun enrichedRowsKeepRecordDeletionIdentityAndTerminalTemplateStopsPaging() = runBlocking {

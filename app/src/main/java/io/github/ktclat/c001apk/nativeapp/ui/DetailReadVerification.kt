@@ -31,6 +31,10 @@ import kotlinx.coroutines.launch
     ReadVerification(pending, loading, "counts", "验证完成，重新读取未读数量", retry)
 }
 
+@Composable internal fun NoticeReadVerification(pending: PendingNoticeRead, loading: Boolean, retry: () -> Unit) {
+    ReadVerification(pending, loading, "notice", "验证完成，重新读取通知", retry)
+}
+
 /** Shared visible host; proof completion and the one read retry remain separate gestures. */
 @Composable private fun ReadVerification(pending: PendingRead<*>, loading: Boolean, tag: String, retryLabel: String, retry: () -> Unit) {
     val state by pending.state.collectAsState()

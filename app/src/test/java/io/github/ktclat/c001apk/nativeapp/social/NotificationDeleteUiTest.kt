@@ -36,7 +36,8 @@ class NotificationDeleteUiTest {
             .expiresAt(System.currentTimeMillis() + 3_600_000).build()), accounts.snapshot())
         repo = SocialRepository(accounts) { captured -> CoolapkHttpTransport(
             endpoints = ApiEndpoints(server.url("/"), server.url("/")),
-            requestSession = { RequestSession(cookieFor = { null }, isCurrent = { accounts.isCurrent(captured) }, acceptCookies = { _, _ -> }, deviceCode = captured.deviceId) }) }
+            requestSession = { RequestSession(cookieFor = { null }, isCurrent = { accounts.isCurrent(captured) }, acceptCookies = { _, _ -> }, deviceCode = captured.deviceId,
+                isSessionCurrent = { accounts.isCurrentRead(captured) }, isReadSessionCurrent = { accounts.isCurrentRead(captured) }) }) }
     }
     @After fun tearDown() { server.shutdown() }
     @Test fun mixedRowsExposeOnlyOneNotificationDeleteAndCancellationDoesNotWrite() {

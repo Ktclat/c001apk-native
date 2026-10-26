@@ -12,6 +12,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import io.github.ktclat.c001apk.nativeapp.domain.*
+import io.github.ktclat.c001apk.nativeapp.ui.NoticeReadVerification
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.isActive
@@ -58,7 +63,14 @@ internal class NotificationPageState {
     val list = LazyListState()
     var alive = false
     var epoch = 0L
-    fun leave() { alive = false; epoch++; loading = false }
+    var readAttempt: NotificationReadAttempt? = null
+    var requestJob: Job? = null
+    fun cancelRead() {
+        readAttempt?.cancel(); readAttempt = null
+        requestJob?.cancel(); requestJob = null
+        failure?.noticeRead?.cancel()
+    }
+    fun leave() { alive = false; epoch++; cancelRead(); loading = false }
     fun clear() { leave(); rows = emptyList(); next = PageCursor(); loaded = false; failure = null }
 }
 
@@ -66,44 +78,73 @@ internal class NotificationPageState {
     category: NoticeCategory, state: NotificationPageState, navigate: (String) -> Unit,
     actions: @Composable (SocialRow, () -> Unit) -> Unit) {
     val scope = rememberCoroutineScope()
-    DisposableEffect(state) {
-        state.alive = true
-        onDispose { state.leave() }
-    }
-    fun current() = state.alive && repository.isCurrentGeneration(generation)
-    fun load(more: Boolean) {
+    val lifecycle = LocalLifecycleOwner.current.lifecycle
+    fun current() = state.alive && lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED) &&
+        repository.isCurrentGeneration(generation)
+    fun load(more: Boolean, retry: PendingNoticeRead? = null) {
         if (!current() || state.loading || more && state.next == null) return
+        if (retry != null && (state.failure?.noticeRead !== retry || retry.state.value != DetailVerificationState.VERIFIED)) return
+        val oldRows = state.rows
         val cursor = if (more) state.next!! else PageCursor()
+        val readAttempt = if (retry != null) state.readAttempt?.takeIf { it.isCurrent() } ?: return
+            else { state.cancelRead(); NotificationReadAttempt().also { state.readAttempt = it } }
         val epoch = ++state.epoch
-        state.loading = true; state.failure = null
-        scope.launch {
+        state.loading = true
+        if (retry == null) state.failure = null
+        state.requestJob = scope.launch {
             try {
-                val result = repository.notices(category, cursor, generation)
-                if (!current() || state.epoch != epoch || !currentCoroutineContext().isActive) return@launch
+                val result = retry?.retryOnce() ?: repository.notices(category, cursor, generation, readAttempt)
+                if (!current() || state.epoch != epoch || state.readAttempt !== readAttempt ||
+                    !readAttempt.isCurrent() || !currentCoroutineContext().isActive) {
+                    (result as? ApiResult.Failure)?.noticeRead?.cancel()
+                    return@launch
+                }
                 when (result) {
                     is ApiResult.Failure -> { state.failure = result; state.failedMore = more; state.loaded = true }
                     is ApiResult.Success -> {
-                        // Flutter does not deduplicate non-message notices. Two likes on the same
-                        // feed/comment may have different actors; record IDs are not row identity.
-                        val all = (if (more) state.rows else emptyList()) + result.value.items
+                        // Successful refresh replaces; failed refresh and failed pagination retain
+                        // the same owner's old rows/cursor. Duplicate notice records stay distinct.
+                        val all = (if (more) oldRows else emptyList()) + result.value.items
                         state.rows = all.take(500)
                         state.next = result.value.nextCursor.takeIf { all.size < 500 }
-                        state.loaded = true
+                        state.failure = null; state.loaded = true
                     }
                 }
-            } catch (e: CancellationException) { throw e }
-            catch (_: Exception) {
+                if (result !is ApiResult.Failure || result.noticeRead == null) {
+                    readAttempt.cancel(); state.readAttempt = null
+                }
+            } catch (e: CancellationException) {
+                if (current() && state.epoch == epoch) {
+                    state.failure = ApiResult.Failure(FailureKind.UNCERTAIN, "通知读取已取消，请重新加载")
+                    state.failedMore = more; state.loaded = true
+                    readAttempt.cancel(); state.readAttempt = null
+                }
+                throw e
+            } catch (_: Exception) {
                 if (current() && state.epoch == epoch) {
                     state.failure = ApiResult.Failure(FailureKind.NETWORK, "无法读取通知，请稍后重试")
                     state.failedMore = more; state.loaded = true
+                    readAttempt.cancel(); state.readAttempt = null
                 }
-            } finally { if (state.epoch == epoch) state.loading = false }
+            } finally { if (state.epoch == epoch) { state.loading = false; state.requestJob = null } }
         }
     }
     fun open(destination: NotificationDestination) {
         if (current()) destination.route()?.let(navigate)
     }
-    LaunchedEffect(state) { if (!state.loaded) load(false) }
+    DisposableEffect(state, lifecycle, repository, generation, category) {
+        val observer = LifecycleEventObserver { _, event ->
+            when (event) {
+                Lifecycle.Event.ON_RESUME -> { state.alive = true; if (!state.loaded) load(false) }
+                Lifecycle.Event.ON_PAUSE, Lifecycle.Event.ON_STOP, Lifecycle.Event.ON_DESTROY -> state.leave()
+                else -> Unit
+            }
+        }
+        lifecycle.addObserver(observer)
+        state.alive = lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)
+        if (state.alive && !state.loaded) load(false)
+        onDispose { lifecycle.removeObserver(observer); state.leave() }
+    }
     LazyColumn(Modifier.fillMaxSize().testTag("notification-list"), state = state.list,
         contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         item { TextButton(onClick = { load(false) }, enabled = !state.loading) { Text("刷新") } }
@@ -141,8 +182,18 @@ internal class NotificationPageState {
         if (state.loading) item { LinearProgressIndicator(Modifier.fillMaxWidth().testTag("notification-loading")) }
         state.failure?.let { error -> item {
             Text(error.message, color = MaterialTheme.colorScheme.error, modifier = Modifier.testTag("notification-error"))
+            val failedMore = state.failedMore
+            error.noticeRead?.takeIf { !state.loading }?.let { pending ->
+                NoticeReadVerification(pending, state.loading) { load(failedMore, retry = pending) }
+            }
             if (error.kind == FailureKind.AUTHENTICATION) TextButton(onClick = { if (current()) navigate("login") }) { Text("重新登录") }
-            TextButton(onClick = { load(state.failedMore) }, enabled = !state.loading) { Text("重试") }
+            TextButton(onClick = retryClick@ {
+                // A retained callback belongs only to this displayed failure. Do not discard a
+                // completed proof when the user chooses the ordinary-looking retry control.
+                if (state.failure !== error) return@retryClick
+                val verified = error.noticeRead?.takeIf { it.state.value == DetailVerificationState.VERIFIED }
+                load(failedMore, retry = verified)
+            }, enabled = !state.loading) { Text("重试") }
         } }
         if (state.loaded && !state.loading && state.failure == null && state.rows.isEmpty()) item { Text("暂无内容") }
         if (!state.loading && state.failure == null && state.next != null) item { TextButton(onClick = { load(true) }) { Text("加载更多") } }

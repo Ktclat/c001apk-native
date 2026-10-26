@@ -106,48 +106,11 @@ class HttpCoolapkRepository(
         }
     }
 
-    /** Reusable only for explicitly admitted authenticated GET readers, never social/login operations. */
+    /** Only admitted GET readers may use the shared memory-only account-read continuation. */
     private suspend fun <T> accountRead(uid: String, isCurrentAccount: () -> Boolean,
         attach: (ApiResult.Failure, PendingRead<T>) -> ApiResult.Failure,
-        read: suspend (CoolapkHttpTransport) -> ApiResult<T>): ApiResult<T> = withContext(Dispatchers.IO) {
-        if (!isCurrentAccount()) throw CancellationException("Account changed")
-        if (!numeric(uid)) return@withContext failure(FailureKind.INVALID_ARGUMENT)
-        val raw = requestSession?.invoke() ?: return@withContext failure(FailureKind.AUTHENTICATION)
-        if (raw.isGuest || raw.isSessionCurrent == null) return@withContext failure(FailureKind.AUTHENTICATION)
-        fun current() = isCurrentAccount() && raw.isCurrent() &&
-            (raw.isReadSessionCurrent ?: raw.isSessionCurrent).invoke()
-        if (!current()) throw CancellationException("Session changed")
-        val scope = readSessions.capture(raw)
-        // Unlike public reads, these account-only transports must recheck raw revision
-        // and the root UID/generation guard at dispatch, not merely before suspension.
-        val operation = transport.forCapturedReadSession(scope.session.copy(isCurrent = { current() }))
-        if (!current()) throw CancellationException("Session changed")
-        val result = read(operation)
-        // Keep the pre-existing strict raw-cookie-revision publication contract. An accepted
-        // private read-cache SESSID rotation need not invalidate its own decoded response.
-        if (!current()) throw CancellationException("Session changed")
-        if (result !is ApiResult.Failure) return@withContext result
-        if (result.kind == FailureKind.CAPTCHA) readSessions.revokeOnChallenge(scope)
-        val challenge = result.challenge?.takeIf { operation.isCaptchaContinuationCurrent(it) }
-            ?: return@withContext result
-        val pending = PendingRead(challenge,
-            isCurrent = { current() && operation.isCaptchaContinuationCurrent(challenge) },
-            image = { operation.getCaptchaImage() }, verify = { operation.validateGraphicCaptcha(it) },
-            retry = { proof ->
-                if (!current()) throw CancellationException("Account changed")
-                val verified = when (challenge) {
-                    is ApiChallenge.Graphic -> operation.withGraphicVerification(challenge)
-                    is ApiChallenge.Netease -> operation.withCaptchaProof(challenge, proof.orEmpty())
-                }
-                val retried = read(verified)
-                if (!current() || !operation.isReadVerificationResultCurrent(challenge)) throw CancellationException("Session changed")
-                if (retried is ApiResult.Success && !readSessions.publish(scope, operation.readVerificationCookies(challenge),
-                        proof?.takeIf { challenge is ApiChallenge.Netease && challenge.field.isEmpty() }))
-                    throw CancellationException("Read session changed")
-                retried
-            }, onClosed = { operation.closeReadVerification(challenge) })
-        attach(result, pending)
-    }
+        read: suspend (CoolapkHttpTransport) -> ApiResult<T>): ApiResult<T> =
+        accountReadContinuation(uid, isCurrentAccount, requestSession, transport, readSessions, attach = attach, read = read)
 
     override suspend fun following(type: FollowType, cursor: PageCursor) = page(type.route, type.title, cursor)
     override suspend fun home(cursor: PageCursor) = list("v6/main/indexV8", cursor, mapOf("firstLaunch" to "1", "installTime" to "$installTimeMillis", "ids" to ""), api2 = true)

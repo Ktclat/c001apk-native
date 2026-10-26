@@ -110,7 +110,7 @@ enum class FailureKind { UNCERTAIN, NETWORK, HTTP, AUTHENTICATION, CAPTCHA, RATE
 sealed interface ApiResult<out T> {
     data class Success<T>(val value: T) : ApiResult<T>
     /** Only locally authored, safe messages; never raw server data, URLs or exceptions. */
-    data class Failure(val kind: FailureKind, val message: String, val httpStatus: Int? = null, val challenge: ApiChallenge? = null, val detailRead: PendingDetailRead? = null, val pageRead: PendingPageRead? = null, val personalRead: PendingPersonalRead? = null, val countsRead: PendingCountsRead? = null) : ApiResult<Nothing>
+    data class Failure(val kind: FailureKind, val message: String, val httpStatus: Int? = null, val challenge: ApiChallenge? = null, val detailRead: PendingDetailRead? = null, val pageRead: PendingPageRead? = null, val personalRead: PendingPersonalRead? = null, val countsRead: PendingCountsRead? = null, val noticeRead: PendingNoticeRead? = null) : ApiResult<Nothing>
 }
 
 data class SearchOptions(val type: String = "feed", val feedType: String = "all", val sort: String = "default", val strict: Boolean = false, val pageType: String? = null, val pageParam: String? = null)

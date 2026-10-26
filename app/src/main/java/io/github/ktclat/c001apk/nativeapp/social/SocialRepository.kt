@@ -4,6 +4,8 @@ package io.github.ktclat.c001apk.nativeapp.social
 import io.github.ktclat.c001apk.nativeapp.account.AccountStore
 import io.github.ktclat.c001apk.nativeapp.account.SessionSnapshot
 import io.github.ktclat.c001apk.nativeapp.data.CoolapkHttpTransport
+import io.github.ktclat.c001apk.nativeapp.data.ReadSessionMemory
+import io.github.ktclat.c001apk.nativeapp.data.accountReadContinuation
 import io.github.ktclat.c001apk.nativeapp.domain.*
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -17,6 +19,10 @@ class SocialRepository internal constructor(private val accounts: AccountStore,
     constructor(accounts: AccountStore, transportFor: (SessionSnapshot) -> CoolapkHttpTransport) :
         this(accounts, transportFor, OssImageUploader())
     private val notificationOwner = Any()
+    // This cache is never installed on the message, mutation, upload or login transports.
+    private val noticeReadSessions = ReadSessionMemory()
+    private val verifiedNoticeCategories = setOf(NoticeCategory.MENTIONS, NoticeCategory.REPLIES,
+        NoticeCategory.LIKES, NoticeCategory.FOLLOWERS, NoticeCategory.SYSTEM)
     /** UI intent guard; write entry still verifies the captured generation again on IO. */
     internal fun isCurrentGeneration(generation: Long) = accounts.state.value.generation == generation
     private suspend fun <T> authenticated(block: suspend (CoolapkHttpTransport) -> T): T =
@@ -28,25 +34,54 @@ class SocialRepository internal constructor(private val accounts: AccountStore,
         if (!accounts.isCurrent(snapshot)) throw CancellationException("Session changed")
         result
     }
-    suspend fun notices(category: NoticeCategory, cursor: PageCursor = PageCursor(), expectedGeneration: Long? = null): ApiResult<Page<SocialRow>> =
-        rows(category.path, cursor, expectedGeneration = expectedGeneration)
+    /** An explicit notice GET only: freeze category/cursor and the original authenticated owner. */
+    suspend fun notices(category: NoticeCategory, cursor: PageCursor = PageCursor(), expectedGeneration: Long? = null,
+        attempt: NotificationReadAttempt? = null): ApiResult<Page<SocialRow>> {
+        if (category !in verifiedNoticeCategories) return rows(category.path, cursor, expectedGeneration = expectedGeneration)
+        if (cursor.page < 1) return invalid()
+        val path = category.path
+        val frozen = cursor.copy()
+        val query = pageQuery(frozen)
+        return withContext(Dispatchers.IO) {
+            val snapshot = accounts.snapshot()
+            val uid = snapshot.accountId ?: return@withContext loginFailure()
+            fun current() = attempt?.isCurrent() != false && accounts.isCurrentRead(snapshot) &&
+                (expectedGeneration == null || snapshot.generation == expectedGeneration)
+            if (!current()) throw CancellationException("Notice owner changed")
+            val transport = transportFor(snapshot).forSingleOperation()
+            val captured = transport.capturedReadSession() ?: return@withContext loginFailure()
+            accountReadContinuation(uid, ::current, { captured }, transport, noticeReadSessions,
+                cacheMutation = attempt?.let { owner -> { action: () -> Boolean -> owner.mutateCache(action) } },
+                attach = { failure, pending -> failure.copy(noticeRead = pending) }) { operation ->
+                decodeRows(path, frozen, snapshot, operation.get(path, query))
+            }
+        }
+    }
     suspend fun chat(conversationKey: String, cursor: PageCursor = PageCursor()): ApiResult<Page<SocialRow>> {
         if (conversationKey.isBlank() || conversationKey.length > 256) return invalid()
         return rows("v6/message/chat", cursor, mapOf("ukey" to conversationKey))
     }
+    private fun pageQuery(cursor: PageCursor): Map<String, String> = buildMap {
+        put("page", cursor.page.toString()); cursor.firstItem?.let { put("firstItem", it) }; cursor.lastItem?.let { put("lastItem", it) }
+    }
     private suspend fun rows(path: String, cursor: PageCursor, extra: Map<String,String> = emptyMap(), expectedGeneration: Long? = null): ApiResult<Page<SocialRow>> {
         val notificationList = NoticeCategory.entries.any { it != NoticeCategory.MESSAGES && it.path == path }
         if (notificationList && cursor.page < 1) return invalid()
-        val query = extra + buildMap {
-            put("page", cursor.page.toString()); cursor.firstItem?.let { put("firstItem", it) }; cursor.lastItem?.let { put("lastItem", it) }
-        }
+        val query = extra + pageQuery(cursor)
         return try { authenticatedScoped { transport, snapshot ->
             if (expectedGeneration != null && snapshot.generation != expectedGeneration) throw CancellationException("Session changed")
-            when (val result = transport.get(path, query)) {
+            decodeRows(path, cursor, snapshot, transport.get(path, query))
+        } } catch (_: LoginRequired) { loginFailure() }
+    }
+    /** Both ordinary rows and verified notice reads retain the original response provenance. */
+    private fun decodeRows(path: String, cursor: PageCursor, snapshot: SessionSnapshot,
+        result: ApiResult<JsonElement>): ApiResult<Page<SocialRow>> {
+        val notificationList = NoticeCategory.entries.any { it != NoticeCategory.MESSAGES && it.path == path }
+        return when (result) {
             is ApiResult.Failure -> result
             is ApiResult.Success -> {
-                val array = result.value as? JsonArray ?: return@authenticatedScoped invalid()
-                if (array.size > 500 || array.any { it !is JsonObject }) return@authenticatedScoped invalid()
+                val array = result.value as? JsonArray ?: return invalid()
+                if (array.size > 500 || array.any { it !is JsonObject }) return invalid()
                 fun isEndMarker(obj: JsonObject) = obj.text("entityType") == "noMoreDataCard" ||
                     notificationList && obj.text("entityType") == "card" && obj.text("entityTemplate") == "noMoreDataCard"
                 val ended = array.filterIsInstance<JsonObject>().any(::isEndMarker)
@@ -58,12 +93,12 @@ class SocialRepository internal constructor(private val accounts: AccountStore,
                     if (notificationList && obj.text("entityType") == "notification" && validId(obj.text("id")))
                         NotificationDeleteScope(notificationOwner, obj.text("id"), snapshot.generation) else null,
                     if (notificationList) decodeNotificationContent(obj) else null) }
-                if (rows.any { it.id.isBlank() || notificationList && (it.id.length > 128 || it.entityType.length > 64) }) return@authenticatedScoped invalid()
+                if (rows.any { it.id.isBlank() || notificationList && (it.id.length > 128 || it.entityType.length > 64) }) return invalid()
                 val last = rows.lastOrNull()?.id?.takeIf { it.isNotBlank() }
                 ApiResult.Success(Page(rows, if (ended || last == null || (!notificationList && last == cursor.lastItem) || (notificationList && cursor.page == Int.MAX_VALUE)) null else
                     PageCursor(cursor.page + 1, cursor.firstItem ?: rows.first().id, last)))
             }
-        } } } catch (_: LoginRequired) { loginFailure() }
+        }
     }
     /** targetLiked is the desired final state, never the currently displayed state. */
     suspend fun like(id: String, reply: Boolean, targetLiked: Boolean, expectedGeneration: Long? = null): WriteOutcome {

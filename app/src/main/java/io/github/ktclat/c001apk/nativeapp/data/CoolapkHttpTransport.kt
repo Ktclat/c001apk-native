@@ -39,6 +39,8 @@ class CoolapkHttpTransport(
     private val rejected = AtomicReference<Rejected?>(null)
     private var replay: Replay? = null
     private var continuationSession = AtomicReference<RequestSession?>(null)
+    private class CapturedReadSource(val session: RequestSession?)
+    private var capturedReadSource: CapturedReadSource? = null
     private fun activeSession() = (if (operationScoped) continuationSession.get() else null) ?: requestSession?.invoke()
     /** Fixed ordinary-read snapshot. Preserve browsing generation checks, including guest and
      * normal Set-Cookie behavior; do not import authenticated mutation/challenge revision rules.
@@ -57,12 +59,19 @@ class CoolapkHttpTransport(
     /** Read-only scoped adapter: use exactly the caller's captured session, never recapture another account. */
     internal fun forRequestSession(session: RequestSession): CoolapkHttpTransport =
         CoolapkHttpTransport(client, endpoints, protocol, { session }, monotonicMillis, true, homeDiagnostics)
+            .also { it.capturedReadSource = CapturedReadSource(session) }
 
     /** Capture once for one social action/pipeline, not a shared browsing repository. */
     fun forSingleOperation(): CoolapkHttpTransport {
         val captured = activeSession()
         return CoolapkHttpTransport(client, endpoints, protocol, captured?.let { value -> { value } }, monotonicMillis, true, homeDiagnostics)
+            .also { it.capturedReadSource = CapturedReadSource(captured) }
     }
+    /** Only factory-captured immutable input, never an arbitrary supplier or challenge successor.
+     * The public operationScoped flag alone is deliberately insufficient for this accessor.
+     */
+    internal fun capturedReadSession(): RequestSession? =
+        checkNotNull(capturedReadSource) { "A factory-captured operation is required" }.session
     fun isRequestScopeCurrent(): Boolean = activeSession().let { it == null || (it.isCurrent() && it.isSessionCurrent?.invoke() != false) }
     fun isCaptchaContinuationCurrent(challenge: ApiChallenge): Boolean = rejected.get()?.let { it.challenge == challenge && eligible(it) && !it.replayGranted.get() } ?: false
     /** After decoding a verified read, reject a cookie/device/owner change before publication. */
