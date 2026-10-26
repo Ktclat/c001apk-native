@@ -58,4 +58,25 @@ class NativeFeedCardTest {
         compose.onNodeWithText("@转发作者：嵌套转发", substring = true).assertExists()
         compose.onNodeWithText("热评作者：嵌套热评", substring = true).assertExists()
     }
+    @Test fun shareOnlyMenuAndCapturedDoubleClickInvokeOnce() {
+        var shares = 0
+        compose.setContent { MaterialTheme { NativeFeedCard(fixture(), FeedCardActions(
+            openPost = {}, openAuthor = null, openComments = {}, openLink = {}, openReference = {}, share = { shares++ })) } }
+        compose.onNodeWithTag("feed-more:synthetic").performClick()
+        val click = compose.onNodeWithTag("feed-share:synthetic").fetchSemanticsNode().config[androidx.compose.ui.semantics.SemanticsActions.OnClick].action!!
+        compose.runOnUiThread { click(); click() }
+        compose.waitForIdle()
+        assertEquals(1, shares)
+        compose.onNodeWithTag("feed-share:synthetic").assertDoesNotExist()
+    }
+    @Test fun pendingTextActionsDisableOnlyCopyShareAndKeepFavorite() {
+        compose.setContent { MaterialTheme { NativeFeedCard(fixture(), FeedCardActions(
+            openPost = {}, openAuthor = null, openComments = {}, openLink = {}, openReference = {},
+            copy = {}, share = {}, favorite = {}, textActionsEnabled = false)) } }
+        compose.onNodeWithTag("feed-more:synthetic").performClick()
+        compose.onNodeWithTag("feed-copy:synthetic").assertIsNotEnabled()
+        compose.onNodeWithTag("feed-share:synthetic").assertIsNotEnabled()
+        compose.onNodeWithText("收藏到本机").assertIsEnabled()
+    }
+
 }

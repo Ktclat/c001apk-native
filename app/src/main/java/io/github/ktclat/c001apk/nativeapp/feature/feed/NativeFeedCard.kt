@@ -45,6 +45,8 @@ data class FeedCardActions(
     val login: (() -> Unit)? = null,
     val favorite: (() -> Unit)? = null,
     val copy: (() -> Unit)? = null,
+    val share: (() -> Unit)? = null,
+    val textActionsEnabled: Boolean = true,
     val block: (() -> Unit)? = null,
     val report: (() -> Unit)? = null,
     val openOriginal: (() -> Unit)? = null,
@@ -56,7 +58,7 @@ fun NativeFeedCard(model: FeedCardModel, actions: FeedCardActions, modifier: Mod
     val article = detail && model.fullPostBody is io.github.ktclat.c001apk.nativeapp.domain.FullPostBody.Structured
     val palette = MaterialTheme.colorScheme
     var menu by remember(model.id) { mutableStateOf(false) }
-    val hasMenu = actions.favorite != null || actions.copy != null || actions.block != null || actions.report != null
+    val hasMenu = actions.favorite != null || actions.copy != null || actions.share != null || actions.block != null || actions.report != null
     Surface(modifier.fillMaxWidth().testTag("feed:${model.id}"), shape = RoundedCornerShape(if (detail) 0.dp else 12.dp),
         color = if (detail) palette.surface else palette.inverseOnSurface) {
         Column(Modifier.padding(horizontal = if (detail) 16.dp else 10.dp, vertical = 10.dp)) {
@@ -90,8 +92,9 @@ fun NativeFeedCard(model: FeedCardModel, actions: FeedCardActions, modifier: Mod
                 if (hasMenu) Box {
                     IconButton(onClick = { menu = true }, modifier = Modifier.testTag("feed-more:${model.id}")) { Icon(FlutterMaterialIcons.KeyboardArrowDown, "更多动态操作") }
                     DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
-                        fun close(action: () -> Unit): () -> Unit = { menu = false; action() }
-                        actions.copy?.let { DropdownMenuItem(text = { Text("复制内容") }, onClick = close(it)) }
+                        fun close(action: () -> Unit): () -> Unit = { if (menu) { menu = false; action() } }
+                        actions.copy?.let { DropdownMenuItem(text = { Text("复制链接") }, enabled = actions.textActionsEnabled, onClick = close(it), modifier = Modifier.testTag("feed-copy:${model.id}")) }
+                        actions.share?.let { DropdownMenuItem(text = { Text("分享") }, enabled = actions.textActionsEnabled, onClick = close(it), modifier = Modifier.testTag("feed-share:${model.id}")) }
                         actions.favorite?.let { DropdownMenuItem(text = { Text("收藏到本机") }, onClick = close(it)) }
                         actions.block?.let { DropdownMenuItem(text = { Text("屏蔽") }, onClick = close(it)) }
                         actions.report?.let { DropdownMenuItem(text = { Text("举报") }, onClick = close(it)) }
