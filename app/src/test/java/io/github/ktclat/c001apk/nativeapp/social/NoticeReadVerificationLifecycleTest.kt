@@ -2,8 +2,10 @@
 package io.github.ktclat.c001apk.nativeapp.social
 
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.semantics.SemanticsActions
+import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.lifecycle.*
@@ -14,6 +16,8 @@ import io.github.ktclat.c001apk.nativeapp.domain.*
 import okhttp3.*
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.ResponseBody.Companion.toResponseBody
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.test.StandardTestDispatcher
 import org.junit.*
 import org.junit.Assert.*
 import org.junit.runner.RunWith
@@ -26,8 +30,11 @@ import java.util.concurrent.TimeUnit
 /** Production notice state/repository with socket-free synthetic responses and typed proof callbacks. */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [35])
+@OptIn(ExperimentalTestApi::class, ExperimentalCoroutinesApi::class)
 class NoticeReadVerificationLifecycleTest {
-    @get:Rule val compose = createComposeRule()
+    // IO completion must enqueue effects on the rule's scheduler. Compose 1.7.6's default
+    // unconfined dispatcher can resume test frame/layout work inline on the IO worker.
+    @get:Rule val compose = createComposeRule(effectContext = StandardTestDispatcher())
     private lateinit var store: AccountStore
     private lateinit var repository: SocialRepository
     private lateinit var client: OkHttpClient
@@ -78,15 +85,55 @@ class NoticeReadVerificationLifecycleTest {
             throw failure
         }
     }
+    @Test fun asyncNoticeCompletionReturnsToComposeEffectScheduler() {
+        val uiThread = compose.runOnIdle { Thread.currentThread() }
+        val transportThreads = CopyOnWriteArrayList<Thread>()
+        val effectThreads = CopyOnWriteArrayList<Thread>()
+        val generation = store.state.value.generation
+        var result: ApiResult<Page<SocialRow>>? = null
+        var completed by mutableStateOf(false)
+        // Observe the actual async OkHttp producer, not a withContext(IO) block that Compose's
+        // test-only ApplyingContinuationInterceptor may itself intercept onto the test scheduler.
+        response = { transportThreads += Thread.currentThread(); rows(10) }
+        compose.setContent {
+            LaunchedEffect(Unit) {
+                effectThreads += Thread.currentThread()
+                result = repository.notices(NoticeCategory.MENTIONS, PageCursor(), generation)
+                effectThreads += Thread.currentThread()
+                completed = true
+            }
+            if (completed) Text("NOTICE_COMPLETION_RETURNED")
+        }
+        awaitState("notice-effect-return") {
+            compose.onAllNodesWithText("NOTICE_COMPLETION_RETURNED").fetchSemanticsNodes().isNotEmpty()
+        }
+        compose.onNodeWithText("NOTICE_COMPLETION_RETURNED").assertIsDisplayed()
+        assertEquals(1, transportThreads.size); assertEquals(2, effectThreads.size)
+        println("NOTICE_EFFECT_THREAD_WITNESS transport=${transportThreads.single().name}/${transportThreads.single().id} " +
+            "before=${effectThreads.first().name}/${effectThreads.first().id} " +
+            "after=${effectThreads.last().name}/${effectThreads.last().id} ui=${uiThread.name}/${uiThread.id} " +
+            "transportOffUi=${transportThreads.single() !== uiThread} effectOnUi=${effectThreads.all { it === uiThread }}")
+        assertNotSame("The transport must still complete on its actual worker", uiThread, transportThreads.single())
+        assertSame("Effects must start on the Compose UI owner", uiThread, effectThreads.first())
+        assertSame("Notice completion must return to the Compose UI owner", uiThread, effectThreads.last())
+        compose.runOnIdle {
+            assertEquals(listOf("10"), (result as ApiResult.Success).value.items.map { it.id })
+            assertEquals(1, requests.size)
+            assertEquals("/v6/notification/atMeList", requests.single().url.encodedPath)
+            assertEquals("1", requests.single().url.queryParameter("page"))
+        }
+    }
     @Test fun failedRefreshRetainsRowsAndVerifiedSuccessReplacesExactlyOnce() = mode(false)
     @Test fun failedNextPageRetainsCursorAndVerifiedSuccessAppendsExactlyOnce() = mode(true)
     @Test fun genericVerifiedRefreshRetainsRowsAndReplacesExactlyOnce() = mode(false, true)
     @Test fun genericVerifiedNextPageRetainsCursorAndAppendsExactlyOnce() = mode(true, true)
-    private fun mode(more: Boolean, genericRetry: Boolean = false) {
+    @Test fun delayedInitialResponseEnablesRefreshBeforeVerifiedGenericRetry() = mode(false, true, true)
+    private fun mode(more: Boolean, genericRetry: Boolean = false, gateInitialResponse: Boolean = false) {
         val generation = store.state.value.generation
+        val initialRelease = CountDownLatch(if (gateInitialResponse) 1 else 0)
         val release = CountDownLatch(1)
         response = { request -> when {
-            requests.size == 1 -> rows(10)
+            requests.size == 1 -> { check(initialRelease.await(10, TimeUnit.SECONDS)); rows(10) }
             request.header("Cookie").orEmpty().contains("validate=") -> { check(release.await(10, TimeUnit.SECONDS)); rows(20) }
             else -> challenge
         } }
@@ -95,8 +142,31 @@ class NoticeReadVerificationLifecycleTest {
             NotificationListScreen(repository, generation, NoticeCategory.MENTIONS, state, {}, { _, _ -> })
         } } }
         try {
-            compose.waitUntil(10_000) { activePages.singleOrNull()?.rows?.isNotEmpty() == true }
-            compose.onNodeWithText(if (more) "加载更多" else "刷新").performScrollTo().performClick()
+            if (gateInitialResponse) {
+                // Also exercise completion after the initial loading/disabled frame commits.
+                // The four existing modes retain their original immediate response schedule.
+                awaitState("initial-loading") {
+                    requests.size == 1 && activePages.singleOrNull()?.loading == true &&
+                        compose.onAllNodesWithTag("notification-loading").fetchSemanticsNodes().isNotEmpty()
+                }
+                compose.onNodeWithText("刷新").assertIsNotEnabled()
+                compose.runOnIdle { initialRelease.countDown() }
+            }
+            // CI58 reached loaded rows with no second GET and disabled Refresh at timeout.
+            // Establish actual control readiness, not just repository state, before clicking.
+            val initialAction = if (more) "加载更多" else "刷新"
+            awaitState("initial-action-ready:$initialAction") {
+                val page = activePages.singleOrNull()
+                val action = compose.onAllNodesWithText(initialAction).fetchSemanticsNodes().singleOrNull()
+                page?.loaded == true && !page.loading && page.rows.map { it.id } == listOf("10") &&
+                    action != null && !action.config.contains(SemanticsProperties.Disabled)
+            }
+            compose.runOnIdle {
+                assertEquals(1, requests.size)
+                assertEquals(PageCursor(2, "10", "10"), activePages.single().next)
+                assertNull(activePages.single().failure)
+            }
+            compose.onNodeWithText(initialAction).performScrollTo().assertIsDisplayed().assertIsEnabled().performClick()
             awaitTag("notice-human-verify")
             val page = activePages.single(); val cap = requireNotNull(page.failure?.noticeRead)
             compose.runOnIdle {
@@ -113,7 +183,7 @@ class NoticeReadVerificationLifecycleTest {
             assertEquals(requests[1].url.encodedPath, requests[2].url.encodedPath)
             assertEquals(if (more) "2" else "1", requests[2].url.queryParameter("page"))
             assertEquals(requests[1].url.encodedQuery, requests[2].url.encodedQuery); assertEquals(3, requests.size)
-        } finally { release.countDown() }
+        } finally { initialRelease.countDown(); release.countDown() }
     }
     @Test fun pauseAndRouteDisposalCloseVerifiedProofWithoutAutomaticResumeRead() {
         val generation = store.state.value.generation

@@ -49,3 +49,21 @@ The initial focused-build attempt was interrupted (exit130) to release the heavy
 ## Remaining boundaries
 
 This work does not establish live-service or physical-device/system-chooser behavior, successful delivery to an external app, TalkBack/performance acceptance, arbitrary HTML5 equivalence, full-body Copy/export, moderation/report support, or complete Flutter parity. No external target was selected, new device-fixture infrastructure added, push performed by this implementation task, or user data cleared. Android8/API26 remains the minimum; existing signing/data-preservation cautions still apply. Publication/CI and artifact delivery remain a separate parent-owned gate.
+
+## SDK35 launch-observation correction — 2026-10-27
+
+The unfiltered local gate on `17fef120324a42395e257769e577ba9a3decb85b` completed with **1,456 tests / 215 suites / one failure**: `nativeAppMenuClicksReachRealAndroidClipboardAndChooserWithoutTransferOverride` observed null target `ClipData` at line 190. The preceding chooser, ACTION_SEND, MIME, exact EXTRA_TEXT and no-recipient/no-flags checks had passed. That original failure is preserved, not reclassified as a pass.
+
+The [Android ACTION_SEND contract](https://developer.android.com/reference/android/content/Intent#ACTION_SEND) allows the caller to provide plain text through EXTRA_TEXT without setting ClipData itself, and documents migration during `Context.startActivity`. The [official text-sharing example](https://developer.android.com/develop/ui/compose/sharing/send#send-text-content) uses the same ACTION_SEND/type/EXTRA_TEXT/createChooser/startActivity sequence as this adapter. Thus ClipData is optional at construction, but post-launch normalization remains a valid expectation for this selected SDK35 path; production fields must not be added merely to satisfy an early observation.
+
+Exact cached bytecode established the missing completion boundary:
+
+- Robolectric 4.16 `ShadowInstrumentation.execStartActivity` queues the **original Intent reference** before delegating to real Instrumentation.
+- SDK35 `createChooser` does not perform EXTRA_TEXT migration. Real `Instrumentation.execStartActivity` invokes non-blocking ActivityMonitors before `migrateExtraStreamToClipData`, which then recurses into the chooser target.
+- Consequently, a queued chooser can already contain correct ACTION_SEND/type/EXTRA_TEXT while target ClipData is still null. Queue presence alone is not proof that `startActivity` returned. This establishes a legal interleaving, not a captured trace of the original failure.
+
+Test-only candidate **`c1093464530c3ba45ffbb980805a4c70f428731b`**, based on combined integration `a96996ea6fba9646391dbb31719f84e308e03be8`, now waits for the app's existing share-success feedback, emitted only after `shareText` returns, within the **unchanged single five-second budget**. It then dequeues the actual chooser once. All original exact payload, non-null ClipData, single-item/MIME, no URI/Intent/HTML, no flags/data/package/component, single-launch and no-transfer-override assertions remain. No runtime or build configuration changed.
+
+An additional deterministic, non-blocking ActivityMonitor test observes the same queued object before migration, asserts null ClipData there, returns null to continue the real SDK launch, then verifies normalized text after the actual adapter returns. It substitutes neither the adapter nor a launch result and uses no delay or enlarged timeout.
+
+Focused verification on that clean frozen candidate passed **30 tests in five non-empty suites**, with zero failures/errors/skips (one additional LauncherResources XML contains zero tests). The new monitor probe and the formerly failing real NativeApp boundary test both passed. All tracked before/after hashes were identical; all **242** portable runtime/build-input hashes still matched the independently reviewed runtime. Exact JAR hashes, disassembly, preserved failure, focused logs/XML and source snapshots are archived in `native-share-intent-evidence/`. This focused result is not an unfiltered full-gate pass, a remote CI verdict, or new device/share-recipient acceptance; those retain their separate evidence requirements.

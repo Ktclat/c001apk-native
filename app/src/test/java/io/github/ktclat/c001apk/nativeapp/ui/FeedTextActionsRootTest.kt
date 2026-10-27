@@ -175,12 +175,13 @@ class FeedTextActionsRootTest {
         assertNull(shadowOf(compose.activity).nextStartedActivity)
         compose.onNodeWithTag("feed-more:123").performClick()
         compose.onNodeWithTag("feed-share:123").performClick()
-        var launched: Intent? = null
+        // Robolectric queues the original Intent before SDK35 finishes launch-time text
+        // normalization. The controller emits this feedback only after shareText returns;
+        // queue presence alone can expose the target before its ClipData is populated.
         compose.waitUntil(5_000) {
-            launched = launched ?: shadowOf(compose.activity).nextStartedActivity
-            launched != null
+            compose.onAllNodesWithText("已打开系统分享面板，可选择应用或取消").fetchSemanticsNodes().isNotEmpty()
         }
-        val chooser = launched!!
+        val chooser = shadowOf(compose.activity).nextStartedActivity!!
         assertEquals(Intent.ACTION_CHOOSER, chooser.action)
         @Suppress("DEPRECATION") val send = chooser.getParcelableExtra<Intent>(Intent.EXTRA_INTENT)!!
         val expected = "这是一条用于复制与分享验证的合成动态。 链接和正文摘要使用不同规则。\nhttps://www.coolapk1s.com/feed/123\nhttps://www.coolapk.com/feed/123\n分享自c001apk"

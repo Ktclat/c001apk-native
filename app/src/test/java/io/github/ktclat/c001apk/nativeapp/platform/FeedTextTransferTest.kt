@@ -2,9 +2,11 @@
 package io.github.ktclat.c001apk.nativeapp.platform
 
 import android.app.Activity
+import android.app.Instrumentation
 import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
+import androidx.test.platform.app.InstrumentationRegistry
 import org.junit.Assert.*
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -16,6 +18,36 @@ import org.robolectric.annotation.Config
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [35])
 class FeedTextTransferTest {
+    @Test fun shadowQueueIsVisibleBeforeSdk35CompletesTextNormalization() {
+        Robolectric.buildActivity(Activity::class.java).setup().use { host ->
+            val activity = host.get()
+            val instrumentation = InstrumentationRegistry.getInstrumentation()
+            var queuedBeforeNormalization: Intent? = null
+            val monitor = object : Instrumentation.ActivityMonitor() {
+                override fun onStartActivity(intent: Intent): Instrumentation.ActivityResult? {
+                    // ShadowInstrumentation logs the same object before delegating to SDK35.
+                    // A non-blocking ActivityMonitor runs before migrateExtraStreamToClipData.
+                    queuedBeforeNormalization = shadowOf(activity).nextStartedActivity
+                    assertSame(intent, queuedBeforeNormalization)
+                    @Suppress("DEPRECATION") val send = intent.getParcelableExtra<Intent>(Intent.EXTRA_INTENT)!!
+                    assertEquals("synthetic text", send.getStringExtra(Intent.EXTRA_TEXT))
+                    assertNull(send.clipData)
+                    return null // Continue the real SDK launch path; do not substitute a result.
+                }
+            }
+            instrumentation.addMonitor(monitor)
+            try {
+                AndroidFeedTextTransfer(activity).shareText("synthetic text")
+            } finally {
+                instrumentation.removeMonitor(monitor)
+            }
+            assertNotNull("The real SDK launch must reach the non-blocking monitor", queuedBeforeNormalization)
+            @Suppress("DEPRECATION") val send = queuedBeforeNormalization!!.getParcelableExtra<Intent>(Intent.EXTRA_INTENT)!!
+            assertEquals("synthetic text", send.clipData!!.getItemAt(0).text.toString())
+            assertNull(shadowOf(activity).nextStartedActivity)
+        }
+    }
+
     @Test fun clipboardReceivesOnlyOnePlainLinkAndNoIntent() {
         Robolectric.buildActivity(Activity::class.java).setup().use { host ->
             val activity = host.get()
