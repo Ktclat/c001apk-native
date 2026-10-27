@@ -36,9 +36,9 @@ import io.github.ktclat.c001apk.nativeapp.ui.FullPostText
 
 /** Required navigation callbacks have no fake/no-op defaults. Null actions are not offered. */
 data class FeedCardActions(
-    val openPost: () -> Unit,
+    val openPost: (() -> Unit)?,
     val openAuthor: (() -> Unit)?,
-    val openComments: () -> Unit,
+    val openComments: (() -> Unit)?,
     val openLink: (String) -> Unit,
     val openReference: (FeedReference) -> Unit,
     val toggleLike: (() -> Unit)? = null,
@@ -101,14 +101,14 @@ fun NativeFeedCard(model: FeedCardModel, actions: FeedCardActions, modifier: Mod
                     }
                 }
             }
-            Column(Modifier.fillMaxWidth().then(if (!detail) Modifier.clickable(onClickLabel = "查看动态详情", onClick = actions.openPost) else Modifier).testTag("feed-body:${model.id}")) {
+            Column(Modifier.fillMaxWidth().then(if (!detail && actions.openPost != null) Modifier.clickable(onClickLabel = "查看动态详情", onClick = actions.openPost) else Modifier).testTag("feed-body:${model.id}")) {
                 if (!article && model.title.isNotBlank()) { Spacer(Modifier.height(5.dp)); Text(model.title.take(600), style = LocalReadingStyles.current.title) }
                 if (detail && model.fullPostBody != null) {
                     Spacer(Modifier.height(5.dp))
                     key(model.id) { FullPostText(model.fullPostBody, model.body, actions.openLink, actions.openOriginal) }
                 } else {
                     if (model.body.isNotBlank()) { Spacer(Modifier.height(5.dp)); PagedPostText(model.body, model.bodyTruncated, actions.openLink) }
-                    if (model.bodyTruncated && !detail) TextButton(onClick = actions.openPost) { Text("加载详情正文") }
+                    if (model.bodyTruncated && !detail) TextButton(onClick = { actions.openPost?.invoke() }, enabled = actions.openPost != null) { Text("加载详情正文") }
                 }
             }
             if (!article && model.images.isNotEmpty()) { Spacer(Modifier.height(10.dp)); MediaGrid(model.images) }
@@ -132,11 +132,11 @@ fun NativeFeedCard(model: FeedCardModel, actions: FeedCardActions, modifier: Mod
             if (!article) model.hotReply?.let { Spacer(Modifier.height(10.dp)); ReferenceSurface(it, true, actions) }
             if (model.unsupportedChildren > 0) {
                 if (detail) Text("另有${model.unsupportedChildren}项嵌套内容尚未支持原生展示", fontSize = 13.sp, color = palette.onSurfaceVariant)
-                else TextButton(onClick = actions.openPost) { Text("查看嵌套内容（${model.unsupportedChildren}）", fontSize = 13.sp) }
+                else TextButton(onClick = { actions.openPost?.invoke() }, enabled = actions.openPost != null) { Text("查看嵌套内容（${model.unsupportedChildren}）", fontSize = 13.sp) }
             }
             Row(Modifier.fillMaxWidth().padding(top = 4.dp), verticalAlignment = Alignment.CenterVertically) {
                 Text(model.time, Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis, fontSize = 13.sp, color = palette.onSurfaceVariant)
-                TextButton(onClick = actions.openComments, colors = ButtonDefaults.textButtonColors(contentColor = palette.onSurfaceVariant), modifier = Modifier.heightIn(min = 48.dp).testTag("feed-comments:${model.id}").semantics { contentDescription = "评论 ${model.replies ?: "数量未知"}" }, contentPadding = PaddingValues(horizontal = 8.dp)) {
+                TextButton(onClick = { actions.openComments?.invoke() }, enabled = actions.openComments != null, colors = ButtonDefaults.textButtonColors(contentColor = palette.onSurfaceVariant), modifier = Modifier.heightIn(min = 48.dp).testTag("feed-comments:${model.id}").semantics { contentDescription = "评论 ${model.replies ?: "数量未知"}" }, contentPadding = PaddingValues(horizontal = 8.dp)) {
                     Icon(FlutterMaterialIcons.MessageOutlined, null, Modifier.size(16.dp)); Spacer(Modifier.width(4.dp)); Text(feedCount(model.replies), fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
                 val likeAction = if (model.likeState == FeedLikeState.LOGIN_REQUIRED) actions.login else if (model.likeState.canToggle()) actions.toggleLike else null
@@ -159,7 +159,7 @@ fun NativeFeedCard(model: FeedCardModel, actions: FeedCardActions, modifier: Mod
                 } }
                 if (model.relations.size > 12) {
                     if (detail) Text("另有${model.relations.size - 12}项关联内容尚未展示", fontSize = 13.sp)
-                    else TextButton(onClick = actions.openPost) { Text("更多关联内容") }
+                    else TextButton(onClick = { actions.openPost?.invoke() }, enabled = actions.openPost != null) { Text("更多关联内容") }
                 }
             }
         }

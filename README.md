@@ -1,6 +1,20 @@
 # c001apk Native
 
-## Current increment: Markdown and raw detail — 2026-10-25
+## Current development scope — 2026-10-27
+
+The native client remains **in development, not full Flutter parity**. The historical checkpoints below retain their original evidence and are not the current feature list.
+
+**This bounded increment received independent actual-UI approval on 2026-10-27.** The frozen runtime passed 1,454 unit tests and 28 distinct API26 emulator scenarios (30 passing invocations including two narrow repeats). [Independent review](docs/INDEPENDENT_UI_REVIEW_20261027.md) records exact APK/source hashes, actual screenshots and limits; [opt-in reproduction](docs/qa/REPRODUCE.md) provides a test-only overlay. This publication adds documentation/QA material only after the tested runtime freeze; the portable runtime manifest verifies source equivalence. Remote CI for the published snapshot is separate from this local acceptance record.
+
+- Published through `e1e7d6cc`: quiet-dwell floating navigation; public image URL normalization; public user profile and following/fans lists; internal notification destinations; and owner-scoped human-verification continuation for supported notification reads. These do not establish live-service or physical-device acceptance.
+- This increment restores already-decoded rich feed/reply/template content in personal lists, retains verified reads for ordinary Retry, and improves category-scoped blacklist management.
+- Running-UI review also prompted corrections to Android 8–9 navigation scrims, appearance-sheet system icon polarity, and enlarged-font landscape confirmation width. Final integration and independent running-UI acceptance are recorded separately; source presence alone is not approval.
+- Personal-list Back still refetches rather than preserving list scroll. Liker avatar/time and the reply-linked feed preview remain outside this increment. Unsupported content remains explicit; this is not a claim of complete card parity.
+- Android 8 / API26 remains the native minimum. Real account/provider verification, physical-device behavior and stable signing remain open. Do not uninstall or clear existing app data to overcome a signature conflict.
+
+See [personal rich cards](docs/PERSONAL_RICH_CARDS_PARITY.md), [notification verification](docs/NOTICE_READ_VERIFICATION.md), and the scoped validation records for exact source and evidence boundaries.
+
+## Historical increment: Markdown and raw detail — 2026-10-25
 
 [PR #15](https://github.com/Ktclat/c001apk-native/pull/15) was integrated into main as `4564943997e2065f92bd5b78e331bd3ffbae0153` after clean [CI47](https://github.com/Ktclat/c001apk-native/actions/runs/40181700101) and independent source, artifact and UI review. Post-merge [CI48](https://github.com/Ktclat/c001apk-native/actions/runs/40183283419) also passed: **950 tests / 144 suites, zero failures/errors/skips**, debug assembly, and lint with **44 warnings / one hint / zero errors**. The two additional warnings are CommonMark update advisories.
 

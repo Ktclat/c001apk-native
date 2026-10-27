@@ -980,7 +980,10 @@ class NativeImageComposerPresentationTest {
         assertOriginalAspectGeometry()
         captureTop("native-reply-user369-forward-enabled")
         compose.onNodeWithContentDescription("返回").performClick()
-        awaitVisible("same actual feed", hasTestTag("feed-detail-list"))
+        // This fixture uses the independently parsed message preview, not a prepared full reader.
+        // Require the exact origin body inside the returned list within the original wait budget.
+        awaitVisible("same actual feed original body", hasText(FEED_ORIGINAL) and hasAnyAncestor(hasTestTag("feed-detail-list")))
+        compose.onNodeWithTag("feed-detail-list").assertIsDisplayed()
         compose.onNodeWithText(FEED_ORIGINAL).assertExists()
         assertStableCounts(0, 0, 0, detail = 1, replies = 1)
     }

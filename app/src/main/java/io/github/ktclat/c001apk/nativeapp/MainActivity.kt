@@ -101,6 +101,11 @@ class MainActivity : ComponentActivity() {
 
 /** Appearance only: keep platform navigation-bar contrast and system gesture protections intact. */
 internal fun applyNativeSystemBarAppearance(window: Window, dark: Boolean) {
+    // Match activity:1.9.3 EdgeToEdge.kt defaults when our app theme differs from the system.
+    // API29+ owns its contrast scrim; leave that navigation color and policy untouched.
+    if (Build.VERSION.SDK_INT < 29) {
+        window.navigationBarColor = if (dark) 0x801B1B1B.toInt() else 0xE6FFFFFF.toInt()
+    }
     WindowCompat.getInsetsController(window, window.decorView).apply {
         isAppearanceLightStatusBars = !dark
         isAppearanceLightNavigationBars = !dark

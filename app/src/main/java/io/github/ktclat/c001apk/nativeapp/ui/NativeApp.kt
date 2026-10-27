@@ -310,7 +310,10 @@ fun NativeApp(model: BrowseViewModel, container: AppContainer, settings: AppSett
             } }) }; return }
         "library:FAVORITES", "library:HISTORY" -> { LocalLibraryScreen(container.local, LibraryKind.valueOf(route!!.substringAfter(":")), goBack, { navigate("feed:$it") }); return }
         "local-follows" -> { LocalFollowsScreen(container.local, goBack, { navigate("user:$it") }); return }
-        "blacklist" -> { BlacklistScreen(container.local, goBack); return }
+        "blacklist" -> {
+            SideEffect { savedKeys.add("blacklist") }
+            holder.SaveableStateProvider("blacklist") { BlacklistScreen(container.local, goBack, navigate) }; return
+        }
     }
     sourceListRoute(route)?.let { linked ->
         HostedScreen(linked.title, goBack) {

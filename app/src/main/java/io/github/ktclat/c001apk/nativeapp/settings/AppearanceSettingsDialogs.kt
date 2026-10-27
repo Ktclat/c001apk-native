@@ -10,7 +10,9 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.*
 import androidx.compose.ui.text.TextStyle
@@ -18,6 +20,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.DialogWindowProvider
+import androidx.core.view.WindowCompat
 import io.github.ktclat.c001apk.nativeapp.ui.FlutterMaterialIcons
 import kotlin.math.roundToInt
 
@@ -96,7 +100,21 @@ internal fun fontComparisonStyle(font: FontChoice) = TextStyle(
     // ModalBottomSheet owns an Android window and reinstalls its resource density. Re-provide
     // the host’s effective system × app scale for both controls and comparison samples.
     val hostDensity = LocalDensity.current
-    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
+    val containerColor = BottomSheetDefaults.ContainerColor
+    val lightSystemBars = containerColor.luminance() > 0.5f
+    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+        containerColor = containerColor) {
+        // material3:1.3.1 initializes this separate window from SYSTEM brightness. Match the
+        // resolved sheet surface after those defaults; never change the host window or scrims.
+        val sheetWindow = (LocalView.current.parent as? DialogWindowProvider)?.window
+        SideEffect {
+            sheetWindow?.let { window ->
+                WindowCompat.getInsetsController(window, window.decorView).apply {
+                    isAppearanceLightStatusBars = lightSystemBars
+                    isAppearanceLightNavigationBars = lightSystemBars
+                }
+            }
+        }
         CompositionLocalProvider(LocalDensity provides hostDensity) {
         Column(Modifier.fillMaxWidth().testTag("appearance-detail")) {
             Row(Modifier.fillMaxWidth().padding(start = 20.dp, end = 8.dp), verticalAlignment = Alignment.CenterVertically) {

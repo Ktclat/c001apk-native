@@ -36,13 +36,15 @@ class AccountReadVerificationLifecycleTest {
         { true }, { error("No image request") }, { error("No graphic answer") }, { retry() })
     private fun countFailure(pending: PendingCountsRead) = ApiResult.Failure(FailureKind.CAPTCHA, "合成未读验证", countsRead = pending)
     private fun personalFailure(pending: PendingPersonalRead) = ApiResult.Failure(FailureKind.CAPTCHA, "合成列表验证", personalRead = pending)
-    private fun entry(id: String) = PersonalEntry(id, ContentItem(id, "feed"), id, "", PersonalDestination.Unsupported)
+    private fun entry(id: String) = PersonalEntry(id, ContentItem(id, "feed", title = id), id, "", PersonalDestination.Unsupported)
     private fun awaitTag(tag: String) = compose.waitUntil(10_000) { compose.onAllNodesWithTag(tag).fetchSemanticsNodes().isNotEmpty() }
     private class Owner : LifecycleOwner {
         val registry = LifecycleRegistry.createUnsafe(this)
         override val lifecycle: Lifecycle get() = registry
     }
-    @Test fun countsExplicitRetryIsSingleFlightAndDoesNotReloadProfile() {
+    @Test fun countsExplicitRetryIsSingleFlightAndDoesNotReloadProfile() = countsSingleFlight(false)
+    @Test fun countsGenericRetryIsSingleFlightAndDoesNotReloadProfile() = countsSingleFlight(true)
+    private fun countsSingleFlight(genericRetry: Boolean) {
         val reads = AtomicInteger(); val retries = AtomicInteger(); var profiles = 0
         val release = CompletableDeferred<Unit>()
         val pending: PendingCountsRead = pending { retries.incrementAndGet(); release.await(); ApiResult.Success(counts) }
@@ -50,9 +52,11 @@ class AccountReadVerificationLifecycleTest {
         val profile = OwnProfileRepository { profiles++; ApiResult.Success(OwnProfile("123", "PROFILE_UNCHANGED", null, null, null, null, 0, 0, 0)) }
         try {
             compose.setContent { MaterialTheme { OwnProfileDashboardContent(profile, account, rememberScrollState(), 80.dp, {}, {}, repository) } }
-            awaitTag("counts-human-verify"); compose.runOnIdle { assertTrue(pending.acceptHumanProof(proof)) }
+            awaitTag("counts-human-verify")
+            val genericClick = if (genericRetry) compose.onNodeWithText("重试未读数量").fetchSemanticsNode().config[SemanticsActions.OnClick].action!! else null
+            compose.runOnIdle { assertTrue(pending.acceptHumanProof(proof)) }
             awaitTag("counts-verified-retry")
-            val click = compose.onNodeWithTag("counts-verified-retry").fetchSemanticsNode().config[SemanticsActions.OnClick].action!!
+            val click = genericClick ?: compose.onNodeWithTag("counts-verified-retry").fetchSemanticsNode().config[SemanticsActions.OnClick].action!!
             compose.runOnIdle { click(); click() }
             // The captured action changes snapshotFlow; flush the Compose/main frame before
             // polling the IO-side counter. Atomic-only polling does not advance that frame.
@@ -65,6 +69,7 @@ class AccountReadVerificationLifecycleTest {
             }
             compose.runOnIdle { assertEquals(1, reads.get()); assertEquals(1, profiles); release.complete(Unit) }
             compose.waitUntil(10_000) { compose.onAllNodesWithTag("my-notice-badge-MENTIONS", useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty() }
+            if (genericRetry) { compose.runOnIdle { click(); click() }; compose.waitForIdle() }
             compose.runOnIdle { assertEquals(1, retries.get()); assertEquals(1, reads.get()); assertEquals(1, profiles) }
         } finally { release.complete(Unit) }
     }
@@ -89,12 +94,58 @@ class AccountReadVerificationLifecycleTest {
         compose.runOnIdle { assertEquals(DetailVerificationState.CLOSED, all[1].state.value); shown = false }
         compose.runOnIdle { assertEquals(DetailVerificationState.CLOSED, all.last().state.value); assertEquals(0, replays.get()) }
     }
-    @Test fun aggregateRefreshCancelsPendingAndNeverConsumesItsProof() {
+    @Test fun genericCountsCallbacksCannotCrossPauseOwnerOrRoute() {
+        val owner = Owner()
+        val all = mutableListOf<PendingCountsRead>()
+        var shown by mutableStateOf(true)
+        var user by mutableStateOf(account)
+        val repository = NotificationCountsRepository {
+            pending<NotificationCounts> { error("Departed counts callback replayed") }.also { all += it }.let(::countFailure)
+        }
+        compose.runOnIdle { owner.registry.currentState = Lifecycle.State.RESUMED }
+        compose.setContent { CompositionLocalProvider(LocalLifecycleOwner provides owner) { MaterialTheme {
+            if (shown) OwnProfileDashboardContent(null, user, rememberScrollState(), 80.dp, {}, {}, repository)
+        } } }
+        fun awaitCalls(expected: Int) = compose.waitUntil(10_000) {
+            compose.onRoot().fetchSemanticsNode()
+            all.size == expected && compose.onAllNodesWithTag("counts-human-verify").fetchSemanticsNodes().isNotEmpty()
+        }
+        fun verifiedCallback(): () -> Boolean {
+            val click = compose.onNodeWithText("重试未读数量").fetchSemanticsNode().config[SemanticsActions.OnClick].action!!
+            compose.runOnIdle { assertTrue(all.last().acceptHumanProof(proof)) }
+            awaitTag("counts-verified-retry")
+            return click
+        }
+        awaitCalls(1); val pauseClick = verifiedCallback()
+        compose.runOnIdle { owner.registry.currentState = Lifecycle.State.STARTED }; compose.waitForIdle()
+        compose.runOnIdle { pauseClick(); assertEquals(DetailVerificationState.CLOSED, all[0].state.value); owner.registry.currentState = Lifecycle.State.RESUMED }
+        awaitCalls(2)
+        compose.runOnIdle { pauseClick() }; compose.waitForIdle(); assertEquals(2, all.size)
+        val generationClick = verifiedCallback()
+        compose.runOnIdle { user = user.copy(generation = 1) }; awaitCalls(3)
+        compose.runOnIdle { generationClick(); assertEquals(DetailVerificationState.CLOSED, all[1].state.value) }
+        compose.waitForIdle(); assertEquals(3, all.size)
+        val accountClick = verifiedCallback()
+        compose.runOnIdle { user = AccountState(listOf(AccountSummary("456", "Replacement", false)), "456", generation = 2) }; awaitCalls(4)
+        compose.runOnIdle { accountClick(); assertEquals(DetailVerificationState.CLOSED, all[2].state.value) }
+        compose.waitForIdle(); assertEquals(4, all.size)
+        val routeClick = verifiedCallback()
+        compose.runOnIdle { shown = false }; compose.waitForIdle()
+        compose.runOnIdle { routeClick(); assertEquals(DetailVerificationState.CLOSED, all[3].state.value) }
+        compose.waitForIdle(); assertEquals(4, all.size)
+    }
+    @Test fun aggregateRefreshCancelsPendingAndNeverConsumesItsProof() = aggregateRefresh(false)
+    @Test fun aggregateRefreshStillDiscardsVerifiedProofRatherThanRetrying() = aggregateRefresh(true)
+    private fun aggregateRefresh(verified: Boolean) {
         val all = mutableListOf<PendingCountsRead>(); var profiles = 0; var reads = 0; val retries = AtomicInteger()
         val repository = NotificationCountsRepository { reads++; pending { retries.incrementAndGet(); ApiResult.Success(counts) }.also { all += it }.let(::countFailure) }
         val profile = OwnProfileRepository { profiles++; ApiResult.Success(OwnProfile("123", "Synthetic", null, null, null, null, 0, 0, 0)) }
         compose.setContent { MaterialTheme { OwnProfileDashboardContent(profile, account, rememberScrollState(), 80.dp, {}, {}, repository) } }
         awaitTag("counts-human-verify")
+        if (verified) {
+            compose.runOnIdle { assertTrue(all.last().acceptHumanProof(proof)) }
+            awaitTag("counts-verified-retry")
+        }
         val refresh = compose.onNodeWithTag("my-root-list").fetchSemanticsNode().config[SemanticsActions.CustomActions].single { it.label == REFRESH_MY_ACTION }.action
         compose.runOnIdle { assertTrue(refresh()) }
         awaitTag("counts-human-verify")
@@ -115,20 +166,110 @@ class AccountReadVerificationLifecycleTest {
     }
     @Test fun failedPersonalRefreshRetriesReplacementNotAppend() = personalMode(false)
     @Test fun failedPersonalNextPageRetriesAppendNotRefresh() = personalMode(true)
-    private fun personalMode(more: Boolean) {
+    @Test fun genericPersonalRefreshPreservesRowsUntilVerifiedReplacement() = personalMode(false, genericRetry = true)
+    @Test fun genericPersonalNextPagePreservesRowsAndCursorUntilVerifiedAppend() = personalMode(true, genericRetry = true)
+    private fun personalMode(more: Boolean, genericRetry: Boolean = false) {
         val calls = mutableListOf<PageCursor>(); val retries = AtomicInteger()
-        val pending: PendingPersonalRead = pending { retries.incrementAndGet(); ApiResult.Success(Page(listOf(entry("NEW_ROW")), null)) }
+        val release = CompletableDeferred<Unit>()
+        val next = PageCursor(3, "OLD_ROW", "NEW_ROW")
+        val pending: PendingPersonalRead = pending {
+            retries.incrementAndGet()
+            if (genericRetry) release.await()
+            ApiResult.Success(Page(listOf(entry("NEW_ROW")), next))
+        }
         val repository = PersonalListRepository { _, _, cursor ->
             calls += cursor
-            if (calls.size == 1) ApiResult.Success(Page(listOf(entry("OLD_ROW")), PageCursor(2, "OLD_ROW", "OLD_ROW"))) else personalFailure(pending)
+            when (calls.size) {
+                1 -> ApiResult.Success(Page(listOf(entry("OLD_ROW")), PageCursor(2, "OLD_ROW", "OLD_ROW")))
+                2 -> personalFailure(pending)
+                else -> ApiResult.Success(Page(emptyList(), null))
+            }
         }
         compose.setContent { MaterialTheme { PersonalListScreen(repository, PersonalListRequest(PersonalListKind.LIKE), "123", 0, {}, {}, {}) } }
         compose.onNodeWithText(if (more) "加载更多" else "刷新").performScrollTo().performClick()
-        awaitTag("personal-human-verify"); compose.runOnIdle { assertTrue(pending.acceptHumanProof(proof)) }
-        awaitTag("personal-verified-retry"); compose.onNodeWithTag("personal-verified-retry").performScrollTo().performClick()
+        awaitTag("personal-human-verify")
+        compose.onNodeWithText("OLD_ROW").assertExists()
+        val genericClick = if (genericRetry) compose.onNodeWithText("重试").fetchSemanticsNode().config[SemanticsActions.OnClick].action!! else null
+        compose.runOnIdle { assertTrue(pending.acceptHumanProof(proof)) }
+        awaitTag("personal-verified-retry")
+        if (genericRetry) {
+            try {
+                compose.runOnIdle { genericClick!!(); genericClick() }; compose.waitForIdle()
+                compose.waitUntil(10_000) { retries.get() == 1 }
+                compose.runOnIdle { assertEquals(1, retries.get()); assertEquals(2, calls.size) }
+                compose.onNodeWithTag("personal-loading").assertExists()
+                compose.onNodeWithText("OLD_ROW").assertExists()
+                compose.onNodeWithText("NEW_ROW").assertDoesNotExist()
+            } finally { release.complete(Unit) }
+        } else compose.onNodeWithTag("personal-verified-retry").performScrollTo().performClick()
         compose.waitUntil(10_000) { compose.onAllNodesWithText("NEW_ROW").fetchSemanticsNodes().isNotEmpty() }
         if (more) compose.onNodeWithText("OLD_ROW").assertExists() else compose.onNodeWithText("OLD_ROW").assertDoesNotExist()
         compose.runOnIdle { assertEquals(1, retries.get()); assertEquals(if (more) PageCursor(2, "OLD_ROW", "OLD_ROW") else PageCursor(), calls.last()); assertEquals(2, calls.size) }
+        if (genericRetry) {
+            // A retained callback cannot replay after success; successful continuation supplies
+            // the next cursor, independent of whether the failed operation replaced or appended.
+            compose.runOnIdle { genericClick!!(); genericClick() }; compose.waitForIdle()
+            compose.runOnIdle { assertEquals(2, calls.size); assertEquals(1, retries.get()) }
+            // Appended rich cards can leave the footer outside lazy composition. Discover it
+            // through the actual list before querying/clicking the newly visible button.
+            compose.onNodeWithTag("personal-list").performScrollToNode(hasText("加载更多"))
+            compose.onNodeWithText("加载更多").performScrollTo().assertIsDisplayed().performClick()
+            compose.runOnIdle { assertEquals(3, calls.size); assertEquals(next, calls.last()) }
+        }
+    }
+    @Test fun personalExplicitRefreshStillDiscardsVerifiedProofRatherThanRetrying() {
+        var reads = 0
+        val pending: PendingPersonalRead = pending { error("Refresh consumed verified capability") }
+        val repository = PersonalListRepository { _, _, _ ->
+            if (++reads == 1) personalFailure(pending) else ApiResult.Success(Page(listOf(entry("FRESH_ROW")), null))
+        }
+        compose.setContent { MaterialTheme { PersonalListScreen(repository, PersonalListRequest(PersonalListKind.LIKE), "123", 0, {}, {}, {}) } }
+        awaitTag("personal-human-verify")
+        val retry = compose.onNodeWithText("重试").fetchSemanticsNode().config[SemanticsActions.OnClick].action!!
+        compose.runOnIdle { assertTrue(pending.acceptHumanProof(proof)) }; awaitTag("personal-verified-retry")
+        compose.onNodeWithText("刷新").performScrollTo().performClick()
+        compose.onNodeWithText("FRESH_ROW").assertExists()
+        compose.runOnIdle { retry(); assertEquals(DetailVerificationState.CLOSED, pending.state.value) }
+        compose.waitForIdle(); assertEquals(2, reads)
+    }
+    @Test fun genericPersonalCallbacksCannotCrossTabOwnerOrRoute() {
+        val all = mutableListOf<PendingPersonalRead>()
+        var generation by mutableLongStateOf(0)
+        var uid by mutableStateOf("123")
+        var shown by mutableStateOf(true)
+        val calls = mutableListOf<Pair<PersonalListKind, String>>()
+        val repository = PersonalListRepository { request, account, _ ->
+            calls += request.kind to account
+            pending<Page<PersonalEntry>> { error("Departed callback replayed") }.also { all += it }.let(::personalFailure)
+        }
+        compose.setContent { MaterialTheme { if (shown) PersonalListScreen(repository, PersonalListRequest(PersonalListKind.FOLLOW), uid, generation, {}, {}, {}) } }
+        fun awaitCalls(expected: Int) = compose.waitUntil(10_000) {
+            compose.onRoot().fetchSemanticsNode()
+            calls.size == expected && compose.onAllNodesWithTag("personal-human-verify").fetchSemanticsNodes().isNotEmpty()
+        }
+        fun verifiedCallback(): () -> Boolean {
+            val click = compose.onNodeWithText("重试").fetchSemanticsNode().config[SemanticsActions.OnClick].action!!
+            compose.runOnIdle { assertTrue(all.last().acceptHumanProof(proof)) }
+            awaitTag("personal-verified-retry")
+            return click
+        }
+        awaitCalls(1); val tabClick = verifiedCallback()
+        compose.onNodeWithText("话题").performClick(); awaitCalls(2)
+        compose.runOnIdle { tabClick(); assertEquals(DetailVerificationState.CLOSED, all[0].state.value) }
+        compose.waitForIdle(); assertEquals(2, calls.size)
+        val generationClick = verifiedCallback()
+        compose.runOnIdle { generation++ }; awaitCalls(3)
+        compose.runOnIdle { generationClick(); assertEquals(DetailVerificationState.CLOSED, all[1].state.value) }
+        compose.waitForIdle(); assertEquals(3, calls.size)
+        val accountClick = verifiedCallback()
+        compose.runOnIdle { uid = "456" }; awaitCalls(4)
+        compose.runOnIdle { accountClick(); assertEquals(DetailVerificationState.CLOSED, all[2].state.value) }
+        compose.waitForIdle(); assertEquals(4, calls.size)
+        val routeClick = verifiedCallback()
+        compose.runOnIdle { shown = false }; compose.waitForIdle()
+        compose.runOnIdle { routeClick(); assertEquals(DetailVerificationState.CLOSED, all[3].state.value) }
+        compose.waitForIdle(); assertEquals(4, calls.size)
+        assertEquals(listOf(PersonalListKind.FOLLOW to "123", PersonalListKind.TOPICS to "123", PersonalListKind.FOLLOW to "123", PersonalListKind.FOLLOW to "456"), calls)
     }
     @Test fun personalTabAccountAndRouteDisposalCancelCapabilities() {
         val all = mutableListOf<PendingPersonalRead>(); var generation by mutableLongStateOf(0); var shown by mutableStateOf(true)

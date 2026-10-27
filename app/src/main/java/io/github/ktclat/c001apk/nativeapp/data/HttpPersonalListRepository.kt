@@ -41,7 +41,7 @@ internal fun decodePersonalPage(value: JsonElement, cursor: PageCursor): Page<Pe
   } else pairs += row to item
  }
  rows.forEachIndexed { index, element -> collect(element as? JsonObject ?: ApiDecoder.invalid(), content[index], 0) }
- val entries = pairs.filterNot { it.second.kind == "noMoreDataCard" }.map { (row, item) ->
+ val entries = pairs.filterNot { isPersonalEndCard(it.second) }.map { (row, item) ->
   fun text(key:String) = (row[key] as? JsonPrimitive)?.contentOrNull.orEmpty()
   fun nested(key:String, field:String) = ((row[key] as? JsonObject)?.get(field) as? JsonPrimitive)?.contentOrNull.orEmpty()
   fun route(prefix:String, id:String): PersonalDestination = if(id.matches(Regex("[0-9]+"))) PersonalDestination.Route("$prefix:$id") else PersonalDestination.Unsupported
@@ -63,7 +63,11 @@ internal fun decodePersonalPage(value: JsonElement, cursor: PageCursor): Page<Pe
  }
  val boundary = listCardCursorBoundary(content)
  val last = boundary.lastId
- val next = if(!boundary.complete || pairs.any { it.second.kind == "noMoreDataCard" } || last == null || last == cursor.lastItem) null
+ val next = if(!boundary.complete || pairs.any { isPersonalEndCard(it.second) } || last == null || last == cursor.lastItem) null
   else PageCursor(cursor.page + 1, cursor.firstItem ?: boundary.firstId, last)
  return Page(entries, next)
 }
+
+/** Flutter uses both the legacy entity and canonical card/template terminal marker. */
+private fun isPersonalEndCard(item: ContentItem): Boolean = item.kind == "noMoreDataCard" ||
+ item.kind == "card" && item.entityTemplate == "noMoreDataCard"

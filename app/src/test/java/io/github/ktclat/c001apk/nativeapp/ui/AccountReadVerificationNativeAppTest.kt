@@ -10,6 +10,7 @@ import android.webkit.WebView
 import androidx.activity.ComponentActivity
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.*
+import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import io.github.ktclat.c001apk.nativeapp.AppContainer
@@ -48,6 +49,7 @@ class AccountReadVerificationNativeAppTest {
     private lateinit var images: IconFixtureImages
     private val requests = CopyOnWriteArrayList<RecordedRequest>()
     private val blockedHosts = CopyOnWriteArrayList<String>()
+    private var captureRoot = "build/verification/account-read-after"
     private val challenge = """{"messageStatus":"err_request_captcha_v2","messageExtra":{"captchaId":"abcdefghijklmnop","captchaField":""}}"""
     private class MemoryLocal : JsonStateStore<LocalState> {
         override val data = MutableStateFlow(LocalState())
@@ -62,7 +64,12 @@ class AccountReadVerificationNativeAppTest {
 
     @Test fun actualMyFollowEntryCancelReturnAndExplicitRetry() = exercise(true)
     @Test fun actualMyCountEntryCancelReturnAndExplicitRetry() = exercise(false)
-    private fun exercise(personal: Boolean) {
+    @Test fun actualMyFollowGenericRetryConsumesProofOnce() = exercise(true, genericRetry = true)
+    @Test fun actualMyCountsGenericRetryConsumesProofOnce() = exercise(false, genericRetry = true)
+    @Test fun actualMyFollowGenericRetryRejectsStaleCallbacks() = exercise(true, genericRetry = true, staleCallbacks = true)
+    @Test fun actualMyCountsGenericRetryRejectsStaleCallbacks() = exercise(false, genericRetry = true, staleCallbacks = true)
+    private fun exercise(personal: Boolean, genericRetry: Boolean = false, staleCallbacks: Boolean = false) {
+        if (genericRetry) captureRoot = "build/verification/account-read-generic-${if (staleCallbacks) "stale" else "proof"}-after"
         images = IconFixtureImages(compose.activity)
         val successBody = if (personal) requireNotNull(javaClass.getResource("/reachable-cards/personal-follow.json")).readText()
             else """{"data":{"atme":7,"atcommentme":0,"feedlike":0,"contacts_follow":0,"message":0,"notification":0}}"""
@@ -149,8 +156,30 @@ class AccountReadVerificationNativeAppTest {
         val afterCancel = readCount(); oldBridge(); compose.waitForIdle(); assertEquals(afterCancel, readCount())
         compose.onNodeWithText("验证已关闭或失效，可重新加载内容。").performScrollTo().assertIsDisplayed()
         capture("$name-03-cancelled")
-        compose.onNodeWithText(if (personal) "重试" else "重试未读数量").performScrollTo().performClick()
+        val retryLabel = if (personal) "重试" else "重试未读数量"
+        fun genericRetryClick() = compose.onNodeWithText(retryLabel).fetchSemanticsNode().config[SemanticsActions.OnClick].action!!
+        val oldSemantics = if (staleCallbacks) genericRetryClick() else null
+        // Counts keeps the same TextButton mounted through loading. Compose's semantics
+        // lambda deliberately reads the node's CURRENT onClick; it is not a frozen callback.
+        // Snapshot the real old callback only for that case, and test the live current action
+        // independently below. Personal's error item is disposed, so its semantics stays old.
+        val oldCountsCallback = if (staleCallbacks && !personal) buttonCallback(oldSemantics!!) else null
+        val staleRetry = if (oldCountsCallback != null) ({ oldCountsCallback(); true }) else oldSemantics
+        // The currently displayed CLOSED capability still permits an ordinary fresh retry.
+        compose.onNodeWithText(retryLabel).performScrollTo().performClick()
         awaitTag("$prefix-human-verify")
+        val currentRetry = if (genericRetry) genericRetryClick() else null
+        if (staleCallbacks) {
+            if (!personal) {
+                // Prove why retaining SemanticsActions.OnClick is different here: both
+                // wrappers address B's live callback, while the frozen A callback is distinct.
+                assertSame(buttonCallback(oldSemantics!!), buttonCallback(currentRetry!!))
+            }
+            compose.runOnIdle { staleRetry!!() }; compose.waitForIdle()
+            assertEquals("Old failure callback cannot start a read for the replacement failure", 2, readCount())
+            if (!personal) assertNotSame(oldCountsCallback, buttonCallback(currentRetry!!))
+            compose.onNodeWithTag("$prefix-human-verify").assertExists()
+        }
         compose.onNodeWithTag("$prefix-human-verify").performScrollTo().performClick()
         val second = host(); oldBridge(); compose.waitForIdle()
         compose.onAllNodesWithTag("$prefix-verified-retry").assertCountEquals(0)
@@ -159,7 +188,15 @@ class AccountReadVerificationNativeAppTest {
         assertTrue(shadowOf(second).wasDestroyCalled()); assertEquals(beforeProof, readCount())
         compose.onNodeWithTag("$prefix-verified-retry").performScrollTo().assertIsDisplayed()
         capture("$name-04-return-explicit-retry")
-        compose.onNodeWithTag("$prefix-verified-retry").performClick()
+        if (staleCallbacks) {
+            compose.runOnIdle { staleRetry!!() }; compose.waitForIdle()
+            assertEquals("Old callback cannot discard replacement proof", beforeProof, readCount())
+            compose.onNodeWithTag("$prefix-verified-retry").assertExists()
+        }
+        if (genericRetry) {
+            // Real button callback captured before proof observes the same now-VERIFIED failure.
+            compose.runOnIdle { currentRetry!!(); currentRetry() }; compose.waitForIdle()
+        } else compose.onNodeWithTag("$prefix-verified-retry").performClick()
         try { compose.waitUntil(10_000) {
             if (personal) compose.onAllNodesWithText("开源观察员").fetchSemanticsNodes().isNotEmpty()
             else compose.onAllNodesWithTag("my-notice-badge-MENTIONS", useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty()
@@ -183,6 +220,9 @@ class AccountReadVerificationNativeAppTest {
             compose.onAllNodesWithText("部分未读数量暂不可用").assertCountEquals(0)
         }
         compose.onAllNodesWithText(error).assertCountEquals(0)
+        if (genericRetry) {
+            compose.runOnIdle { currentRetry!!(); staleRetry?.invoke() }; compose.waitForIdle()
+        }
         assertEquals(beforeProof + 1, readCount()); assertEquals(3, readCount())
         if (!personal) assertEquals(1, requests.count { it.requestUrl!!.encodedPath == "/v6/user/profile" })
         capture("$name-05-read-success", verifyAvatar = personal)
@@ -195,12 +235,25 @@ class AccountReadVerificationNativeAppTest {
             assertEquals(0L, verified.bodySize)
         }
         else { assertEquals(target, verified.path); assertEquals(0L, verified.bodySize) }
-        val output = File("build/verification/account-read-after").apply { mkdirs() }
+        val output = File(captureRoot).apply { mkdirs() }
         File(output, "$name-success-input.json").writeText(successBody)
         File(output, "$name-provenance.txt").writeText("Actual NativeApp/HTTP/repository/UI; synthetic authenticated identity/device and loopback responses.\n" +
             "ShadowWebView did not run provider SDK; callback synthetic, not CAPTCHA/service completion.\n" +
             "Test adapter maps only asserted loopback callback origins to captured official identity; externalDNS=${blockedHosts.size}; mappedCallbacks=${mappedCallbacks.get()}\n" +
-            "Payload=$challenge\nRoute=${if (personal) "mylist:FOLLOW" else "root:My"}; target=$target; reads=${readCount()}\n")
+            "GenericRetry=$genericRetry; staleCallbacks=$staleCallbacks\nPayload=$challenge\nRoute=${if (personal) "mylist:FOLLOW" else "root:My"}; target=$target; reads=${readCount()}\n")
+    }
+    /** Test-only snapshot of the actual callback behind the pinned Compose clickable node.
+     * No app observer seam is installed. Fail loudly if this library implementation changes;
+     * never silently treat its mutable semantics wrapper as a historical Kotlin callback. */
+    @Suppress("UNCHECKED_CAST")
+    private fun buttonCallback(semantics: () -> Boolean): () -> Unit {
+        assertEquals("androidx.compose.foundation.AbstractClickableNode\$applySemantics\$1", semantics.javaClass.name)
+        val owner = semantics.javaClass.getDeclaredField("this\$0").apply { isAccessible = true }
+        assertEquals("androidx.compose.foundation.AbstractClickableNode", owner.type.name)
+        val node = owner.get(semantics)
+        val callback = owner.type.getDeclaredField("onClick").apply { isAccessible = true }.get(node) as () -> Unit
+        println("COUNTS_CALLBACK_SNAPSHOT wrapper=${System.identityHashCode(semantics)} node=${System.identityHashCode(node)} callback=${System.identityHashCode(callback)}")
+        return callback
     }
     private fun capture(name: String, dialog: Boolean = false, verifyAvatar: Boolean = false) {
         compose.waitForIdle()
@@ -226,7 +279,7 @@ class AccountReadVerificationNativeAppTest {
             for (y in rect.top.toInt() until rect.bottom.toInt()) for (x in rect.left.toInt() until rect.right.toInt()) if (bitmap.getPixel(x, y) == color) ink++
             assertTrue("Actual source-colored contact avatar rendered", ink > rect.width * rect.height / 10)
         }
-        File("build/verification/account-read-after/$name.png").apply { parentFile!!.mkdirs() }.outputStream().use { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) }
+        File("$captureRoot/$name.png").apply { parentFile!!.mkdirs() }.outputStream().use { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) }
         bitmap.recycle()
     }
     private fun views(view: View): List<View> = listOf(view) + if (view is ViewGroup) (0 until view.childCount).flatMap { views(view.getChildAt(it)) } else emptyList()

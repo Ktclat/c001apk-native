@@ -15,6 +15,12 @@ import kotlinx.serialization.json.*
 @Serializable data class Blacklist(val version: Int = 1, val userBlackList: List<String> = emptyList(), val topicBlackList: List<String> = emptyList())
 @Serializable data class LocalState(val version: Int = 1, val favorites: List<LocalFeedEntry> = emptyList(), val history: List<LocalFeedEntry> = emptyList(), val follows: List<LocalFollowUser> = emptyList(), val blacklist: Blacklist = Blacklist(), val searchHistory: List<String> = emptyList())
 enum class LibraryKind { FAVORITES, HISTORY }
+enum class BlacklistKind(val label: String, val fileStem: String) {
+    USER("用户", "user"), TOPIC("话题", "topic");
+    fun values(blacklist: Blacklist): List<String> = if (this == USER) blacklist.userBlackList else blacklist.topicBlackList
+    // Native routes carry raw identifiers; the HTTP repository encodes the tag as a query value.
+    fun route(value: String): String = if (this == USER) "user:$value" else "topic:$value"
+}
 
 object BlacklistJson {
     const val MAX_BYTES = 1_048_576
@@ -51,7 +57,14 @@ object BlacklistJson {
         require("userBlackList" in obj || "topicBlackList" in obj)
         return validate(json.decodeFromJsonElement<Blacklist>(obj)) // accepts source legacy unversioned blacklist
     }
-    fun encode(value: Blacklist): String = json.encodeToString(validate(value))
+    private fun boundedExport(text: String): String {
+        require(text.toByteArray(Charsets.UTF_8).size <= MAX_BYTES) { "导出文件超过 1 MB" }
+        return text
+    }
+    fun encode(value: Blacklist): String = boundedExport(json.encodeToString(validate(value)))
+    /** Flutter imports a JSON array, not the native combined object. Never include the other kind. */
+    fun encodeCategory(value: Blacklist, kind: BlacklistKind): String =
+        boundedExport(json.encodeToString(kind.values(validate(value))))
     fun merge(old: Blacklist, incoming: Blacklist) = validate(Blacklist(userBlackList = (old.userBlackList + incoming.userBlackList).distinct(), topicBlackList = (old.topicBlackList + incoming.topicBlackList).distinct()))
 }
 fun validUid(uid: String): Boolean = uid.length in 1..32 && uid.all { it in '0'..'9' } && uid.any { it != '0' }
@@ -80,6 +93,10 @@ class LocalRepository(private val store: JsonStateStore<LocalState>, private val
     suspend fun removeBlockedUser(uid: String) = store.update { it.copy(blacklist = it.blacklist.copy(userBlackList = it.blacklist.userBlackList - uid)) }
     suspend fun removeBlockedTopic(topic: String) = store.update { it.copy(blacklist = it.blacklist.copy(topicBlackList = it.blacklist.topicBlackList - topic)) }
     suspend fun clearBlacklist() = store.update { it.copy(blacklist = Blacklist()) }
+    suspend fun clearBlacklist(kind: BlacklistKind) = store.update {
+        it.copy(blacklist = if (kind == BlacklistKind.USER) it.blacklist.copy(userBlackList = emptyList())
+            else it.blacklist.copy(topicBlackList = emptyList()))
+    }
     suspend fun rememberSearch(query: String) { val clean = query.trim(); require(clean.isNotEmpty() && clean.length <= 200); store.update { it.copy(searchHistory = (listOf(clean) + it.searchHistory.filterNot { q -> q == clean }).take(50)) } }
     suspend fun forgetSearch(query: String) = store.update { it.copy(searchHistory = it.searchHistory - query) }
     private fun entry(item: ContentItem): LocalFeedEntry {

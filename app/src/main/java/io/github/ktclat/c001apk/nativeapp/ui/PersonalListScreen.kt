@@ -99,43 +99,24 @@ private data class PersonalListState(val entries: List<PersonalEntry> = emptyLis
    LazyColumn(Modifier.fillMaxSize().testTag("personal-list"), contentPadding = PaddingValues(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
     item { TextButton(onClick = { load(false) }, enabled = !state.loading) { Text("刷新") } }
     itemsIndexed(state.entries) { index, entry ->
-     if (isEntityCard(entry.content)) {
-      val action: (() -> Unit)? = when (val destination = entry.destination) {
-       is PersonalDestination.Route -> ({ navigate(destination.value) })
-       is PersonalDestination.Link -> ({ openLink(destination.value) })
-       PersonalDestination.Unsupported -> null
-      }
-      Column(Modifier.fillMaxWidth().testTag("personal-entry-$index")) {
-       entry.likeAuthor?.let { Text("${it}赞了这条内容", Modifier.padding(horizontal = 10.dp)) }
-       EntityCard(entry.content, navigate, openLink, actionOverride = EntityCardAction(action),
-        titleOverride = entry.label, showSourceTabs = false)
-       // The shared row already renders message and typed metrics; do not repeat either.
-       if (entry.content.kind != "collection" && entry.detail.isNotBlank() && entry.detail != entry.content.message)
-        PagedPostText(entry.detail, openLink)
-      }
-     } else Card(Modifier.fillMaxWidth().testTag("personal-entry-$index")) {
-      Column(Modifier.padding(12.dp)) {
-       Text(entry.label, style = MaterialTheme.typography.titleMedium)
-       entry.likeAuthor?.let { Text("${it}赞了这条内容") }
-       if(entry.detail.isNotBlank()) PagedPostText(entry.detail, openLink)
-       if (entry.content.kind == "card" || entry.content.children.isNotEmpty() || entry.content.childrenIncomplete)
-        Text("此卡片的模板或嵌套内容暂不支持")
-       when(val destination = entry.destination) {
-        is PersonalDestination.Route -> TextButton(onClick = { navigate(destination.value) }) { Text("查看内容") }
-        is PersonalDestination.Link -> TextButton(onClick = { openLink(destination.value) }) { Text("查看内容") }
-        PersonalDestination.Unsupported -> Text("暂不支持打开此内容")
-       }
-      }
-     }
+     PersonalEntryCard(entry, navigate, openLink, refresh = { load(false) },
+      modifier = Modifier.fillMaxWidth().testTag("personal-entry-$index"))
     }
     if(state.loading) item { CircularProgressIndicator(Modifier.testTag("personal-loading")) }
     state.failure?.let { failure -> item {
      Text(failure.message, Modifier.testTag("personal-error"))
+     val failedMore = state.failedMore
      failure.personalRead?.takeIf { !state.loading }?.let { pending ->
-      PersonalReadVerification(pending, state.loading) { load(state.failedMore, retry = pending) }
+      PersonalReadVerification(pending, state.loading) { load(failedMore, retry = pending) }
      }
      if(failure.kind == FailureKind.AUTHENTICATION) TextButton(onClick = { navigate("login") }) { Text("重新登录") }
-     TextButton(onClick = { load(state.failedMore) }, enabled = !state.loading) { Text("重试") }
+     TextButton(onClick = retryClick@ {
+      // Retained callbacks belong to the displayed failure, not a newer request. Both retry
+      // controls consume its verified capability; explicit Refresh remains a fresh read.
+      if (state.failure !== failure) return@retryClick
+      val verified = failure.personalRead?.takeIf { it.state.value == DetailVerificationState.VERIFIED }
+      load(failedMore, retry = verified)
+     }, enabled = !state.loading) { Text("重试") }
     } }
     if(state.loaded && !state.loading && state.failure == null && state.entries.isEmpty()) item { Text("暂无内容") }
     if(!state.loading && state.failure == null && state.next != null) item { Button(onClick = { load(true) }) { Text("加载更多") } }

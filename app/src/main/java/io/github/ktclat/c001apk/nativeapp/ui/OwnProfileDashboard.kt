@@ -58,13 +58,14 @@ import kotlin.coroutines.coroutineContext
                 aggregate = profile.refreshEpoch to counts.refreshEpoch
             }
         })
+        val countResult = counts.result
         val countValue = counts.value
         MyDashboard(accountState, scrollState, bottomPadding, onNavigate, onPersonalList,
             profile = profile.value, profileStatus = profile.status,
             onRefreshProfile = if (repository != null && uid != null) profile::refresh else null,
             profileLoading = profile.loading,
             counts = countValue, countsStatus = counts.status ?: if (countValue?.hasUnknown == true) "部分未读数量暂不可用" else null,
-            onRetryCounts = if (countsRepository != null && uid != null) counts::refresh else null,
+            onRetryCounts = if (countsRepository != null && uid != null) ({ counts.retryDisplayed(countResult) }) else null,
             countsLoading = counts.loading, countsRead = if (counts.loading) null else counts.pending(),
             onVerifiedCountsRetry = counts::retryVerified, onRefreshAll = refreshAll, refreshing = refreshing,
             refreshEnabled = profile.canRefresh() && counts.canRefresh())
@@ -101,6 +102,12 @@ private class DashboardRead<T>(val enabled: Boolean, val lifecycle: Lifecycle, v
             loading = true
             refreshEpoch++
         }
+    }
+    /** Generic Retry is bound to its displayed result; aggregate Refresh is still fresh. */
+    fun retryDisplayed(displayed: ApiResult<T>?) {
+        if (result !== displayed) return
+        val verified = pending()?.takeIf { it.state.value == DetailVerificationState.VERIFIED }
+        if (verified != null) retryVerified(verified) else refresh()
     }
     /** Separate admission from refresh: only this displayed, verified capability may be consumed. */
     fun retryVerified(capability: PendingRead<T>) {

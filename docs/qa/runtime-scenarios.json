@@ -1,0 +1,228 @@
+{
+  "passed_invocations": 30,
+  "unique_passed_scenarios": 28,
+  "skipped_invocations": 1,
+  "failed_or_error_invocations": 0,
+  "records": [
+    {
+      "log": "landscape-first.log",
+      "class": "io.github.ktclat.c001apk.nativeapp.ui.EmulatorBlacklistRootTest",
+      "test": "shortLandscapeLargeFontActionsAndClearDialogRemainReachable",
+      "status_code": 0,
+      "result": "passed"
+    },
+    {
+      "log": "production.log",
+      "class": "io.github.ktclat.c001apk.nativeapp.ui.EmulatorProductionLaunchTest",
+      "test": "guestMainActivityLoginGateSettingsAndBlacklistBack",
+      "status_code": 0,
+      "result": "passed"
+    },
+    {
+      "log": "production.log",
+      "class": "io.github.ktclat.c001apk.nativeapp.ui.EmulatorProductionLaunchTest",
+      "test": "actualActiveFontReadingAndScaleSheetBarsInLightDarkAndRecreation",
+      "status_code": 0,
+      "result": "passed"
+    },
+    {
+      "log": "production.log",
+      "class": "io.github.ktclat.c001apk.nativeapp.ui.EmulatorProductionLaunchTest",
+      "test": "actualSafCategoryExportCancelAndSafeTemporaryDestination",
+      "status_code": 0,
+      "result": "passed"
+    },
+    {
+      "log": "production.log",
+      "class": "io.github.ktclat.c001apk.nativeapp.ui.EmulatorProductionLaunchTest",
+      "test": "actualSettingsThemeNavigationContrastDialogReturnAndRecreation",
+      "status_code": 0,
+      "result": "passed"
+    },
+    {
+      "log": "graphic.log",
+      "class": "io.github.ktclat.c001apk.nativeapp.ui.EmulatorGraphicRetryTest",
+      "test": "cancelledGraphicThenExplicitRefreshCreatesFreshChallenge",
+      "status_code": 0,
+      "result": "passed"
+    },
+    {
+      "log": "graphic.log",
+      "class": "io.github.ktclat.c001apk.nativeapp.ui.EmulatorGraphicRetryTest",
+      "test": "failedMoreGraphicGenericRetryPreservesRowsAndExactCursor",
+      "status_code": 0,
+      "result": "passed"
+    },
+    {
+      "log": "graphic.log",
+      "class": "io.github.ktclat.c001apk.nativeapp.ui.EmulatorGraphicRetryTest",
+      "test": "countsGraphicGenericRetryDoesNotReloadProfile",
+      "status_code": 0,
+      "result": "passed"
+    },
+    {
+      "log": "graphic.log",
+      "class": "io.github.ktclat.c001apk.nativeapp.ui.EmulatorGraphicRetryTest",
+      "test": "initialGraphicGenericRetryConsumesProofOnceAndCannotReplayStaleClick",
+      "status_code": 0,
+      "result": "passed"
+    },
+    {
+      "log": "rich.log",
+      "class": "io.github.ktclat.c001apk.nativeapp.ui.EmulatorPersonalRichCardsTest",
+      "test": "myRepliesAndReceivedRepliesUseExplicitFeedUrlNotReplyId",
+      "status_code": 0,
+      "result": "passed"
+    },
+    {
+      "log": "rich.log",
+      "class": "io.github.ktclat.c001apk.nativeapp.ui.EmulatorPersonalRichCardsTest",
+      "test": "myLikesKeepsLikeAuthorAndKnownTemplateChildren",
+      "status_code": 0,
+      "result": "passed"
+    },
+    {
+      "log": "rich.log",
+      "class": "io.github.ktclat.c001apk.nativeapp.ui.EmulatorPersonalRichCardsTest",
+      "test": "collectionRowsStayOnAccountScopedCollectionRouteAndCanOpenFeed",
+      "status_code": 0,
+      "result": "passed"
+    },
+    {
+      "log": "rich.log",
+      "class": "io.github.ktclat.c001apk.nativeapp.ui.EmulatorPersonalRichCardsTest",
+      "test": "myFeedsMainGalleryForwardAuthorAndBack",
+      "status_code": 0,
+      "result": "passed"
+    },
+    {
+      "log": "rich.log",
+      "class": "io.github.ktclat.c001apk.nativeapp.ui.EmulatorPersonalRichCardsTest",
+      "test": "darkLargeFontCanReachImagesTemplatesAndBack",
+      "status_code": 0,
+      "result": "passed"
+    },
+    {
+      "log": "rich.log",
+      "class": "io.github.ktclat.c001apk.nativeapp.ui.EmulatorPersonalRichCardsTest",
+      "test": "nullableCountsAndUnsupportedTemplateRemainExplicit",
+      "status_code": 0,
+      "result": "passed"
+    },
+    {
+      "log": "blacklist-default.log",
+      "class": "io.github.ktclat.c001apk.nativeapp.ui.EmulatorBlacklistRootTest",
+      "test": "shortLandscapeLargeFontActionsAndClearDialogRemainReachable",
+      "status_code": -4,
+      "result": "assumption_skipped"
+    },
+    {
+      "log": "blacklist-default.log",
+      "class": "io.github.ktclat.c001apk.nativeapp.ui.EmulatorBlacklistRootTest",
+      "test": "largeSystemAndAppFontActionsAndClearDialogKeepEffectiveDensity",
+      "status_code": 0,
+      "result": "passed"
+    },
+    {
+      "log": "blacklist-default.log",
+      "class": "io.github.ktclat.c001apk.nativeapp.ui.EmulatorBlacklistRootTest",
+      "test": "actualUserAndSpecialTopicChildrenReturnToSameScrolledListAndDraftWithoutUnblocking",
+      "status_code": 0,
+      "result": "passed"
+    },
+    {
+      "log": "blacklist-default.log",
+      "class": "io.github.ktclat.c001apk.nativeapp.ui.EmulatorBlacklistDocumentBoundaryTest",
+      "test": "clearCancelAndRestoreKeepDialogScopeAndOnlyConfirmedCategoryChanges",
+      "status_code": 0,
+      "result": "passed"
+    },
+    {
+      "log": "blacklist-default.log",
+      "class": "io.github.ktclat.c001apk.nativeapp.ui.EmulatorBlacklistDocumentBoundaryTest",
+      "test": "oldClearConfirmAndDismissCannotAffectReplacementOrReopenedDialog",
+      "status_code": 0,
+      "result": "passed"
+    },
+    {
+      "log": "blacklist-default.log",
+      "class": "io.github.ktclat.c001apk.nativeapp.ui.EmulatorBlacklistDocumentBoundaryTest",
+      "test": "orphanPickerResultAfterScreenRemovalDoesNotWriteToANewScreen",
+      "status_code": 0,
+      "result": "passed"
+    },
+    {
+      "log": "blacklist-default.log",
+      "class": "io.github.ktclat.c001apk.nativeapp.ui.EmulatorBlacklistDocumentBoundaryTest",
+      "test": "exportPinsCategoryAcrossTabSwitchAndRotationThenIgnoresDuplicateCallback",
+      "status_code": 0,
+      "result": "passed"
+    },
+    {
+      "log": "blacklist-default.log",
+      "class": "io.github.ktclat.c001apk.nativeapp.ui.EmulatorBlacklistDocumentBoundaryTest",
+      "test": "leavingDuringDeferredMutationDoesNotReportSuccessOrReplayTheMutation",
+      "status_code": 0,
+      "result": "passed"
+    },
+    {
+      "log": "blacklist-default.log",
+      "class": "io.github.ktclat.c001apk.nativeapp.ui.EmulatorBlacklistDocumentBoundaryTest",
+      "test": "retainedInputSemanticsUsesCurrentDraftAndDisposedRowsCannotMutateHiddenCategory",
+      "status_code": 0,
+      "result": "passed"
+    },
+    {
+      "log": "blacklist-default.log",
+      "class": "io.github.ktclat.c001apk.nativeapp.ui.EmulatorBlacklistDocumentBoundaryTest",
+      "test": "pendingAddIsSingleFlightCapturesOriginalKindAndDoesNotEraseNewDraft",
+      "status_code": 0,
+      "result": "passed"
+    },
+    {
+      "log": "blacklist-default.log",
+      "class": "io.github.ktclat.c001apk.nativeapp.ui.EmulatorBlacklistDocumentBoundaryTest",
+      "test": "navigationDoesNotUnblockAndDraftsSurviveStateRestoration",
+      "status_code": 0,
+      "result": "passed"
+    },
+    {
+      "log": "blacklist-default.log",
+      "class": "io.github.ktclat.c001apk.nativeapp.ui.EmulatorBlacklistDocumentBoundaryTest",
+      "test": "cancelledExportDoesNotWriteAndOversizedExportDoesNotOpenDestination",
+      "status_code": 0,
+      "result": "passed"
+    },
+    {
+      "log": "blacklist-default.log",
+      "class": "io.github.ktclat.c001apk.nativeapp.ui.EmulatorBlacklistDocumentBoundaryTest",
+      "test": "importPinsLegacyKindAcrossRotationAndCancelOrMalformedFileLeavesDataIntact",
+      "status_code": 0,
+      "result": "passed"
+    },
+    {
+      "log": "blacklist-default.log",
+      "class": "io.github.ktclat.c001apk.nativeapp.ui.EmulatorBlacklistDocumentBoundaryTest",
+      "test": "retainedSameFramePickerClickCannotLaunchOrOverwriteASecondRequest",
+      "status_code": 0,
+      "result": "passed"
+    },
+    {
+      "log": "narrow.log",
+      "class": "io.github.ktclat.c001apk.nativeapp.ui.EmulatorPersonalRichCardsTest",
+      "test": "darkLargeFontCanReachImagesTemplatesAndBack",
+      "status_code": 0,
+      "result": "passed"
+    },
+    {
+      "log": "narrow.log",
+      "class": "io.github.ktclat.c001apk.nativeapp.ui.EmulatorBlacklistRootTest",
+      "test": "largeSystemAndAppFontActionsAndClearDialogKeepEffectiveDensity",
+      "status_code": 0,
+      "result": "passed"
+    }
+  ],
+  "production_apk_sha256": "ea58d71b5614949f326ec84619088442f755f4884609ce62c599ee918b366134",
+  "source_provenance_commit": "6a5acbf79d9dc4d94ab609034ea35e0478f58609",
+  "scope": "Final source only. Narrow repeats do not increase distinct coverage. Portrait landscape assumption is covered by separate true-rotation-1 pass."
+}
