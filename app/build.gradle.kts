@@ -39,6 +39,8 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
     buildFeatures { compose = true; buildConfig = true }
+    // Keep inherited artwork byte-exact so APK verification can compare the pinned source inventory.
+    buildTypes { getByName("debug") { isCrunchPngs = false }; getByName("release") { isCrunchPngs = false } }
     compileOptions { sourceCompatibility = JavaVersion.VERSION_17; targetCompatibility = JavaVersion.VERSION_17 }
     testOptions {
         unitTests.isIncludeAndroidResources = true
@@ -153,3 +155,15 @@ val verifyBundledFonts by tasks.registering {
     }
 }
 tasks.named("preBuild") { dependsOn(verifyBundledFonts, generateNativeBuildProvenance) }
+
+
+val verifyBundledEmoticons by tasks.registering {
+    group = "verification"
+    description = "Verify the exact 183 Flutter local emoticon PNGs; no downloads."
+    doLast {
+        val manifest = rootProject.file("app/tools/emoticons.sha256")
+        if (!manifest.isFile) throw GradleException("Missing Flutter emoticon inventory")
+        NativeBuildProvenance.verifiedEmoticons(rootProject.layout.projectDirectory.asFile.toPath())
+    }
+}
+tasks.named("preBuild") { dependsOn(verifyBundledEmoticons) }

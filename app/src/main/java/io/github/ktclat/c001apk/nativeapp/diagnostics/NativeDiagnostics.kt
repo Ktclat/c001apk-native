@@ -27,6 +27,7 @@ internal data class NativeDiagnostics(
     val touchExploration: Boolean,
     val reduceMotion: Boolean,
     val homeRequests: List<HomeRequestEvent>? = null,
+    val publicImages: List<Pair<PublicImageObservation, Int>>? = null,
 ) {
     fun entries(): List<Pair<String, String>> = listOf(
         "版本" to "$versionName ($versionCode)",
@@ -51,7 +52,9 @@ internal data class NativeDiagnostics(
         "悬浮根页默认随滚动隐藏" to enabled(floatingNavigation),
         "减少动态效果（阻止装饰动画）" to enabled(reduceMotion),
     ) + listOf("首页请求观察范围" to "动态、热门、话题、数码、酷图的既有请求；tab由白名单请求路由推断，不证明当前可见页或调用入口；应用为本地列表、关注为范围外，均未观察。无记录不代表成功；transportResult不代表页面解析成功；仅保留当前账号代际最近12次，HTTP/内容类型不是403原因或修复证明。", "首页请求（本次进程，最多12条）" to (homeRequests?.takeIf { it.isNotEmpty() }?.joinToString("\n") { it.text() }
-        ?: if (homeRequests == null) "unavailable" else "暂无当前账号代际的请求记录；应用页为本地列表，不产生请求"))
+        ?: if (homeRequests == null) "unavailable" else "暂无当前账号代际的请求记录；应用页为本地列表，不产生请求")) +
+        listOf("公共图片观察范围" to "仅观察公共 Coil 加载；本进程最多16组非识别性计数，每组最多9999次，不含地址、账号、时间、请求头或异常正文。host 为固定类别，不是实际地址。私信和独立文章加载器不在范围内。成功可能来自缓存；不能证明所有图片或当前页面正常。",
+            "公共图片加载（本次进程）" to (publicImages?.takeIf { it.isNotEmpty() }?.joinToString("\n") { (event, count) -> "${event.text()}; count=$count" } ?: if (publicImages == null) "unavailable" else "暂无公共图片加载记录；无记录不代表成功"))
 
     fun copyText(): String = "c001apk Native · 本地诊断\n" +
         entries().joinToString("\n") { (name, value) -> "$name: $value" } +

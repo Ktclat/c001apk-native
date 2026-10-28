@@ -1,0 +1,28 @@
+Flutter-compatible local inline emoticons — source and artwork provenance
+
+Catalog and rendering behavior derive from Ktclat/c001apk, commit
+0d9ed002980d935c1c9351393e9f16784aa78903:
+apps/flutter/lib/utils/emoji_util.dart
+apps/flutter/lib/components/html_text.dart
+apps/flutter/assets/emojis/*.png
+https://github.com/Ktclat/c001apk
+The project derives from TG-Twilight/c001apk and c001apk-flutter. Adapted source
+retains that AGPL-3.0 lineage; see the native repository LICENSE.
+
+183 original PNG files (1,702,238 bytes) are copied without alteration into
+Android drawable-nodpi resources, with their exact original basenames.
+app/tools/emoticons.sha256 records every original SHA-256. No synthetic,
+redrawn, Unicode-substitute or remotely downloaded emoji is presented as the
+original image. The four other catalog entries are text roles or a photo icon,
+not PNG artwork; the photo icon retains the separate Flutter Material notice.
+
+The inherited Flutter THIRD_PARTY_NOTICES.md states that its 32
+niuniu_emotion_*.png assets come from the official Coolapk Android 16.6.4
+(2609291) application, with names checked against niuniu_emotion_array.
+Artwork copyright belongs to Coolapk and the corresponding rights holders.
+The other inherited coolapk_emotion_*.png and c_*.png artwork likewise retains
+its existing third-party rights. The source record supplies no separate
+artwork redistribution grant. This reuse follows the existing Flutter client;
+it does not assert original authorship, ownership, a new trademark permission,
+or that the project's AGPL license relicenses the artwork. No official client
+code, credentials, accounts or user data are imported with these images.

@@ -32,6 +32,11 @@ import io.github.ktclat.c001apk.nativeapp.feature.media.MediaGrid
 import io.github.ktclat.c001apk.nativeapp.settings.LocalReadingStyles
 import io.github.ktclat.c001apk.nativeapp.ui.FlutterMaterialIcons
 import io.github.ktclat.c001apk.nativeapp.ui.PagedPostText
+import io.github.ktclat.c001apk.nativeapp.ui.NativeRichText
+import io.github.ktclat.c001apk.nativeapp.ui.ParsedPost
+import io.github.ktclat.c001apk.nativeapp.ui.rememberParsedPost
+import io.github.ktclat.c001apk.nativeapp.ui.trimmed
+import androidx.compose.ui.text.AnnotatedString
 import io.github.ktclat.c001apk.nativeapp.ui.FullPostText
 
 /** Required navigation callbacks have no fake/no-op defaults. Null actions are not offered. */
@@ -102,7 +107,7 @@ fun NativeFeedCard(model: FeedCardModel, actions: FeedCardActions, modifier: Mod
                 }
             }
             Column(Modifier.fillMaxWidth().then(if (!detail && actions.openPost != null) Modifier.clickable(onClickLabel = "查看动态详情", onClick = actions.openPost) else Modifier).testTag("feed-body:${model.id}")) {
-                if (!article && model.title.isNotBlank()) { Spacer(Modifier.height(5.dp)); Text(model.title.take(600), style = LocalReadingStyles.current.title) }
+                if (!article && model.title.isNotBlank()) { Spacer(Modifier.height(5.dp)); NativeRichText(AnnotatedString(model.title.take(600)), style = LocalReadingStyles.current.title) }
                 if (detail && model.fullPostBody != null) {
                     Spacer(Modifier.height(5.dp))
                     key(model.id) { FullPostText(model.fullPostBody, model.body, actions.openLink, actions.openOriginal) }
@@ -180,21 +185,18 @@ private fun ReferenceSurface(reference: FeedReference, hotReply: Boolean, action
             else {
                 val text = remember(reference.body, hotReply) { classifyReferenceText(reference.body, hotReply) }
                 // Plain bounded text never enters a coroutine or a temporary pending state.
-                val body = when (text) {
-                    is ReferenceText.Immediate -> text.text
-                    ReferenceText.Html -> {
-                        val parsed by produceState<String?>(null, reference.body, hotReply) {
-                            value = withContext(Dispatchers.Default) { Html.fromHtml(reference.body.take(if (hotReply) 1200 else 4000), Html.FROM_HTML_MODE_LEGACY).toString().trim() }
-                        }
-                        parsed
-                    }
+                val body: ParsedPost? = when (text) {
+                    is ReferenceText.Immediate -> remember(text.text) { ParsedPost(text.text, emptyList()) }
+                    ReferenceText.Html -> rememberParsedPost(reference.body.take(if (hotReply) 1200 else 4000), false).value?.trimmed()
                 }
-                if (reference.title.isNotBlank()) Text(reference.title.take(300), style = LocalReadingStyles.current.title)
+                if (reference.title.isNotBlank()) NativeRichText(AnnotatedString(reference.title.take(300)), style = LocalReadingStyles.current.title)
                 val authorColor = MaterialTheme.colorScheme.primary
-                if (body == null) Text("正在排版…") else Text(buildAnnotatedString {
-                    withStyle(SpanStyle(color = authorColor)) { append((if (hotReply) "" else "@") + reference.author + "：") }
-                    append(body.orEmpty())
-                }, style = if (hotReply) LocalReadingStyles.current.reply else LocalReadingStyles.current.body)
+                val prefix = (if (hotReply) "" else "@") + reference.author + "："
+                if (body == null) Text("正在排版…") else NativeRichText(buildAnnotatedString {
+                    withStyle(SpanStyle(color = authorColor)) { append(prefix) }
+                    append(body.richText)
+                }, style = if (hotReply) LocalReadingStyles.current.reply else LocalReadingStyles.current.body,
+                    links = body.links.map { it.copy(start = it.start + prefix.length, end = it.end + prefix.length) }, openLink = actions.openLink)
                 if (reference.images.isNotEmpty()) { Spacer(Modifier.height(10.dp)); MediaGrid(reference.images) }
             }
         }

@@ -71,7 +71,7 @@ class MainActivity : ComponentActivity() {
             val density = LocalDensity.current
             val type = remember(settings.font) { appTypography(settings.font) }
             val reading = remember(settings.font, settings.readingPreset) { readingStyles(settings.readingPreset, settings.font) }
-            CompositionLocalProvider(LocalDensity provides Density(density.density, density.fontScale * settings.fontScale), LocalReadingStyles provides reading) {
+            CompositionLocalProvider(LocalDensity provides Density(density.density, density.fontScale * settings.fontScale), LocalReadingStyles provides reading, io.github.ktclat.c001apk.nativeapp.ui.LocalShowEmoticons provides settings.showEmoji) {
                 MaterialTheme(colorScheme = colors, typography = type) {
                     CompositionLocalProvider(LocalViewModelStoreOwner provides sessionOwner) {
                         key(accountState.generation) { NativeApp(model, container, settings, runtime, accountState) }

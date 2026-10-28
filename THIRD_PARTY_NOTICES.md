@@ -16,7 +16,7 @@ Launcher foreground, monochrome reference and dynamic color resources are reused
 
 ## Text emoticon tokens
 
-The text-only Composer picker derives exact token names, order and three groups from Ktclat/c001apk AGPL-3.0 source, itself based on TG-Twilight/c001apk. Provenance and adaptation are recorded in `app/src/main/assets/licenses/TextEmoticons-NOTICE.txt`. No emoji artwork, image asset mappings or artwork license claims are included.
+The text-only Composer picker derives exact token names, order and three groups from Ktclat/c001apk AGPL-3.0 source, itself based on TG-Twilight/c001apk. Provenance and adaptation are recorded in `app/src/main/assets/licenses/TextEmoticons-NOTICE.txt`. That original increment was text-only. The later inline renderer copies 183 unchanged PNGs and the exact catalog from Flutter commit `0d9ed002980d935c1c9351393e9f16784aa78903`; see `app/src/main/assets/licenses/InlineEmoticons-NOTICE.txt` and `app/tools/emoticons.sha256`. Artwork remains the property of Coolapk and its respective rights holders; the source record supplies no separate artwork redistribution grant, and the project AGPL license does not relicense it.
 
 ## Native detail Markdown
 

@@ -11,3 +11,6 @@ Changes: Kotlin text-only catalog; exact entries.skip(4) order and three groupin
 predicates retained. Adaptive full-token text buttons replace the image grid.
 No upstream emoji image, asset path, image rendering code, or artwork rights are
 included or claimed. This feature inserts literal text markers, not artwork.
+
+This notice scopes the text-token picker adaptation only. The later local-image
+renderer and original artwork inventory have a separate InlineEmoticons-NOTICE.txt.

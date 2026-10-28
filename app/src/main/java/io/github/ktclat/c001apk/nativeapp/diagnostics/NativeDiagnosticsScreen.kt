@@ -38,10 +38,12 @@ fun NativeDiagnosticsScreen(floatingNavigation: Boolean, accessibility: SystemAc
         WindowInsets.systemGestures.snapshot(), WindowInsets.mandatorySystemGestures.snapshot(),
         WindowInsets.ime.snapshot(), floatingNavigation, accessibility.touchExploration, accessibility.reduceMotion,
         homeDiagnostics?.snapshot(),
+        PublicImageDiagnostics.counters.snapshot(),
     )
     NativeDiagnosticsContent(report, onBack, {
-        if (homeDiagnostics == null) clipboard.setText(AnnotatedString(it))
-        else homeDiagnostics.export { events -> clipboard.setText(AnnotatedString(report.copy(homeRequests = events).copyText())) }
+        if (homeDiagnostics == null) clipboard.setText(AnnotatedString(report.copy(publicImages = PublicImageDiagnostics.counters.snapshot()).copyText()))
+        else homeDiagnostics.export { events -> clipboard.setText(AnnotatedString(report.copy(homeRequests = events,
+            publicImages = PublicImageDiagnostics.counters.snapshot()).copyText())) }
     }, Modifier.onSizeChanged { size = it })
 }
 
