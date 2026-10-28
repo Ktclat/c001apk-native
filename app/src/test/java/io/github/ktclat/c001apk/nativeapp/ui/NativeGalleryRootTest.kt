@@ -301,8 +301,9 @@ class NativeGalleryRootTest {
         assertGalleryPage(selected, count)
         awaitPhase(selected, "加载失败")
         assertViewerTargets(retryIndex = selected)
-        dialogText("图片加载失败").assertIsDisplayed()
+        // Keep a real Dialog capture even if the new closed failure reason's geometry regresses.
         capture("$name-dialog", dialog = true)
+        assertFailureReason(selected)
         val beforeBack = images.count(url)
         dialogWindowBack()
         assertSourceRetained(entry)
@@ -313,12 +314,14 @@ class NativeGalleryRootTest {
         compose.onNodeWithTag(entry).performTouchInput { click(center) }
         assertGalleryPage(selected, count)
         awaitPhase(selected, "加载失败")
+        assertFailureReason(selected)
         val beforeRetry = images.count(url)
         images.next(url).result.complete(true)
         dialogTag("media-viewer-retry-$selected").performTouchInput { click(center) }
         awaitPhase(selected, "已加载")
         assertEquals("Explicit retry must start exactly one new original request", beforeRetry + 1, images.count(url))
         dialogTag("media-viewer-retry-$selected").assertDoesNotExist()
+        dialogTag("media-viewer-failure-reason-$selected").assertDoesNotExist()
         capture("$name-retried", dialog = true)
         dialogTag("media-back").performTouchInput { click(center) }
         assertSourceRetained(entry)
@@ -341,6 +344,31 @@ class NativeGalleryRootTest {
 
     private fun dialogTag(tag: String) = compose.onNode(hasTestTag(tag) and hasAnyAncestor(isDialog()))
     private fun dialogText(text: String) = compose.onNode(hasText(text) and hasAnyAncestor(isDialog()))
+
+    /** ControlledGalleryImages returns an IOException without pipeline-phase evidence. The UI
+     * must show the closed ambiguous reason, not guess network/decode or expose exception text.
+     */
+    private fun assertFailureReason(index: Int) {
+        val label = "图片读取或解码失败"
+        val reason = dialogTag("media-viewer-failure-reason-$index").assertTextEquals(label).assertIsDisplayed()
+        val layouts = mutableListOf<TextLayoutResult>()
+        reason.performSemanticsAction(SemanticsActions.GetTextLayoutResult) { action -> assertTrue(action(layouts)) }
+        assertEquals(1, layouts.size)
+        val layout = layouts.single()
+        assertCompleteViewerParagraph(label, reason, layout)
+        assertEquals(fontScale, layout.layoutInput.density.fontScale, .001f)
+        assertEquals(density, layout.layoutInput.density.density, .001f)
+        val bounds = reason.fetchSemanticsNode().boundsInWindow
+        val uncut = reason.getUnclippedBoundsInRoot()
+        assertEquals("Failure reason may not be horizontally clipped", (uncut.right - uncut.left).value * density, bounds.width, 1f)
+        assertEquals("Failure reason may not be vertically clipped", (uncut.bottom - uncut.top).value * density, bounds.height, 1f)
+        val page = dialogTag("media-viewer-image-$index").fetchSemanticsNode().boundsInWindow
+        val window = viewBoundsInWindow(checkNotNull(currentDialog().window).decorView)
+        assertTrue("Failure reason must fit the actual image page", inside(bounds, page))
+        assertTrue("Failure reason must fit the actual Dialog", inside(bounds, window))
+        assertFalse("Failure reason must not cover the retry target", bounds.overlaps(
+            dialogTag("media-viewer-retry-$index").fetchSemanticsNode().boundsInWindow))
+    }
 
     private fun assertViewerTargets(retryIndex: Int? = null) {
         measureViewerText(retryRequired = retryIndex != null)
@@ -429,6 +457,32 @@ class NativeGalleryRootTest {
      * clipping witness. Require every character/line and the actual Text/Button/window to fit.
      */
     private fun assertVisibleViewerText(label: String, text: SemanticsNodeInteraction, layout: TextLayoutResult) {
+        assertCompleteViewerParagraph(label, text, layout)
+        val button = compose.onNode(hasText(label) and hasAnyAncestor(isDialog()))
+            .assertIsDisplayed().assertWidthIsAtLeast(48.dp).assertHeightIsAtLeast(48.dp)
+        val textBounds = text.fetchSemanticsNode().boundsInWindow
+        val buttonBounds = button.fetchSemanticsNode().boundsInWindow
+        val windowBounds = viewBoundsInWindow(checkNotNull(currentDialog().window).decorView)
+        for ((name, node) in listOf("Text" to text, "Button" to button)) {
+            val clipped = node.fetchSemanticsNode().boundsInWindow
+            val uncut = node.getUnclippedBoundsInRoot()
+            // Same 1px dp conversion tolerance as the existing button-clipping check; no inset,
+            // physical-window or glyph/line threshold is relaxed by this comparison.
+            assertEquals("$label $name may not be horizontally clipped", (uncut.right - uncut.left).value * density, clipped.width, 1f)
+            assertEquals("$label $name may not be vertically clipped", (uncut.bottom - uncut.top).value * density, clipped.height, 1f)
+        }
+        fun contains(outer: Rect, inner: Rect) = inner.left >= outer.left && inner.top >= outer.top &&
+            inner.right <= outer.right && inner.bottom <= outer.bottom
+        assertTrue("$label complete Text must fit its actual Button", contains(buttonBounds, textBounds))
+        assertTrue("$label complete Button must fit the real Dialog", contains(windowBounds, buttonBounds))
+        exactViewport?.let { exact ->
+            assertTrue("$label complete Text and Button must also fit the reported physical host", contains(
+                Rect(0f, 0f, exact.widthPx.toFloat(), (exact.heightPx - exact.bottomPx).toFloat()), buttonBounds))
+        }
+    }
+
+    /** Shared unchanged character/line visibility checks for both buttons and non-action reasons. */
+    private fun assertCompleteViewerParagraph(label: String, text: SemanticsNodeInteraction, layout: TextLayoutResult) {
         text.assertIsDisplayed()
         val input = layout.layoutInput
         assertEquals("The selected actual Text must be the expected label", label, input.text.text)
@@ -450,27 +504,6 @@ class NativeGalleryRootTest {
             val glyph = layout.getBoundingBox(offset)
             assertTrue("$label glyph $offset must be visible within the actual layout", glyph.width > 0f && glyph.height > 0f &&
                 glyph.left >= 0f && glyph.top >= 0f && glyph.right <= layout.size.width && glyph.bottom <= layout.size.height)
-        }
-        val button = compose.onNode(hasText(label) and hasAnyAncestor(isDialog()))
-            .assertIsDisplayed().assertWidthIsAtLeast(48.dp).assertHeightIsAtLeast(48.dp)
-        val textBounds = text.fetchSemanticsNode().boundsInWindow
-        val buttonBounds = button.fetchSemanticsNode().boundsInWindow
-        val windowBounds = viewBoundsInWindow(checkNotNull(currentDialog().window).decorView)
-        for ((name, node) in listOf("Text" to text, "Button" to button)) {
-            val clipped = node.fetchSemanticsNode().boundsInWindow
-            val uncut = node.getUnclippedBoundsInRoot()
-            // Same 1px dp conversion tolerance as the existing button-clipping check; no inset,
-            // physical-window or glyph/line threshold is relaxed by this comparison.
-            assertEquals("$label $name may not be horizontally clipped", (uncut.right - uncut.left).value * density, clipped.width, 1f)
-            assertEquals("$label $name may not be vertically clipped", (uncut.bottom - uncut.top).value * density, clipped.height, 1f)
-        }
-        fun contains(outer: Rect, inner: Rect) = inner.left >= outer.left && inner.top >= outer.top &&
-            inner.right <= outer.right && inner.bottom <= outer.bottom
-        assertTrue("$label complete Text must fit its actual Button", contains(buttonBounds, textBounds))
-        assertTrue("$label complete Button must fit the real Dialog", contains(windowBounds, buttonBounds))
-        exactViewport?.let { exact ->
-            assertTrue("$label complete Text and Button must also fit the reported physical host", contains(
-                Rect(0f, 0f, exact.widthPx.toFloat(), (exact.heightPx - exact.bottomPx).toFloat()), buttonBounds))
         }
     }
 

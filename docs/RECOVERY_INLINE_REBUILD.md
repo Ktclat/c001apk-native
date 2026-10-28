@@ -72,3 +72,61 @@ records/loopback reads. They check eight-line ellipsis, retained parent/conversa
 routes, secondary ink, absent inline links/unsupported open actions and no sends.
 These source tests and the four new actual-UI touchpoints require fresh gates;
 they are not covered merely by the historical emulator case count.
+
+## CI61 oracle / semantics-target corrections (new, NOT_RUN on JVM/Android)
+
+[CI61 run 40639669858](https://github.com/Ktclat/c001apk-native/actions/runs/40639669858)
+ran remote source `5142324ee1d8ade29155c4eb27617ab9139ad181` and failed with
+12 failures among 1,510 JVM tests. This follow-up is based on integrated `7a955da`;
+it addresses four of those failures without changing production Kotlin or artwork.
+The original run is still failed, not a passing gate for this patch.
+
+- Two `InlineEmoticonAssetsTest` failures came from six incorrectly extracted
+  test-oracle tokens. The exact pinned Flutter file uses ordinary Dart strings:
+  backslash-dollar in source decodes to dollar, not backslash-dollar at runtime.
+  Native catalog keys already have the correct runtime form. The second failure
+  was `images[token] == null`, **before** PNG loading/decoding, not a corrupt PNG.
+  See [Dart string literals](https://dart.dev/language/built-in-types#strings) and
+  the [Dart SDK dollar-escape diagnostic](https://dart.googlesource.com/sdk/+/refs/heads/base/pkg/front_end/messages.yaml).
+- `actualLocalFollowSummaryKeepsEightLineEllipsisAndOriginalParentRoute` selected
+  merged `local-follow-card:7`, whose text list includes both title and body.
+- For `actualFeedTitleBodyAndHotReferenceUseArtAndLinkTapDoesNotOpenParent`, source
+  and selector inspection support a merged-parent/first-title layout inference.
+  Its original XML proves only empty link annotations at line 58; stdout/stderr
+  are empty and no screenshot of this exact fixture was present in the CI bundle.
+  Unlike the LocalFollow XML, this is not a recorded merged-tree observation.
+  The title correctly has no anchor, so inspecting its layout cannot test the body.
+  Both tests now target exact unmerged Text leaves
+  and also assert `layoutInput.text`, leaving real pointer dispatch intact.
+  Eight lines, ellipsis, original parent feed route, exact linked emoji/URL,
+  nonzero placeholder geometry and parent-tap isolation are still asserted.
+
+The independently reproducible oracle generator reads only the pinned Flutter
+file and original Flutter PNGs (not the native catalog). It rejects unknown Dart
+syntax/escapes and pins both source SHA and the complete original artwork digest:
+
+```sh
+python3 app/tools/rebuild_emoticon_fixture.py /path/to/flutter-0d9ed002-checkout
+```
+
+A lightweight source audit confirmed exactly six token-value changes; all 187
+source names and all 183 PNG hashes are unchanged. The six normal `$` tokens are
+explicitly required and their backslash-containing variants rejected by the
+existing catalog test. The prior fixture remains in the CI61 parent revision:
+`13852ba6df5f681cceb30df17b65be7e7d7d82e21485bc6b758d251dca7ea5cc`.
+The regenerated fixture SHA is
+`58d4abe406cb194926b60c7484d5d12587a75bfe1e3d5edbec7dd498383d6a62`.
+No PNG/resource/catalog mapping, count, byte or pixel assertion was removed.
+
+Original downloaded CI61 evidence SHA256 (kept unchanged outside the source tree):
+
+| Evidence | SHA256 |
+| --- | --- |
+| debug log | `9486e2547926e36dae0f43a5836c2c98b071693cd3ea9b2f479e0ddd616e70cf` |
+| InlineEmoticonAssetsTest XML | `e27d67b88b43c75e7d6cafde7819b37a0298d2f70aaeb8a3400be996e2eb94b7` |
+| LiteralSummaryEmoticonTest XML | `086821a8f50fce70b3a5e236f8d560e5600018cdbfb5e5cab83508857edf41a7` |
+| ReconstructedRichTextUiTest XML | `bb88ddb78ed6d2f07643e6e9b83bb9e2c0de30176b1466514949b11eb5a7a966` |
+
+Only the offline regeneration/hash audit was executed for this patch. All changed
+JVM tests, Android/emulator flows, actual visible Copy and final-APK asset/pixel
+checks are **NOT_RUN**, pending independent CI and fresh exact-APK review.

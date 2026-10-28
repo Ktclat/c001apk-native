@@ -21,7 +21,7 @@ class InlineEmoticonAssetsTest {
     private fun fixture(): List<JsonObject> {
         val raw = requireNotNull(javaClass.getResourceAsStream("/inline-emoticons-flutter-0d9ed002.json"))
             .use { it.readBytes() }
-        assertEquals("13852ba6df5f681cceb30df17b65be7e7d7d82e21485bc6b758d251dca7ea5cc", sha256(raw))
+        assertEquals("58d4abe406cb194926b60c7484d5d12587a75bfe1e3d5edbec7dd498383d6a62", sha256(raw))
         val root = Json.parseToJsonElement(raw.toString(Charsets.UTF_8)).jsonObject
         assertEquals("0d9ed002980d935c1c9351393e9f16784aa78903", root.getValue("source_commit").jsonPrimitive.content)
         return root.getValue("entries").jsonArray.map { it.jsonObject }
@@ -32,6 +32,14 @@ class InlineEmoticonAssetsTest {
         val expected = entries.associate { it.getValue("source").jsonPrimitive.content to it.getValue("token").jsonPrimitive.content }
         assertEquals(187, entries.size)
         assertEquals(187, expected.size)
+        // These are Dart runtime keys: the source's \$ is an escape, not a backslash.
+        // The oracle is regenerated from pinned Flutter source/art by rebuild_emoticon_fixture.py.
+        for (prefix in listOf("酷币", "新酷币")) for (amount in listOf(1, 2, 5)) {
+            val token = "[$prefix${amount}\$]"
+            assertTrue(expected.containsValue(token))
+            assertTrue(InlineEmoticons.contains(token))
+            assertFalse(InlineEmoticons.contains(token.replace("\$", "\\\$")))
+        }
         assertEquals(expected, InlineEmoticons.sourceTokens)
         assertEquals(expected.values.toSet(), InlineEmoticons.tokens)
         assertEquals(setOf("[置顶]", "[楼主]", "[层主]"), InlineEmoticons.labels)
@@ -52,7 +60,7 @@ class InlineEmoticonAssetsTest {
         for (entry in entries) {
             val token = entry.getValue("token").jsonPrimitive.content
             val source = entry.getValue("source").jsonPrimitive.content
-            val id = requireNotNull(InlineEmoticons.images[token])
+            val id = requireNotNull(InlineEmoticons.images[token]) { "Missing resource ID for Flutter runtime token $token ($source)" }
             assertEquals(source.removeSuffix(".png"), resources.getResourceEntryName(id))
             val original = resources.openRawResource(id).use { it.readBytes() }
             bytes += original.size

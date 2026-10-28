@@ -790,17 +790,17 @@
       "sha256": "7a21c79ffaf117fc23f42d8c0af4a1803bc169488d34b099bd0201855d194d39"
     },
     {
-      "token": "[酷币1\\$]",
+      "token": "[酷币1$]",
       "source": "c_oned.png",
       "sha256": "a95df70f94ec47c8458433b86cb7321645f4daec6bcb61d24d5b311d0c6220d2"
     },
     {
-      "token": "[酷币2\\$]",
+      "token": "[酷币2$]",
       "source": "c_twod.png",
       "sha256": "354a5b3b2dcb300caa2a441c65131b1a0a55ca53931962b35706db64c3656614"
     },
     {
-      "token": "[酷币5\\$]",
+      "token": "[酷币5$]",
       "source": "c_fived.png",
       "sha256": "ab4edf7e8e8be7e555cf55800be408399b46b63f348c26b93acfc05bb387e48b"
     },
@@ -905,17 +905,17 @@
       "sha256": "d45524dcd39e0972edae4a52c71686e53bbcf5bef6f269c0f9347dc116b367ec"
     },
     {
-      "token": "[新酷币1\\$]",
+      "token": "[新酷币1$]",
       "source": "coolapk_emotion_75.png",
       "sha256": "9d418d1e54be73fd97efce920d5185492da1ecdd8eb47b5f027039ab135fc939"
     },
     {
-      "token": "[新酷币2\\$]",
+      "token": "[新酷币2$]",
       "source": "coolapk_emotion_76.png",
       "sha256": "e4e470f12147df7e6eb4d714490464404bf3dea7882d13ea87d18dc4406e18b1"
     },
     {
-      "token": "[新酷币5\\$]",
+      "token": "[新酷币5$]",
       "source": "coolapk_emotion_77.png",
       "sha256": "56836381ff8c59421247e1f6a8912f1ce9f2df0814fc7c6f781c9e0a3fe35b7b"
     },

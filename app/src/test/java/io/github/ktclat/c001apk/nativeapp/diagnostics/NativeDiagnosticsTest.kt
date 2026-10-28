@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 package io.github.ktclat.c001apk.nativeapp.diagnostics
 
+import io.github.ktclat.c001apk.nativeapp.feature.media.ImageLoadFailure
+import io.github.ktclat.c001apk.nativeapp.feature.media.ImageLoadFailureKind
 import org.junit.Assert.*
 import org.junit.Test
 import java.util.Locale
@@ -56,13 +58,42 @@ class NativeDiagnosticsTest {
     }
     @Test fun reportIsAnExplicitNonSensitiveAllowlist() {
         val report = sampleDiagnostics()
-        assertEquals(23, report.entries().size)
+        val expectedNames = listOf(
+            "版本", "构建类型", "Git commit（不等于当前源码）", "Git 分支", "构建时工作区", "源码指纹范围", "源码 SHA-256",
+            "窗口内容实测 dp（Compose 根）", "像素密度 px/dp", "系统字体缩放", "当前有效字体缩放（含阅读设置）",
+            "安全绘制边距 dp [左, 上, 右, 下]", "系统栏边距 dp [左, 上, 右, 下]", "系统手势边距 dp [左, 上, 右, 下]",
+            "强制手势边距 dp [左, 上, 右, 下]", "输入法边距 dp [左, 上, 右, 下]", "悬浮导航偏好", "滚动隐藏行为",
+            "触摸探索（系统信号）", "悬浮根页默认随滚动隐藏", "减少动态效果（阻止装饰动画）", "首页请求观察范围",
+            "首页请求（本次进程，最多12条）", "公共图片观察范围", "公共图片加载（本次进程）",
+        )
+        assertEquals("No unreviewed diagnostic entry may be added or reordered", expectedNames, report.entries().map { it.first })
         assertTrue(report.entries().any { it.first == "首页请求观察范围" && it.second.contains("无记录不代表成功") })
-        assertEquals("unavailable", report.entries().last().second)
+        val entries = report.entries().toMap()
+        assertEquals("unavailable", entries["首页请求（本次进程，最多12条）"])
+        assertEquals("unavailable", entries["公共图片加载（本次进程）"])
+        val imageScope = checkNotNull(entries["公共图片观察范围"])
+        listOf("最多16组", "最多9999次", "不含地址、账号、时间、请求头或异常正文", "私信和独立文章加载器不在范围内",
+            "成功可能来自缓存", "不能证明所有图片或当前页面正常").forEach { assertTrue(imageScope.contains(it)) }
         val fields = NativeDiagnostics::class.java.declaredFields.map { it.name.lowercase() }
         listOf("account", "device", "model", "manufacturer", "cookie", "token", "credential", "path", "email").forEach { prohibited ->
             assertFalse("Unexpected field: $prohibited", fields.any { it.contains(prohibited) })
         }
+    }
+    @Test fun publicImageExportContainsOnlyClosedFieldsAndNeverTreatsNoRecordsAsSuccess() {
+        val empty = sampleDiagnostics().copy(publicImages = emptyList()).entries().toMap()
+        assertEquals("暂无公共图片加载记录；无记录不代表成功", empty["公共图片加载（本次进程）"])
+        val event = PublicImageObservation(PublicImageHost.IMAGE_CDN, ImageLoadFailure(ImageLoadFailureKind.HTTP, 567),
+            PublicImageType.HTML, PublicImageSource.NETWORK)
+        val observed = sampleDiagnostics().copy(publicImages = listOf(event to 2)).entries().toMap()
+        assertEquals("host=IMAGE_CDN; result=HTTP; HTTP=567; contentType=HTML; source=NETWORK; count=2",
+            observed["公共图片加载（本次进程）"])
+        assertEquals(setOf("host", "failure", "contentType", "source"),
+            PublicImageObservation::class.java.declaredFields.filterNot { it.isSynthetic || java.lang.reflect.Modifier.isStatic(it.modifiers) }.map { it.name }.toSet())
+        assertEquals(setOf("kind", "httpStatus"),
+            ImageLoadFailure::class.java.declaredFields.filterNot { it.isSynthetic || java.lang.reflect.Modifier.isStatic(it.modifiers) }.map { it.name }.toSet())
+        val closedFields = PublicImageObservation::class.java.declaredFields + ImageLoadFailure::class.java.declaredFields
+        assertFalse("Image diagnostics must not retain arbitrary text, bodies, URLs or exceptions",
+            closedFields.any { it.type == String::class.java || Throwable::class.java.isAssignableFrom(it.type) })
     }
 }
 

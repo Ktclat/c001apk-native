@@ -51,6 +51,7 @@ class LiteralSummaryEmoticonTest {
     private fun assertLocalOnly(node: SemanticsNodeInteraction, raw: String, count: Int): TextLayoutResult {
         node.assertTextEquals(raw)
         val result = layout(node)
+        assertEquals(raw, result.layoutInput.text.text)
         assertEquals(count, result.layoutInput.placeholders.size)
         assertTrue(result.layoutInput.text.getLinkAnnotations(0, raw.length).isEmpty())
         return result
@@ -100,14 +101,17 @@ class LiteralSummaryEmoticonTest {
         val opened = mutableListOf<String>()
         compose.setContent { MaterialTheme { LocalFollowFeedScreen(LocalRepository(state), repository,
             { opened += "feed:$it" }, { opened += "user:$it" }, {}) } }
-        compose.waitUntil(10_000) { compose.onAllNodesWithText(raw).fetchSemanticsNodes().size == 1 }
-        val node = compose.onNodeWithText(raw)
+        compose.waitUntil(10_000) { compose.onAllNodesWithText(raw, useUnmergedTree = true).fetchSemanticsNodes().size == 1 }
+        // The clickable card merges title and body semantics; inspect the body Text leaf.
+        val node = compose.onNodeWithText(raw, useUnmergedTree = true)
         val value = assertLocalOnly(node, raw, 1)
         assertEquals(8, value.layoutInput.maxLines)
         assertEquals(TextOverflow.Ellipsis, value.layoutInput.overflow)
         assertEquals(8, value.lineCount)
         assertTrue(value.isLineEllipsized(7))
-        node.performTouchInput { click(requireNotNull(value.placeholderRects.single()).center) }
+        val box = requireNotNull(value.placeholderRects.single())
+        assertTrue(box.width > 0 && box.height > 0)
+        node.performTouchInput { click(box.center) }
         compose.runOnIdle { assertEquals(listOf("feed:7"), opened); assertEquals(1, reads) }
     }
 

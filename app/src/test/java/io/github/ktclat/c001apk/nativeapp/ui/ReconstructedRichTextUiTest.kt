@@ -50,14 +50,25 @@ class ReconstructedRichTextUiTest {
             hotReply = FeedReference("hot", "热评作者", body = "热评[受虐滑稽][笑哭]", kind = FeedReferenceKind.HOT_REPLY, parentFeedId = "emote"))
         compose.setContent { MaterialTheme { NativeFeedCard(card, FeedCardActions({ posts++ }, null, {},
             { links += it }, { references++ })) } }
-        compose.waitUntil(10_000) { compose.onAllNodesWithText("正文[受虐滑稽][笑哭]").fetchSemanticsNodes().size == 1 }
-        assertEquals(2, layout(compose.onNodeWithText("标题[受虐滑稽][笑哭]")).layoutInput.placeholders.size)
-        assertEquals(2, layout(compose.onNodeWithText("热评作者：热评[受虐滑稽][笑哭]")).layoutInput.placeholders.size)
-        val node = compose.onNodeWithText("正文[受虐滑稽][笑哭]")
+        // Read exact Text leaves, not the clickable parent with merged title/body actions.
+        compose.waitUntil(10_000) { compose.onAllNodesWithText("正文[受虐滑稽][笑哭]", useUnmergedTree = true).fetchSemanticsNodes().size == 1 }
+        for (raw in listOf("标题[受虐滑稽][笑哭]", "热评作者：热评[受虐滑稽][笑哭]")) {
+            val text = compose.onNodeWithText(raw, useUnmergedTree = true).assertTextEquals(raw)
+            val textLayout = layout(text)
+            assertEquals(raw, textLayout.layoutInput.text.text)
+            assertEquals(2, textLayout.layoutInput.placeholders.size)
+        }
+        val node = compose.onNodeWithText("正文[受虐滑稽][笑哭]", useUnmergedTree = true)
+            .assertTextEquals("正文[受虐滑稽][笑哭]")
         val value = layout(node)
+        assertEquals("正文[受虐滑稽][笑哭]", value.layoutInput.text.text)
+        assertEquals(2, value.layoutInput.placeholders.size)
         val link = value.layoutInput.text.getLinkAnnotations(0, value.layoutInput.text.length).single()
+        assertEquals("[笑哭]", value.layoutInput.text.subSequence(link.start, link.end).text)
+        assertEquals("/feed/42", (link.item as LinkAnnotation.Clickable).tag)
         val index = value.layoutInput.placeholders.indexOfFirst { it.start == link.start }
         val box = requireNotNull(value.placeholderRects[index])
+        assertTrue(box.width > 0 && box.height > 0)
         node.performTouchInput { click(box.center) }
         compose.runOnIdle { assertEquals(listOf("/feed/42"), links); assertEquals(0, posts); assertEquals(0, references) }
     }
