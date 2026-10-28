@@ -40,6 +40,7 @@ class ReachableEntityNativeAppTest {
  private lateinit var client: OkHttpClient
  private val forbiddenDns = CopyOnWriteArrayList<String>()
  private val paths = CopyOnWriteArrayList<String>()
+ private val readiness = ReachableReadinessDiagnostics()
  @After fun close() {
   if (::images.isInitialized) images.close()
   if (::client.isInitialized) { client.dispatcher.cancelAll(); client.connectionPool.evictAll(); client.dispatcher.executorService.shutdownNow() }
@@ -57,6 +58,7 @@ class ReachableEntityNativeAppTest {
  @Test fun relationWithoutUrlStillDisplaysDecodedLogo() = show("feed-relations", null, "关联入口与资料链接", "-readonly-relation", omitRelationUrl = true)
  private fun show(fixture: String, route: String?, expected: String, suffix: String = "", dark: Boolean = false, scale: Float = 1f, omitRelationUrl: Boolean = false) {
   val name = fixture + suffix
+  readiness.event("show name=$name route=$route")
   images = IconFixtureImages(compose.activity)
   val store = AccountStore(object : CredentialPersistence {
    override fun read(): ByteArray? = null
@@ -66,6 +68,7 @@ class ReachableEntityNativeAppTest {
   if (route != null) assertTrue(store.saveAuthenticated("123", "Synthetic fixture account", "audit-synthetic-device", listOf(Cookie.Builder()
    .name("token").value("synthetic-not-real").domain("coolapk.com").path("/").secure()
    .expiresAt(System.currentTimeMillis() + 3_600_000).build()), store.snapshot()))
+  readiness.event("initial account activeId=${store.state.value.activeId} generation=${store.state.value.generation}")
   val originalSource = requireNotNull(javaClass.getResource("/reachable-cards/$fixture.json")).readText()
   // A valid optional-field omission is exercised through the wire decoder, never a manual DTO.
   val source = if (omitRelationUrl) {
@@ -82,6 +85,7 @@ class ReachableEntityNativeAppTest {
    val request = chain.request(); check(request.method == "GET")
    check(request.url.host in setOf("api.coolapk.com", "api2.coolapk.com", "www.coolapk.com"))
    val path = request.url.encodedPath; paths += path
+   readiness.event("interceptor entered $path")
    val body = when (path) {
     "/v6/user/followList" -> { assertEquals("123", request.url.queryParameter("uid")); check(fixture == "personal-follow"); source }
     "/v6/collection/list" -> { assertEquals("0", request.url.queryParameter("showDefault")); assertNull(request.url.queryParameter("uid")); check(fixture == "personal-collection"); source }
@@ -97,10 +101,11 @@ class ReachableEntityNativeAppTest {
     else -> throw AssertionError("Unexpected fixture endpoint $path")
    }
    Response.Builder().request(request).protocol(Protocol.HTTP_1_1).code(200).message("Synthetic fixture")
-    .body(body.toResponseBody("application/json".toMediaType())).build()
+    .body(readiness.body(path, body.toResponseBody("application/json".toMediaType()))).build()
+    .also { readiness.event("interceptor response built $path code=${it.code}") }
    // No chain.proceed: never sends fixture credentials or opens a network socket.
   }.build()
-  val repository = HttpCoolapkRepository(client = client, requestSession = { store.captureRequestSession() })
+  val repository = HttpCoolapkRepository(client = client, requestSession = { readiness.session(store.captureRequestSession()) })
   val login = HttpLoginTransport(client)
   val social = SocialRepository(store) { snapshot -> CoolapkHttpTransport(client = client, requestSession = { store.requestSessionFor(snapshot) }) }
   val constructor = AccountRuntime::class.java.getDeclaredConstructor(AccountStore::class.java, HttpLoginTransport::class.java,
@@ -118,13 +123,23 @@ class ReachableEntityNativeAppTest {
     }
    }
   }
+  readiness.event("initial readiness wait started")
   try {
    compose.waitUntil(15_000) { compose.onAllNodesWithText(expected).fetchSemanticsNodes().isNotEmpty() }
   } catch (failure: Throwable) {
-   capture("$name-readiness-failure")
+   // Neither phase collection nor screenshot failure may replace the original wait failure.
+   try {
+    readiness.event("initial readiness wait threw ${failure.javaClass.name}")
+    readiness.save(name, failure.javaClass.name, store.state.value, client, includeThreads = true)
+   }
+   catch (diagnosticFailure: Throwable) { if (diagnosticFailure !== failure) failure.addSuppressed(diagnosticFailure) }
+   try { capture("$name-readiness-failure") }
+   catch (captureFailure: Throwable) { if (captureFailure !== failure) failure.addSuppressed(captureFailure) }
    throw failure
   }
   compose.onNodeWithText(expected).assertIsDisplayed()
+  readiness.event("initial readiness text displayed")
+  readiness.save(name, "displayed", store.state.value, client, includeThreads = false)
   fun awaitText(text: String, key: String? = null) {
    if (key?.startsWith("user:") == true) {
     compose.waitUntil(10_000) { compose.onRoot().fetchSemanticsNode(); model.states.value[key]?.let { it.loaded && !it.loading } == true }

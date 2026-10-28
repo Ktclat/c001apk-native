@@ -4,13 +4,27 @@ on:
     branches: [main, test/native-media-recovery-20261028]
   pull_request:
   workflow_dispatch:
+    inputs:
+      actual_ui:
+        description: 'Optional synthetic actual-UI gate; requires explicit reviewed-source dispatch authorization'
+        type: boolean
+        default: false
+      approved_sha:
+        description: 'Exact reviewed test-branch SHA (required for actual UI)'
+        type: string
+        default: ''
+      network_boundary_approved:
+        description: 'Parent and independent reviewer approved the exact reject-only network boundary'
+        type: boolean
+        default: false
 permissions:
   contents: read
 concurrency:
-  group: native-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  group: native-${{ github.workflow }}-${{ github.ref }}-${{ inputs.actual_ui && 'actual-ui' || 'source' }}
+  cancel-in-progress: ${{ !inputs.actual_ui }}
 jobs:
   debug:
+    if: github.event_name != 'workflow_dispatch' || !inputs.actual_ui
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
@@ -67,5 +81,53 @@ jobs:
             !app/build/**/*.keystore
             !app/build/**/*.pem
             !app/build/**/*.key
+          if-no-files-found: warn
+          retention-days: 7
+
+  actual-ui:
+    permissions:
+      contents: read
+      actions: read
+    if: github.event_name == 'workflow_dispatch' && inputs.actual_ui && github.ref == 'refs/heads/test/native-media-recovery-20261028' && inputs.network_boundary_approved
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    env:
+      PYTHONDONTWRITEBYTECODE: '1'
+      QA_PRIVATE: ${{ runner.temp }}/native-ui-private
+      QA_PUBLIC: ${{ runner.temp }}/native-ui-public
+      QA_APPROVED_SHA: ${{ inputs.approved_sha }}
+      QA_NETWORK_APPROVED: ${{ inputs.network_boundary_approved }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Require same-SHA ordinary source CI and explicit approval
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 tools/qa-github/check_unit_gate.py
+      - uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Bounded sequential build and new task AVD preparation (no boot)
+        run: |
+          python3 tools/recovery/runner/run_owned.py \
+            --lock "$RUNNER_TEMP/native-ui-build.lock" --evidence "$QA_PRIVATE/build-owner" \
+            --cwd "$GITHUB_WORKSPACE" --seconds 1500 -- bash tools/qa-github/prepare.sh
+      - name: Sole software emulator, proxy boundary, source-bound scenarios, cleanup
+        run: |
+          python3 tools/recovery/runner/run_owned.py \
+            --lock "$RUNNER_TEMP/native-ui-runtime.lock" --evidence "$QA_PRIVATE/runtime-owner" \
+            --cwd "$GITHUB_WORKSPACE" --seconds 3000 -- python3 tools/qa-github/run_emulator.py
+      - name: Stage only allowlisted non-sensitive review evidence
+        id: review_stage
+        if: always()
+        run: python3 tools/qa-github/stage_review.py
+      - name: Preserve originals for independent review (never APKs/keys)
+        if: always() && steps.review_stage.outcome == 'success'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: synthetic-actual-ui-pending-independent-review-${{ github.sha }}
+          path: qa-public-artifact/
           if-no-files-found: warn
           retention-days: 7

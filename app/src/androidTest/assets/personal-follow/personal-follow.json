@@ -1,0 +1,16 @@
+{
+  "data": [
+    {
+      "id": "1002",
+      "entityType": "contacts",
+      "fUserInfo": {
+        "uid": 1002,
+        "username": "开源观察员",
+        "userAvatar": "https://fixture.invalid/icon-5.png",
+        "follow": 120,
+        "fans": 980
+      },
+      "url": "/u/1002"
+    }
+  ]
+}

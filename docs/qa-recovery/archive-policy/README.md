@@ -34,7 +34,7 @@ any approved subset may be committed to the test branch.
    belonging to real accounts. Observed source DISK/NETWORK remains literal.
 5. Hash-only source/APK/testAPK/signer and DEX-overlap receipt; no binary APK/key.
    Runtime-source manifest includes only relative repository runtime/build paths.
-6. Scenario/control JSON (new14 unique/17 invocations +6 controls only if actually
+6. Scenario/control JSON (new15 unique/18 app invocations +6 measurement controls +2 egress preflights only if actually
    executed), capture trace, timing/ROI coordinates, artifact provenance, cleanup
    and independent review verdict. Any failed/incomplete run is retained as such.
 

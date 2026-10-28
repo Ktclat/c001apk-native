@@ -56,6 +56,10 @@
     {
       "selector": "io.github.ktclat.c001apk.nativeapp.ui.EmulatorLiteralSummaryTest#fourLiteralSummaryPathsKeepArtOverflowParentRoutesAndReadOnlyMessages",
       "status": "NOT_RUN"
+    },
+    {
+      "selector": "io.github.ktclat.c001apk.nativeapp.ui.EmulatorPersonalFollowTest#actualPersonalFollowUserEntityAndBackStayReadOnly",
+      "status": "NOT_RUN"
     }
   ],
   "narrowRepeats": [
@@ -99,11 +103,11 @@
     }
   ],
   "targetCounts": {
-    "appUnique": 14,
-    "appInvocationsIncludingNarrow": 17,
+    "appUnique": 15,
+    "appInvocationsIncludingNarrow": 18,
     "measurementControlsSeparate": 6
   },
-  "scope": "The 14th summary case is newly requested additional scope, not covered by historical 13-case approval. No historical result is reused.",
+  "scope": "The 14th summary and 15th personal-follow cases are newly requested scope. Personal-follow is actual-Android companion evidence, not a fix of the CI62 15s timeout. Historical approvals/results are not reused. Two egress preflights are separate from six measurement controls.",
   "runOrder": [
     "fullReaderRawAndActualCopyPreserveOriginalTokensAndCode",
     "six measurement controls",
@@ -124,5 +128,15 @@
     "restricted image CDN probe",
     "real accounts or writes",
     "APK/key/user-upload publication"
+  ],
+  "egressPreflightsSeparate": [
+    {
+      "selector": "io.github.ktclat.c001apk.nativeapp.ui.EmulatorRejectProxyBoundaryTest#defaultHttpsIsRejectedBeforeTls",
+      "status": "NOT_RUN"
+    },
+    {
+      "selector": "io.github.ktclat.c001apk.nativeapp.ui.EmulatorRejectProxyBoundaryTest#productionMediaIsRejectedBeforeTls",
+      "status": "NOT_RUN"
+    }
   ]
 }

@@ -17,24 +17,25 @@
     "No PNG/XML recreated",
     "No PASS/approval receipt recreated",
     "No original APK/signature/source manifest assumed",
-    "No source publication or network request"
+    "No network/runtime receipt fabricated"
   ],
   "targetCountsNotResults": {
-    "appUnique": 14,
-    "appInvocationsIncludingNarrowRepeats": 17,
-    "measurementControls": 6
+    "appUnique": 15,
+    "appInvocationsIncludingNarrowRepeats": 18,
+    "measurementControls": 6,
+    "egressPreflightsSeparate": 2
   },
   "files": [
     {
       "path": "README.md",
-      "sha256": "59ed339efed9baf772f03a822fa7651a5930bb1598b7806a643177af46579e14",
-      "bytes": 801,
+      "sha256": "37a1e84041da456d9f1af41e9f7651c5d8479b6a651061d1e740a4e9be7b1678",
+      "bytes": 1045,
       "classification": "NEW_RECONSTRUCTION_NOT_ORIGINAL_NOT_EXECUTED"
     },
     {
       "path": "archive-policy/README.md",
-      "sha256": "67364995c39f5fbb85d37c8ae34976a6d1b1ee5e90277658260ee94251c50c9c",
-      "bytes": 3681,
+      "sha256": "7e463f6d8ea8ab0b47b01ee827366a537833187e4a498774d351acaafae323ee",
+      "bytes": 3718,
       "classification": "NEW_RECONSTRUCTION_NOT_ORIGINAL_NOT_EXECUTED"
     },
     {
@@ -45,14 +46,14 @@
     },
     {
       "path": "new-plan/ACCEPTANCE-PLAN.md",
-      "sha256": "95d3e684caae204a24acf32809e94ffb590752b443866a5f57fb425fe63dcec5",
-      "bytes": 10721,
+      "sha256": "e776c1252a26fe2b1e38a7efba4c5e6691f2ad4baf2f7c88a590b3ae2674a5a3",
+      "bytes": 11668,
       "classification": "NEW_RECONSTRUCTION_NOT_ORIGINAL_NOT_EXECUTED"
     },
     {
       "path": "new-plan/case-plan.json",
-      "sha256": "03b82f0a690481f2029b465e5fb2d49f9f7c985b4182cbc992dba3e3171a4909",
-      "bytes": 5393,
+      "sha256": "de4276b7f77bbc1f462c657d708133fa11667b0c2a45518598f123d119d0847e",
+      "bytes": 6071,
       "classification": "NEW_RECONSTRUCTION_NOT_ORIGINAL_NOT_EXECUTED"
     },
     {
@@ -226,5 +227,6 @@
     "new production showEmoji method and unique run-directory changes",
     "final synthetic GIF/static media-replay asset bytes and provenance"
   ],
-  "newTestSourceState": "Fourteen reconstructed app cases and six measurement controls now exist in app/src/androidTest; NOT_BUILT/NOT_RUN, independent source review pending. Not original lost bytes."
+  "newTestSourceState": "Fifteen reconstructed app cases, six measurement controls, and two egress preflights exist. Earlier fourteen cases compiled in source CI; the new fifteenth case and optional runtime orchestration remain uncompiled/unexecuted. All actual-UI cases remain NOT_RUN, independent execution approval pending. Not original lost bytes.",
+  "lastPlanUpdateUtc": "2026-10-28T07:11:28.520287+00:00"
 }

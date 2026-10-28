@@ -1,0 +1,11 @@
+{
+  "scope": "Byte-exact synthetic repository fixtures, not a remote avatar or user-upload",
+  "personal-follow.json": {
+    "source": "app/src/test/resources/reachable-cards/personal-follow.json",
+    "sha256": "8f9906dd6149496fc2f5d94f393d064c880aed91c52d063f79c0b28d5f966e1a"
+  },
+  "icon-5.png": {
+    "source": "app/src/test/resources/icon-grid/icon-5.png",
+    "sha256": "84b70fcb3e2d6729a03244f3d2c0b397adfe71394f6ebf43dfc54a6bc8071958"
+  }
+}

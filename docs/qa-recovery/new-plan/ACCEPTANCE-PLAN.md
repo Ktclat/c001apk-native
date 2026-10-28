@@ -114,3 +114,9 @@ The final inline, media replay, animated evidence, controls, anchor and notifica
 Kotlin files must be rewritten/reviewed. The old GIF's hash/size do not recover its
 bytes: generate a new clearly synthetic two-frame asset with new provenance if no
 actual source bytes return. No original screenshot/XML/receipt is recreated.
+
+## Added personal-follow scope (15th app scenario; NOT_RUN)
+
+`EmulatorPersonalFollowTest.actualPersonalFollowUserEntityAndBackStayReadOnly` uses the byte-exact pinned `reachable-cards/personal-follow.json` and synthetic `icon-grid/icon-5.png`, memory-only uid123, actual NativeApp `mylist:FOLLOW` → contacts1002 → user1002 → Back. The initial readiness limit remains15s. The API and PNG transport interceptors are terminal, GET-only, and deny all unlisted requests before sockets. The icon uses the production Coil factory/decoder with an explicit synthetic transport seam, not default-network or live-avatar evidence. Back can reuse or refetch page1; observed counts are recorded without a retention claim. This is a companion actual-Android check, not a causal repair of the original CI62 unit failure.
+
+Current target: **15 unique /18 app invocations +6 separate measurement controls +2 separate egress preflights**. All remain NOT_RUN.

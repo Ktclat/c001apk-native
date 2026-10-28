@@ -13,6 +13,7 @@ import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.AndroidComposeTestRule
 import androidx.compose.ui.unit.Density
 import androidx.lifecycle.viewmodel.compose.LocalViewModelStoreOwner
+import io.github.ktclat.c001apk.nativeapp.feature.media.LocalMediaImageLoader
 import androidx.test.ext.junit.rules.ActivityScenarioRule
 import io.github.ktclat.c001apk.nativeapp.AppContainer
 import io.github.ktclat.c001apk.nativeapp.account.*
@@ -72,12 +73,12 @@ class EmulatorReadOnlyFixture(
     val model = BrowseViewModel(repository)
     private val owner = SessionViewModelStore()
 
-    fun render(initialRoute: String? = null, dark: Boolean = false, scale: Float = 1f, authenticated: Boolean = true, localState: LocalState = LocalState()) {
+    fun render(initialRoute: String? = null, dark: Boolean = false, scale: Float = 1f, authenticated: Boolean = true, localState: LocalState = LocalState(), authenticatedUid: String = "1", mediaImageLoader: coil.ImageLoader? = null) {
         EmulatorEvidence.configureWindow(compose.activity, dark)
         if (authenticated) {
             val cookie = Cookie.Builder().name("token").value("synthetic-qa-only").domain("coolapk.com").path("/")
                 .secure().expiresAt(System.currentTimeMillis() + 3_600_000).build()
-            check(store.saveAuthenticated("1", "合成测试账号", "synthetic-qa-device", listOf(cookie), store.snapshot()))
+            check(store.saveAuthenticated(authenticatedUid, "合成测试账号", "synthetic-qa-device", listOf(cookie), store.snapshot()))
         }
         AppContainer::class.java.getDeclaredField("local").apply { isAccessible = true }.set(container, LocalRepository(Memory(localState)))
         AppContainer::class.java.getDeclaredField("settings").apply { isAccessible = true }.set(container, SettingsRepository(settings))
@@ -93,7 +94,8 @@ class EmulatorReadOnlyFixture(
                 CompositionLocalProvider(LocalContext provides context, LocalViewModelStoreOwner provides owner,
                     LocalDensity provides Density(LocalDensity.current.density, scale),
                     LocalReadingStyles provides readingStyles(ReadingPreset.COMFORTABLE, FontChoice.NOTO_SANS),
-                    LocalShowEmoticons provides preferences.showEmoji) {
+                    LocalShowEmoticons provides preferences.showEmoji,
+                    LocalMediaImageLoader provides (mediaImageLoader ?: LocalMediaImageLoader.current)) {
                     NativeApp(model, container, preferences, accounts, account, initialRoute = initialRoute)
                 }
             }
