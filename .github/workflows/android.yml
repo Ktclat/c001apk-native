@@ -60,6 +60,8 @@ jobs:
           trap 'rm -rf "$out"' EXIT
           javac -d "$out" buildSrc/src/main/java/io/github/ktclat/build/NativeBuildProvenance.java buildSrc/src/test/java/io/github/ktclat/build/NativeBuildProvenanceSelfTest.java
           java -cp "$out" io.github.ktclat.build.NativeBuildProvenanceSelfTest
+      - name: Test device-evidence gates without emulator or network
+        run: python3 -B -m unittest discover -s tools/qa-github -p 'test_*.py' -v
       - name: Build debug, synthetic tests, and lint
         run: ./gradlew --no-daemon :app:assembleDebug :app:compileDebugAndroidTestKotlin :app:testDebugUnitTest :app:lintDebug
       - name: Verify all 183 original emoticons inside the built APK
@@ -93,14 +95,17 @@ jobs:
     timeout-minutes: 90
     env:
       PYTHONDONTWRITEBYTECODE: '1'
-      QA_PRIVATE: ${{ runner.temp }}/native-ui-private
-      QA_PUBLIC: ${{ runner.temp }}/native-ui-public
       QA_APPROVED_SHA: ${{ inputs.approved_sha }}
       QA_NETWORK_APPROVED: ${{ inputs.network_boundary_approved }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+      - name: Set task-owned temporary directories after runner allocation
+        shell: bash
+        run: |
+          printf 'QA_PRIVATE=%s/native-ui-private\n' "$RUNNER_TEMP" >> "$GITHUB_ENV"
+          printf 'QA_PUBLIC=%s/native-ui-public\n' "$RUNNER_TEMP" >> "$GITHUB_ENV"
       - name: Require same-SHA ordinary source CI and explicit approval
         env:
           GH_TOKEN: ${{ github.token }}
