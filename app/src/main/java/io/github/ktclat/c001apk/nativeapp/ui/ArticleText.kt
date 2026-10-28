@@ -41,7 +41,7 @@ import io.github.ktclat.c001apk.nativeapp.settings.LocalReadingStyles
     val pageStart = remember(identity) { BringIntoViewRequester() }
     var navigation by remember(identity) { mutableIntStateOf(0) }
     LaunchedEffect(identity, navigation) { if (navigation > 0) pageStart.bringIntoView() }
-    val links = remember(visible) { visible.fragments.flatMap { (it as? ArticleFragment.RichText)?.links.orEmpty() } }
+    val links = remember(visible) { visible.fragments.flatMap { (it as? ArticleFragment.RichText)?.links.orEmpty() }.distinctBy { it.url } }
     Column(verticalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.testTag("article-page")) {
         if (article.pages.size > 1) Text("第 ${current + 1}/${article.pages.size} 段",
             Modifier.testTag("full-post-progress").bringIntoViewRequester(pageStart), style = MaterialTheme.typography.bodySmall)
@@ -50,13 +50,6 @@ import io.github.ktclat.c001apk.nativeapp.settings.LocalReadingStyles
                 when (fragment) {
                     is ArticleFragment.RichText -> {
                         val palette = MaterialTheme.colorScheme
-                        val text = remember(fragment.value, palette.primary) {
-                            AnnotatedString.Builder(fragment.value).apply {
-                                fragment.value.getStringAnnotations("article-url", 0, fragment.value.length).forEach {
-                                    addStyle(SpanStyle(color = palette.primary), it.start, it.end)
-                                }
-                            }.toAnnotatedString()
-                        }
                         val reading = LocalReadingStyles.current
                         val base = if (fragment.role == ArticleTextRole.TITLE) reading.articleTitle
                             else if (article.ordinaryTypography) reading.body else reading.articleBody
@@ -71,13 +64,12 @@ import io.github.ktclat.c001apk.nativeapp.settings.LocalReadingStyles
                             val textModifier = if (decoration.code) Modifier.horizontalScroll(rememberScrollState()).padding(8.dp)
                                 else Modifier.fillMaxWidth()
                             SelectionContainer {
-                                ClickableText(text, textModifier.testTag("article-text-${fragment.sourceIndex}").semantics {
+                                NativeRichText(fragment.value, textModifier.testTag("article-text-${fragment.sourceIndex}").semantics {
                                     if (decoration.heading > 0) heading()
                                     decoration.taskChecked?.let { stateDescription = if (it) "已完成（只读）" else "未完成（只读）" }
                                 },
-                                    style = style.copy(color = palette.onSurface.copy(alpha = 0.92f)), onClick = { offset ->
-                                        text.getStringAnnotations("article-url", offset, offset).firstOrNull()?.let { openLink(it.item) }
-                                    })
+                                    style = style.copy(color = palette.onSurface.copy(alpha = 0.92f)), links = fragment.links, openLink = openLink,
+                                    expandEmoticons = !decoration.code && decoration.notice == null)
                             }
                         }
                     }

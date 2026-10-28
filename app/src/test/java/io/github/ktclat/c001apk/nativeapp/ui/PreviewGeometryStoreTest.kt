@@ -32,7 +32,7 @@ class PreviewGeometryStoreTest {
             a.copy(readingStyle = a.readingStyle.copy(letterSpacing = 1.sp)),
             a.copy(smallStyle = TextStyle(fontSize = 20.sp)), a.copy(buttonStyle = TextStyle(fontSize = 20.sp)),
             a.copy(ambientStyle = TextStyle(fontSize = 20.sp)), a.copy(minimumInteractiveSize = 60.dp),
-            a.copy(expanded = true), a.copy(page = 1), a.copy(sourceIncomplete = true))
+            a.copy(expanded = true), a.copy(page = 1), a.copy(sourceIncomplete = true), a.copy(showEmoticons = false))
         mismatches.forEach { assertNull(store.height(it)) }
         assertEquals(1200, store.height(a))
     }

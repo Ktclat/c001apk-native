@@ -1,0 +1,21 @@
+{
+  "status": "TEMPLATE_ONLY_NOT_RUN_NO_ARTIFACTS",
+  "productionSource": null,
+  "productionRuntimeManifestSha256": null,
+  "productionApkSha256": null,
+  "testApkSha256": null,
+  "productionSignerSha256": null,
+  "testSignerSha256": null,
+  "installedPullVerified": false,
+  "dexClassOverlap": null,
+  "runIds": [],
+  "counts": null,
+  "files": [],
+  "historical95OriginalsAvailable": false,
+  "reportedRemoteCdnRecovery": "NOT_APPROVED",
+  "actualPhone": "NOT_TESTED",
+  "cleanup": "NOT_RUN",
+  "independentRuntimeVerdict": "PENDING_NEW_EXECUTION",
+  "publicationAuthorization": null,
+  "excluded": ["APK bytes", "signing keys", "ADB keys", "account data", "user uploads", "userdata", "whole environment"]
+}

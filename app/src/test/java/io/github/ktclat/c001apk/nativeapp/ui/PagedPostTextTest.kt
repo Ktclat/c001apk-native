@@ -6,6 +6,10 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.SemanticsActions
+import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import org.junit.Assert.*
@@ -23,10 +27,15 @@ class PagedPostTextTest {
         val html = (0..99).joinToString(" ") { "<a href='https://example.test/$it'>链接$it</a>" }
         compose.setContent { MaterialTheme { PagedPostText(html) {} } }
         compose.waitUntil(10_000) { compose.onAllNodesWithText("本段链接（100）").fetchSemanticsNodes().isNotEmpty() }
-        assertEquals(1, compose.onAllNodes(hasClickAction()).fetchSemanticsNodes().size)
+        val layouts = mutableListOf<TextLayoutResult>()
+        compose.onNodeWithText((0..99).joinToString(" ") { "链接$it" }).performSemanticsAction(SemanticsActions.GetTextLayoutResult) { assertTrue(it(layouts)) }
+        val text = layouts.single().layoutInput.text
+        assertEquals((0..99).map { "https://example.test/$it" }, text.getLinkAnnotations(0, text.length).map { (it.item as androidx.compose.ui.text.LinkAnnotation.Clickable).tag })
+        // Inline anchor semantics are not extra action rows. Exactly one menu button precedes the dialog.
+        assertEquals(1, compose.onAllNodes(SemanticsMatcher.expectValue(SemanticsProperties.Role, Role.Button)).fetchSemanticsNodes().size)
         compose.onNodeWithText("本段链接（100）").performClick()
         compose.onNodeWithText("本段链接").assertIsDisplayed()
-        assertTrue(compose.onAllNodes(hasClickAction()).fetchSemanticsNodes().size < 20)
+        assertTrue(compose.onAllNodes(hasClickAction() and hasAnyAncestor(isDialog())).fetchSemanticsNodes().size < 20)
     }
     @Test fun linksOutsideCurrentTextSegmentStayOffThatSegment() {
         val html = "a".repeat(4800) + "<a href='https://example.test/tail'>尾部链接</a>"

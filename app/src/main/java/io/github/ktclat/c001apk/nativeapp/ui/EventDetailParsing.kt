@@ -8,15 +8,16 @@ import io.github.ktclat.c001apk.nativeapp.domain.*
 /** Description and rules are Flutter Text, not HTML/Markdown or link destinations. */
 internal fun prepareEventLiteral(body: FullPostBody, checkActive: () -> Unit): PreparedFullPost {
     if (body !is FullPostBody.Available || body.html.length > FullPostBodyBounds.MAX_HTML_UNITS) return prepareFullPost(body, checkActive)
-    return PreparedFullPost.Ready(fullPostPages(body.html, emptyList(), checkActive))
+    return PreparedFullPost.Ready(fullPostPages(body.html, emptyList(), checkActive).map { it.copy(renderInline = false) })
 }
 
 /** EventPage uses HtmlWidget, not the feed Markdown adapter. Preserve that distinction. */
 internal fun prepareEventHtml(body: FullPostBody, checkActive: () -> Unit): PreparedFullPost {
     if (body !is FullPostBody.Available || body.html.length > FullPostBodyBounds.MAX_HTML_UNITS) return prepareFullPost(body, checkActive)
-    fullPostMarkupLimit(body.html, checkActive)?.let { return PreparedFullPost.Unavailable(it) }
+    val normalized = normalizeLocalInlineImages(body.html)
+    fullPostMarkupLimit(normalized, checkActive)?.let { return PreparedFullPost.Unavailable(it) }
     checkActive()
-    val spanned = Html.fromHtml(body.html, Html.FROM_HTML_MODE_LEGACY)
+    val spanned = Html.fromHtml(normalized, Html.FROM_HTML_MODE_LEGACY)
     checkActive()
     val text = spanned.toString()
     if (text.length > FullPostBodyBounds.MAX_HTML_UNITS) return PreparedFullPost.Unavailable(FullPostBodyLimit.BODY_TOO_LARGE, text.length)
@@ -29,5 +30,5 @@ internal fun prepareEventHtml(body: FullPostBody, checkActive: () -> Unit): Prep
             return PreparedFullPost.Unavailable(FullPostBodyLimit.LINK_COMPLEXITY)
         PostLink(start, end, text.substring(start, end).take(80), span.url)
     }
-    return PreparedFullPost.Ready(fullPostPages(text, links, checkActive))
+    return PreparedFullPost.Ready(fullPostPages(text, links, checkActive, postAnnotatedText(spanned)))
 }

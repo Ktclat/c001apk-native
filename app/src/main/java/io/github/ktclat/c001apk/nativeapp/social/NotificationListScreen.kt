@@ -9,6 +9,7 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import io.github.ktclat.c001apk.nativeapp.ui.NativeTokenText
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import io.github.ktclat.c001apk.nativeapp.domain.*
@@ -162,7 +163,7 @@ internal class NotificationPageState {
                         modifier = Modifier.testTag("notice-actor:$identity"), contentPadding = PaddingValues(0.dp)) { Text(actor) }
                     else Text(actor, style = MaterialTheme.typography.titleSmall)
                     content?.context?.let { Text(it, style = MaterialTheme.typography.labelMedium) }
-                    Text(content?.text.orEmpty().ifBlank { "通知未提供文字内容" })
+                    NativeTokenText(content?.text.orEmpty().ifBlank { "通知未提供文字内容" })
                     if (content?.truncated == true) Text("通知摘要已截断，请打开动态查看完整内容", style = MaterialTheme.typography.bodySmall)
                     when (destination) {
                         is NotificationDestination.Feed -> TextButton(onClick = { open(destination) }, modifier = Modifier.testTag("notice-open:$identity")) {

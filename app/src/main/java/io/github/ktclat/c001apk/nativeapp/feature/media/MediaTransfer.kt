@@ -20,8 +20,7 @@ import java.util.concurrent.TimeUnit
 
 /** Dedicated anonymous client. Never attach account cookies or Coolapk API headers. */
 class MediaTransfer internal constructor(private val context: Context, private val client: OkHttpClient) {
-    constructor(context: Context) : this(context, OkHttpClient.Builder().followSslRedirects(false).cookieJar(okhttp3.CookieJar.NO_COOKIES)
-        .connectTimeout(15, TimeUnit.SECONDS).readTimeout(30, TimeUnit.SECONDS).callTimeout(120, TimeUnit.SECONDS).build())
+    constructor(context: Context) : this(context, mediaTransferClient())
     data class Download(val file: File, val mime: String)
     suspend fun fetch(url: String): Download {
         var ownedFile: File? = null
@@ -98,3 +97,7 @@ private suspend fun Call.awaitMediaResponse(): Response = suspendCancellableCoro
         }
     })
 }
+
+/** Public gallery transfer only; preserve the existing streaming and timeout policies. */
+internal fun mediaTransferClient(): OkHttpClient = anonymousMediaClientBuilder()
+    .connectTimeout(15, TimeUnit.SECONDS).readTimeout(30, TimeUnit.SECONDS).callTimeout(120, TimeUnit.SECONDS).build()

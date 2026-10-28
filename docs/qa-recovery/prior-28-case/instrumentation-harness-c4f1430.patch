@@ -1,0 +1,1801 @@
+diff --git a/app/build.gradle.kts b/app/build.gradle.kts
+index f306bbb..67551d1 100644
+--- a/app/build.gradle.kts
++++ b/app/build.gradle.kts
+@@ -75,6 +75,12 @@ dependencies {
+     implementation("io.coil-kt:coil-compose:2.7.0")
+     implementation("io.coil-kt:coil-gif:2.7.0")
+     implementation("androidx.webkit:webkit:1.14.0")
++    // Independent test-only emulator harness; never needed in a delivered production APK.
++    androidTestImplementation(platform("androidx.compose:compose-bom:2024.12.01"))
++    androidTestImplementation("androidx.compose.ui:ui-test-junit4")
++    androidTestImplementation("androidx.test:runner:1.6.2")
++    androidTestImplementation("androidx.test.uiautomator:uiautomator:2.3.0")
++    androidTestImplementation("androidx.test.ext:junit:1.2.1")
+     testImplementation("junit:junit:4.13.2")
+     testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.10.2")
+     testImplementation("com.squareup.okhttp3:mockwebserver:4.12.0")
+diff --git a/app/src/androidTest/assets/icon-grid/icon-1.png b/app/src/androidTest/assets/icon-grid/icon-1.png
+new file mode 100644
+index 0000000000000000000000000000000000000000..97d73a39b419ea748c1db731864d9328e366fecb
+GIT binary patch
+literal 502
+zcmeAS@N?(olHy`uVBq!ia0vp^Q6S901SGegx)#d7z_{1b#WAE}&fDAj^;iN$8a~D@
+z45$#35`Dj5;tJa%TB0Rh>lXxEsOa#WqBS*0Gccn>MEFhmjg)timg=AW$|XE|a@)H6
+zf6Duk;xf~V?Ni?{W*M^2U_Qh6jG?%}@_<YNp8<?};8le9F6-O!uY+>8^{sm>KJ!@p
+zdk_AN8WO5g7Ke1Wo(;V9y>FAQTH{Tr;*h+HnX@-MP5k-RZ*fjq?lGy%Ipx!i2y`<a
+zx&G!s`_lT;U&QABn#{v1@>e2kxvRRx`3*8(%P;J6G;R-b-@5c-r_a-JF}S^G&TvTU
+z>;1a*a`W4tC*vOR+)sICVSi_5eNCPBoCWH}$KO2qR`hRzg+qK=-}33#kL><`Vyy_+
+zGY)lqcOTDwBe?I$bB&|O-a<3J!BSz$;%D<GC<pVN4*Z;d>@@Ez%U>Hpq7@ESvOVvR
+zpY+4}<6+guGVfnL)2O(Wx#HO5Nu^;&gn0G+AKweC_s^ZZp;mis%#uno|H#7}mR2tV
+nSIs&2-~Z1!Cd}{zS^R--qE?#rR>td~m}T&E^>bP0l+XkKrv2fb
+
+literal 0
+HcmV?d00001
+
+diff --git a/app/src/androidTest/assets/icon-grid/icon-10.png b/app/src/androidTest/assets/icon-grid/icon-10.png
+new file mode 100644
+index 0000000000000000000000000000000000000000..ecf01236d61c5510f0b96bed03d6b158da0aaf19
+GIT binary patch
+literal 685
+zcmeAS@N?(olHy`uVBq!ia0vp^Q6S901SGegx)#d7z*OSt;uumf=j|Os@902@V;_?*
+z9%0#{Cn~5D^!m{ykv9`guI)}JXI;)w$FSdFzXQ9vqj+l#!$#Srk{6eBmZk`{T+-rD
+z3T+DW@DX@ZVDQAywBmgAo8Nrr^Nsk-_3Pi;UOysJea-%y^{%fj)eO-ym<`wy_zuW4
+zSTYndJYzV+h!AkdU&Ab#*1eHWH0|-_rauaTMJw7r{E;}Mu}H?vX^XHMXS_AfwhYdB
+zx(4k}#o}(XD2ku1Jui}K$o={JM6S(8mna|IxmlwvL*Ak8oZ7w!tNB5DUA>>Hcrts|
+z^KQO;Nch}jo%X+?TY?wObWLyH8hm)N&(Z5TSeyZOm&@<X!3`ntX7*bx?2PtCYFRuF
+z+Iw^6ouc}z2dgT7F5Pr(&$_?=Cz_n^+kRO)U7X$g-7)(!zWc0KzI$I&TOV|{{%et6
+zs>)fJ`TN(ulbsgDe|+B4I=Sg{i}&}PKHna{x@XDE#rG`o>t}e{f4#rb^qlca$Eg!{
+zOkr}ieAV0SQ+2{}x-b7#>H3f~gDH<+Y%wyNReo--#98^j>sFjuP`P;T;!nxdYTIq>
+zJ{`NC5t?@4{Kn9zPw^(}vv=ROd%>6dB55N&pFyI)VanlW?GsdkRZk~=PCj;5byj56
+z#t3W2md`5Z6z{8itavip`_Z1sa;ei7)iCUwx1oMY>hqo#N)L_;?<l(wAADGiC*Dg}
+zoO7P<ma-$aCWudbruX_A=at0~H=Ex_?kkh)TOSDzNsK7}!|Ecw&}K&lryDRCGI+ZB
+KxvX<aXaWG7r7P?J
+
+literal 0
+HcmV?d00001
+
+diff --git a/app/src/androidTest/assets/icon-grid/icon-2.png b/app/src/androidTest/assets/icon-grid/icon-2.png
+new file mode 100644
+index 0000000000000000000000000000000000000000..5c8cff5715d0409d7e7c4ade1667ea275da8fd98
+GIT binary patch
+literal 642
+zcmeAS@N?(olHy`uVBq!ia0vp^Q6S901SGegx)#d7z~t%a;uumf=k0BKZ>K<+V;`#z
+zZ|X6S%H{}?$_naY%gykazCe+qirq1Kvfz~q)+<&nZBpn^YnO`hTEupnMUmaHX@esB
+zVuei)C*5%m-0}R*57|dQ_cT=3*I0l5q253DgiPd@)$Uacn+@0#_zuW4STYndJYzV+
+zID;7>(9jSszUyx6=hs15lcJCR65sfB|9b)chsz{gwc7&~?@U>|;=Sy#Z5vF|g3lxt
+zakt-U(c<@BZvAu9%#|OrRqEp+S)6yUUx?p4Pk!3B=&tP<S@Vx%E8N|l_-so-#<|D3
+z?LVzEto@C%*YaJS*5;h9RhPzyYCVd34s5Tt*7P{O_+^EP$eX+S&)D18a{FCU*=E(o
+z{#!g*_;q{u?R0bLm69tBqdJ~)v^PEfe)PTD<E3Hz?M*?+TLh{jPF;=K8MRp_JF&_p
+ze2qu%MW+gFS!u~AUq9Ix+f#iPRc0nH(BH7xXn%R(_ptv0GKYP2+H<34K0T7TE?~tT
+zud^5Ya^8C!RVu!Cu|Q*oiS^HaKetvE>6&)Vj_AwTH|6Z~CGYNW-k-{Z9)u`<00;6~
+znY4c#k?C6bmS_IVEG(awcC9wTCt6|F=ZbR+>pdR5e<82;@%ikMbUtQ(>&m4SL6_!;
+zUTi%y-@Wj?LA`(I?0{Nr)14ika%@t0Yfd~A=ubK&`R9Mj{75X(2etbTLyUH>;dWt%
+R6~MH`;OXk;vd$@?2>^9y5@`Sc
+
+literal 0
+HcmV?d00001
+
+diff --git a/app/src/androidTest/assets/icon-grid/icon-3.png b/app/src/androidTest/assets/icon-grid/icon-3.png
+new file mode 100644
+index 0000000000000000000000000000000000000000..b7ce6a003ca3d3b993c5075cc3e1a4810325d086
+GIT binary patch
+literal 681
+zcmeAS@N?(olHy`uVBq!ia0vp^Q6S901SGegx)#d7z*OMr;uumf=k1-n*};J_$39;E
+zV%qD?^(ZCYA%w>w(sB0{$6HHR);k_t+Pr#_=7R;3n>qZ-Hn;LUQWA?&f1MV;V5zsa
+zXxCCJ5iTxSCC}!=2aD!Q3)?&|KlPsH{BwQ}xqW-Tt7R77Hv9Hu>cag-x0oLtl4-DH
+zC}w!ZaE5UPvjKYo-vNYxm6Pp-ph~MN&OasVt(5C0Fj!u3jwow0=+bakQJmBg_-DPW
+z;5Lh=d(RrXpV8IX-)g7sy*Zt$$nf*$^Pb*MGp~Cl#zl%atFWKwk9<CP=||10(Q~q5
+z9!YupGSitSHm#sPy6?yO1-*03y8HTW@bP+Y>Y5*k%PAnYaePZx55GHCmS5fN^Uj=Y
+zyNk;zYrnqUcWsi&R+*#Ht#{?y^X>D$&V5~5`2XIO)0JygJ+myu%*(W{t};w}P_wTr
+z==!XQi>5u^@#(fi@T@(?MWru3&gPFY4!TklasFQIo~?V!zyErAcJKRL-a1>ur?Dq1
+zzn$4*nD+Ga_Sw^aZB1LU;^~R6C3p83W%TSU`*`T!MgO&unpx_nUq9XIe)Qs_f`w&4
+z_5c1&zSbkMRi=G^pLa2L)cJcn_op&p4O*124(zko-=Y)wbei(H^^)74ZHcVfbfm0-
+z<GaQ43HMbB%bu7|Z~5t4HDR~NQ|2eP{`?CJvvGIfma~^TpY8tVddU9Pf736`=&r~Y
+zj<t5WJ3)NHv)F4VSziSv?PR~-_4Cfp`afrwP^?3C&;$N;3={2hJ$zpPlOThqtDnm{
+Hr-UW|ZD2D$
+
+literal 0
+HcmV?d00001
+
+diff --git a/app/src/androidTest/assets/icon-grid/icon-4.png b/app/src/androidTest/assets/icon-grid/icon-4.png
+new file mode 100644
+index 0000000000000000000000000000000000000000..b2ff180bf39b2277d4d9b65c8db7af0e185fcd82
+GIT binary patch
+literal 598
+zcmeAS@N?(olHy`uVBq!ia0vp^Q6S901SGegx)#d7z$EMG;uumf=k1;S`p$t8$38|s
+zbvv9S+T77`Q^BRfx5L*x(R2aNU-gJT5j<+$OBZ{n2ssN+K61n4pXil>SI_M7OwU#J
+z?|J{BMlJaFlh@xaTnW8pW$FFmcEdM@=o!og><N4aWEw0PiW#0UoMA)=97tHho^>UA
+zqnwt{*Do>u6a<S_v=`jrNfZg>Q&#-c5_sr5U$d^!!P`v55qS?=ba^T_{`uw;$hX<R
+zR^9ZK>3z?_x=k8wC-^7CZ@#BL?NRWm?I%R0|6rT+PbzJBtMZ-4(+~gSjC!&)vZOR(
+zw~5S2t$pc?$hM<7$HD&iohwh?e%$x1OYf=7RFk!O=l0jvy*PJ5<N1xa$X(TyZ%eFp
+z85_;AOjAF0+|7O7?ffq3x`5M$A$srE>BZaIW%9nzyruqQpIF*5?aZnzJLjpKESM#i
+zvnKYQeMaxe6;Cs^-8vg~ySBD?NBTn7MRil6l9i61J394Si=MFM8yo?I<V1m|8-BW<
+zm=s!Pne%UEVSU`}rTSvo;vEJ3<$OPVh5ozO6?@J(AGzqxQVn^9aIW9(k!9;T?3ni1
+zHm0}#H8#yj{1KS7)8m8L#hZe!+xB#ryx(+AKcGM9sa(zRPub7k|Cq;$JC?*VXI3ck
+T9MRnhOfL+cu6{1-oD!M<Jq-lh
+
+literal 0
+HcmV?d00001
+
+diff --git a/app/src/androidTest/assets/icon-grid/icon-5.png b/app/src/androidTest/assets/icon-grid/icon-5.png
+new file mode 100644
+index 0000000000000000000000000000000000000000..b9ed88485081db3a28e442772403b9fb28c23895
+GIT binary patch
+literal 648
+zcmeAS@N?(olHy`uVBq!ia0vp^Q6S901SGegx)#d7z~t}g;uumf=j|OwZI?iaV;{Z4
+z+|EvMnlxc9ujeT*mz3PzP21+_8*F^ay<tLc#3qL<od6Th$N;ffQ#vJlG><%T`##gK
+z=v?)ec}GA0X86AE@7(G$2I*RA&(fKH1+BDgh@Zi1z@ET&K&HWxp_t(r!x=_|fWy?)
+z+`4B~Vq;I8dva*bA0@t`7400Y$sCJ2iYkPZyd;j+z5lS`sQK%gI>kTkD5aP$JbO6k
+zou8kXv9*2Q7L&;)vM0~xiyalX$oM4t+K)udy-TaQ^OsJZ!8U0h&*$Z?9v1zPeE-WY
+z1i2Y^hqdQ>E33@xdLN152qb}mZ~5xMvS)QCGb@+-_d5#2#H3&Ub~$RY%gU!6;n#Cy
+z<loIp+rsu^;;qAzI<7w9J|9)C@19$#lC<$xMbeht+dq8TH0j>Cr}A6WI)kER<>e1v
+z&DGnwYfpKZm8r!lQ#Zk_GSTYp506dUX_LQd?PaOO9Z`KB_x(F}?VAF}Eh(wZ<(6v=
+zyH>oFea-&z<-&~**Uh`W{rl0mz97M;J1Tehuhq-GyH{qP7AtZPBDo$ZkQd3+)p0}`
+zO^xKUw@>?Hy?EwQ{_cEk7mNNvzMqPn|CQ}y9zD~4>F1|;ihaWB4Zj!Z)Q26>*Qv9a
+zR^9%;dez;QZ_z8yyRJzWek;3<?}_D-%2QTWja4G?=N`1z)Rq0~!xxG*Oac3*tUNBz
+RSqe;H44$rjF6*2UngAZ78OQ(t
+
+literal 0
+HcmV?d00001
+
+diff --git a/app/src/androidTest/assets/icon-grid/icon-6.png b/app/src/androidTest/assets/icon-grid/icon-6.png
+new file mode 100644
+index 0000000000000000000000000000000000000000..dc10bfd3f86e7750747366d6adb5d228f9944058
+GIT binary patch
+literal 649
+zcmeAS@N?(olHy`uVBq!ia0vp^Q6S901SGegx)#d7z!c!=;uumf=k0A@ZI?iq;~$G>
+z?rjw~6(O*4qoZf%+%)%_XSp{#Fr6Ttuu$j3A*W436C*suJiOXk+m9~MI2oK~qH_3=
+z+vnZFrRR43n*ZhZo`&lGwR5YV9hAv0D2li^UFjv`okKDWmJG!V&lt`y&R{lRPvAR%
+z5Ku~t%}7cxS>ruZa+cJ_{T=E5YuhV2YNiFQDY6h%nqMgLdGFzyVyBYK4$J6m|1i@x
+z<I{#eCCdZMjExg}Mb2q=Cv^N_d~<!xx5Ggd-XF#8bE#kCP5EthX0Djs>B=ufJN7q=
+zU7B?>t8~XUlNz(&kH*|6mZQ05;osYy)1O!VmHjwt)2o<wwPnR0zrA$KnpBgtdhzC!
+zZ=b#`&B?5KoUwfUUiYjXhK(|7zn<N_oZV~X<L=E@&Mv(o!I;GFUFn&rb4y}%?umW-
+zbaK{v_6jO&vr=+B`hDi{k56ar{e0LZd_72^<)xcGMx~3UcrEi=<)yvk7>B^=!m6pO
+zR`+NveWkTHy!?7lGE2u>+10<LJJ;Q-@GgI+Y`%Z1lBrumL|@6b%A#7oSMTf}?hZl<
+zNHo8|f;wU9;j{9Jw|$mQKYVt+<bS{HwA<}Rx3VT#_LuSfb{48X{;$B(;{KA~#TFH}
+zJf}bO^ehiMqR;csrmedDclD~9EzhD?o_6g?f2^4;;KVn-LL~g$ga7J(&M@Jy?tsh#
+ZVaKbpAKaa1p9)N344$rjF6*2UngHE7CQbkV
+
+literal 0
+HcmV?d00001
+
+diff --git a/app/src/androidTest/assets/icon-grid/icon-7.png b/app/src/androidTest/assets/icon-grid/icon-7.png
+new file mode 100644
+index 0000000000000000000000000000000000000000..3cfd1e21d458bd1e85c5265ac567ac2c178964df
+GIT binary patch
+literal 590
+zcmeAS@N?(olHy`uVBq!ia0vp^Q6S901SGegx)#d7z$EJF;uumf=k4viUd)anZ4V<S
+zAKR}g5PU3%XGv(lg$mhQ6~h0fB&l9YTHRa48rQ(~g-yg-cgw^XPMi{Jbi@wVb#k7W
+zGqHHW`;}|T_}6bvPBJ=q?&P$^^2xWDZyb_ouw*D^c*bysaR##idjj79gh1Cuy^;-;
+z60d_2%lx-L759Ad|9t@eMD-q}Q;AwGaRpO8>^+>rtv*B7p#7=X%nh8*a?=vayEe^i
+z?KBOVvtOr6@e}ij>ubIrHmdOcDrVa}`3KvieLR~lD=E)8uHXJwwq(NfGmEY!=4Pg-
+z1b?*UMzI;qDHrX^K5e~sV}{iHvU8%`tuwc5s^7TW)N@``-{;kv-?X>xJbEd`GrPy`
+z6u<YQNlSk|z1=Q-*RX0z@s(9ur*D7mw|%j-TYpjC)L&Vj|3#Iz*_@TRdg{&d@a<pk
+z1<hI5pVsGAyS6etBh%uj%+oD%{FeBy?~h{s<E88VdvR?|<&x6xi9c3}pal(@13`h;
+zQFP;v(54iv{W50z(`;s4KXa-5=q)C}bC2gb*Lgg8e}aGdk)J25W*>f#sUF{`uKIRO
+zhagj(ZDV!&Ut80hLm$>&DVq4;X2mHfmlG2M`;(sX{Hs6oT?cpM>|;Fftg1^gW>Y3G
+PoiKR1`njxgN@xNAX~PDV
+
+literal 0
+HcmV?d00001
+
+diff --git a/app/src/androidTest/assets/icon-grid/icon-8.png b/app/src/androidTest/assets/icon-grid/icon-8.png
+new file mode 100644
+index 0000000000000000000000000000000000000000..a90006ce9c69bcc118627cebeff84ad7e72dc360
+GIT binary patch
+literal 683
+zcmeAS@N?(olHy`uVBq!ia0vp^Q6S901SGegx)#d7z*OYv;uumf=j|O^?-)mkqaSY`
+z)ktCr3}f!(%y{TMv17@GEuBjYT3r=#R+X47+ps;@zTwu5h#3v~3LXw`w+M0PhHWrd
+zvf+ZRP;BHPA%VqW;!o%8);edSd|u@Fcg8aQ`uDQ&>sKCJY3Ce%=@#>$LoyAP48;u3
+z7|t-xU^ZY+;5&d2I90Rvf<xJv>)tyhXZ_Qv7v#6R;_R|W@{q<NnZ}k5VYfniYo?sS
+zvz4=x`zA!Y+!5P#M`!!q$<q&?Ioms#ZBz2L$$x6n0(k`G751mC&7XE@dq{ra+LF#(
+zg_qM4A8zU3_<rLl$A1>x)UA;vr7dNdE-I^k*m9#d0L?}B>fWZTei&K&eD=Hl&(mLq
+zR9SvcexKl;?Kvl^k6(8F{`Ea#{oGgkjptic9~W=mI_=2HyE^~<{IyQ6?lGJy8rpwK
+zYfGBSidb3i*PG*a{o?QcmObyvxwU>7XFUQ=e_XdWy)L(?+Wh*jReP82dmCQo4K(-G
+z*`V)VexBd!n|$WmyR^&Q*Q1Put`v#<`&T(L)8yEdbg3@&cA(IgbA7!tzvtUaCF}J>
+zM$Er7YvO`wkIN1J=T^GBzMFq|y%!^n5Jq^gLBoAUeTz<H>U8BZ_Qv~WUrl>?R_GS1
+z(w*eF&i^JHIXuxm=FxNYmvQrgrtnYj-uZX&nu2v5))qAtGUxj~oDbRF`p!M`gzKE`
+zo#*)C`JYrS`8lPurm<>Dz`TR~Ej91&$nQ^Q#1g|0`wKX~n@l<JLg$+nFcC6%y85}S
+Ib4q9e09UOv2LJ#7
+
+literal 0
+HcmV?d00001
+
+diff --git a/app/src/androidTest/assets/icon-grid/icon-9.png b/app/src/androidTest/assets/icon-grid/icon-9.png
+new file mode 100644
+index 0000000000000000000000000000000000000000..654909115bd50fefc6b5eca00893e76484793f79
+GIT binary patch
+literal 682
+zcmeAS@N?(olHy`uVBq!ia0vp^Q6S901SGegx)#d7z*Okz;uumf=k1-n-qC?F$37<W
+zdW1G5)pG9>S#*J;>Doap5iYK~GEEPz=)IMH@aWS11HR!04<7Wqa*@v|b78kvw1DHK
+zrOrkxo2LeG9J}x^Xy<ufW!vZFPs-b#e`Z(VkAH8wFHSnF?4HE0*NxvAHW;uc@Ewq8
+zuw*D^c*bysaRxI&pkc~-@u)NFe^+Umuil;iRR57;dsT;riL-?36y*s5g@-iWrMoxi
+z=2_+!pAjtT?zrtVefH9O)|HlL?))jflvH=OY|{MmI$es7n4er<^Yv`d?`f}e^RDV`
+z<W>1=q%%iM@S)spnTPWiY+Ym4y{_+qUT;T==>Bv@R41Ug>A>yvb90tP%bo4no0a1e
+z8-D6{yjk7!^;@PLS^0E^Y<=yQzqKFVY}v2<JtyVe;qAU_RSUDsz0+?yyxfz}qd8an
+zmvwQJvCx&Gm_ItH)yI1boo9Z0wrtC_9+s^#zvIn|n1er`pML4A?A0vSY`3OcH$N`P
+zFM40_c3D(r_S<u5^Rmu*1njojb&Fm8dyiDI8{2a3qs(h1IkPP7=I8kH?2oDVxK8uy
+zhabn?L4xL|pRV7$*8g<W`#ApnTC8~d1P%B_GKv2LH>FIC?KAj)=0{%G?4{=38R8uU
+z{iS?AorS);|10R6KYvMerB|Sx!@7fS<x^XWUGE%xc=&NeSxf!0UAiUqUe0=t_V|{R
+z{isqnuY7j-n#bH%7PoxjsZ)7U{rvyOYB3yf3=H6UhN`;$4bdHYo&nP!gQu&X%Q~lo
+FCIG6JG{yh`
+
+literal 0
+HcmV?d00001
+
+diff --git a/app/src/androidTest/java/io/github/ktclat/c001apk/nativeapp/ui/EmulatorBlacklistDocumentBoundaryTest.kt b/app/src/androidTest/java/io/github/ktclat/c001apk/nativeapp/ui/EmulatorBlacklistDocumentBoundaryTest.kt
+new file mode 100644
+index 0000000..5d7bd9c
+--- /dev/null
++++ b/app/src/androidTest/java/io/github/ktclat/c001apk/nativeapp/ui/EmulatorBlacklistDocumentBoundaryTest.kt
+@@ -0,0 +1,269 @@
++// SPDX-License-Identifier: AGPL-3.0-only
++package io.github.ktclat.c001apk.nativeapp.ui
++
++import io.github.ktclat.c001apk.nativeapp.local.*
++
++import android.app.Activity
++import android.content.Intent
++import android.net.Uri
++import androidx.activity.ComponentActivity
++import androidx.activity.compose.LocalActivityResultRegistryOwner
++import androidx.activity.result.ActivityResultRegistry
++import androidx.activity.result.ActivityResultRegistryOwner
++import androidx.activity.result.contract.ActivityResultContract
++import androidx.compose.material3.MaterialTheme
++import androidx.compose.runtime.*
++import androidx.compose.ui.test.*
++import androidx.compose.ui.semantics.SemanticsActions
++import androidx.compose.ui.test.junit4.StateRestorationTester
++import androidx.compose.ui.test.junit4.createAndroidComposeRule
++import androidx.core.app.ActivityOptionsCompat
++import kotlinx.coroutines.CompletableDeferred
++import kotlinx.coroutines.flow.MutableStateFlow
++import kotlinx.serialization.json.*
++import org.junit.Assert.*
++import org.junit.Rule
++import org.junit.Test
++import org.junit.runner.RunWith
++import androidx.test.ext.junit.runners.AndroidJUnit4
++import org.junit.After
++import org.junit.rules.TestName
++
++@RunWith(AndroidJUnit4::class)
++class EmulatorBlacklistDocumentBoundaryTest {
++    @get:Rule val testName = TestName()
++    @After fun evidence() {
++        compose.waitForIdle()
++        EmulatorEvidence.capture("blacklist-boundary-${testName.methodName}")
++        EmulatorEvidence.text("blacklist-boundary-${testName.methodName}-scope.txt", "Actual emulator production BlacklistScreen; SYNTHETIC ActivityResultRegistry and document I/O. Android SAF picker/storage provider NOT exercised. Category freeze/validation/duplicate result/UI boundary only.\nLaunches=${picker.launches.map { it.action to it.getStringExtra(Intent.EXTRA_TITLE) }}\nDocument writes=${documents.writes.map { it.second }}")
++    }
++    @get:Rule val compose = createAndroidComposeRule<ComponentActivity>()
++    private class Memory : JsonStateStore<LocalState> {
++        override val data = MutableStateFlow(LocalState(favorites = listOf(LocalFeedEntry("55", summary = "合成收藏")), history = listOf(LocalFeedEntry("56", summary = "合成历史")), follows = listOf(LocalFollowUser("57", "合成关注")), searchHistory = listOf("合成搜索"), blacklist = Blacklist(userBlackList = listOf("42"), topicBlackList = listOf("Android"))))
++        var writes = 0
++        var gate: CompletableDeferred<Unit>? = null
++        override suspend fun update(transform: (LocalState) -> LocalState) {
++            writes++; gate?.await(); data.value = LocalRepository.validateState(transform(data.value))
++        }
++    }
++    private class Documents : BlacklistDocumentAccess {
++        var reads = 0
++        var text = "[\"43\"]"
++        val writes = mutableListOf<Pair<Uri, String>>()
++        override suspend fun read(uri: Uri): String { reads++; return text }
++        override suspend fun write(uri: Uri, text: String) { writes += uri to text }
++    }
++    private inner class Picker : ActivityResultRegistry() {
++        var code: Int? = null
++        var lastCode: Int? = null
++        val launches = mutableListOf<Intent>()
++        override fun <I, O> onLaunch(requestCode: Int, contract: ActivityResultContract<I, O>, input: I, options: ActivityOptionsCompat?) {
++            check(code == null); code = requestCode; lastCode = requestCode
++            launches += contract.createIntent(compose.activity, input)
++        }
++        fun deliver(uri: Uri? = Uri.parse("content://synthetic/blacklist")) {
++            val pending = requireNotNull(code); code = null
++            check(dispatchResult(pending, if (uri == null) Activity.RESULT_CANCELED else Activity.RESULT_OK, uri?.let { Intent().setData(it) }))
++        }
++        fun duplicate() { dispatchResult(requireNotNull(lastCode), Activity.RESULT_OK, Intent().setData(Uri.parse("content://synthetic/duplicate"))) }
++    }
++    private val memory = Memory()
++    private val repository = LocalRepository(memory)
++    private val documents = Documents()
++    private val picker = Picker()
++    private lateinit var restorer: StateRestorationTester
++    private val navigations = mutableListOf<String>()
++    private val shown = mutableStateOf(true)
++    private var hideOnNavigate = false
++    private fun render() {
++        EmulatorEvidence.configureWindow(compose.activity, false)
++        val owner = object : ActivityResultRegistryOwner { override val activityResultRegistry = picker }
++        restorer = StateRestorationTester(compose)
++        restorer.setContent { CompositionLocalProvider(LocalActivityResultRegistryOwner provides owner) {
++            MaterialTheme { if (shown.value) BlacklistScreen(repository, { shown.value = false }, { navigations += it; if (hideOnNavigate) shown.value = false }, documents) }
++        } }
++        awaitText("用户黑名单 · 1 条")
++    }
++    private fun awaitText(text: String) { compose.waitUntil(30_000) { compose.onAllNodesWithText(text).fetchSemanticsNodes().isNotEmpty() } }
++    private fun action(text: String) = compose.onNodeWithTag("blacklist-list").performScrollToNode(hasText(text)).let { compose.onNodeWithText(text) }
++    private fun topic() { action("话题关键词").performClick() }
++    private fun user() { action("用户 ID").performClick() }
++
++    @Test fun clearCancelAndRestoreKeepDialogScopeAndOnlyConfirmedCategoryChanges() {
++        render()
++        val original = memory.data.value
++        action("清空用户列表").performClick()
++        compose.onNodeWithText("取消").performClick()
++        compose.runOnIdle { assertEquals(0, memory.writes) }
++        action("清空用户列表").performClick()
++        restorer.emulateSavedInstanceStateRestore()
++        compose.onNodeWithText("清空用户黑名单？").assertExists()
++        compose.onNodeWithText("确认清空").performClick()
++        awaitText("已清空用户黑名单")
++        assertEquals(original.copy(blacklist = original.blacklist.copy(userBlackList = emptyList())), memory.data.value)
++        compose.runOnIdle { assertEquals(emptyList<String>(), memory.data.value.blacklist.userBlackList); assertEquals(listOf("Android"), memory.data.value.blacklist.topicBlackList) }
++        topic(); action("清空话题列表").performClick()
++        compose.onNodeWithText("取消").performClick()
++        compose.runOnIdle { assertEquals(listOf("Android"), memory.data.value.blacklist.topicBlackList) }
++    }
++    @Test fun oldClearConfirmAndDismissCannotAffectReplacementOrReopenedDialog() {
++        render()
++        action("清空用户列表").performClick()
++        val oldConfirm = compose.onNodeWithText("确认清空").fetchSemanticsNode().config[SemanticsActions.OnClick].action!!
++        val oldCancel = compose.onNodeWithText("取消").fetchSemanticsNode().config[SemanticsActions.OnClick].action!!
++        compose.onNodeWithText("取消").performClick()
++        action("清空用户列表").performClick()
++        compose.runOnIdle { oldConfirm(); oldCancel() }
++        compose.onNodeWithText("清空用户黑名单？").assertExists()
++        assertEquals(0, memory.writes)
++        compose.onNodeWithText("取消").performClick()
++        topic(); action("清空话题列表").performClick()
++        compose.runOnIdle { oldConfirm(); oldCancel() }
++        compose.onNodeWithText("清空话题黑名单？").assertExists()
++        assertEquals(0, memory.writes)
++        compose.onNodeWithText("确认清空").performClick()
++        awaitText("已清空话题黑名单")
++        assertEquals(listOf("42"), memory.data.value.blacklist.userBlackList)
++        assertTrue(memory.data.value.blacklist.topicBlackList.isEmpty())
++    }
++    @Test fun retainedInputSemanticsUsesCurrentDraftAndDisposedRowsCannotMutateHiddenCategory() {
++        render()
++        compose.onNodeWithTag("blacklist-input").performTextInput("43")
++        val oldAdd = action("添加").fetchSemanticsNode().config[SemanticsActions.OnClick].action!!
++        val oldRemove = compose.onNodeWithTag("blacklist-remove:42").fetchSemanticsNode().config[SemanticsActions.OnClick].action!!
++        topic()
++        compose.runOnIdle { oldAdd(); oldRemove() }
++        assertEquals(0, memory.writes)
++        user(); compose.onNodeWithTag("blacklist-input").performTextReplacement("44")
++        compose.runOnIdle { oldAdd() }
++        // Material's retained semantics wrapper forwards to the live clickable node. It is a
++        // current "add 44" action, not the old lambda; never mistake that for replaying "43".
++        compose.waitUntil(30_000) { memory.data.value.blacklist.userBlackList.contains("44") }
++        assertEquals(1, memory.writes)
++        assertEquals(listOf("42", "44"), memory.data.value.blacklist.userBlackList)
++        compose.runOnIdle { memory.data.value = LocalState(blacklist = Blacklist(topicBlackList = listOf("Android"))) }
++        compose.waitForIdle()
++        compose.runOnIdle { oldRemove() }
++        assertEquals(1, memory.writes)
++    }
++    @Test fun pendingAddIsSingleFlightCapturesOriginalKindAndDoesNotEraseNewDraft() {
++        render()
++        compose.onNodeWithTag("blacklist-input").performTextInput("43")
++        memory.gate = CompletableDeferred()
++        action("添加").performClick()
++        compose.waitUntil(30_000) { memory.writes == 1 }
++        action("添加").assertIsNotEnabled().performTouchInput { repeat(3) { click() } }
++        compose.onNodeWithTag("blacklist-list").performScrollToIndex(0)
++        compose.onNodeWithTag("blacklist-input").performTextReplacement("44")
++        topic()
++        compose.onNodeWithTag("blacklist-input").performTextInput("topic draft")
++        compose.runOnIdle { memory.gate!!.complete(Unit) }
++        awaitText("已保存")
++        user()
++        compose.onNodeWithTag("blacklist-input").assertTextContains("44")
++        compose.runOnIdle { assertEquals(1, memory.writes); assertEquals(listOf("42", "43"), memory.data.value.blacklist.userBlackList); assertEquals(listOf("Android"), memory.data.value.blacklist.topicBlackList) }
++        topic(); compose.onNodeWithTag("blacklist-input").assertTextContains("topic draft")
++    }
++    @Test fun exportPinsCategoryAcrossTabSwitchAndRotationThenIgnoresDuplicateCallback() {
++        render()
++        action("导出用户列表").performClick()
++        assertEquals("user-blacklist.json", picker.launches.single().getStringExtra(Intent.EXTRA_TITLE))
++        topic(); restorer.emulateSavedInstanceStateRestore()
++        action("导出话题列表").assertIsNotEnabled()
++        compose.runOnIdle { picker.deliver() }
++        awaitText("已导出")
++        compose.runOnIdle {
++            assertEquals(listOf("42"), Json.parseToJsonElement(documents.writes.single().second).jsonArray.map { it.jsonPrimitive.content })
++            picker.duplicate()
++        }
++        compose.waitForIdle(); assertEquals(1, documents.writes.size)
++        restorer.emulateSavedInstanceStateRestore() // A buffered duplicate still has no request owner.
++        compose.waitForIdle(); assertEquals(1, documents.writes.size)
++        action("完整备份").performClick()
++        assertEquals("c001apk-blacklist.json", picker.launches.last().getStringExtra(Intent.EXTRA_TITLE))
++        compose.runOnIdle { picker.deliver() }
++        compose.waitUntil(30_000) { documents.writes.size == 2 }
++        assertEquals(memory.data.value.blacklist, BlacklistJson.decode(documents.writes.last().second))
++        action("导出话题列表").performClick()
++        compose.runOnIdle { picker.deliver(null) }
++        compose.onNodeWithText("已导出").assertDoesNotExist()
++        assertEquals(2, documents.writes.size)
++    }
++    @Test fun importPinsLegacyKindAcrossRotationAndCancelOrMalformedFileLeavesDataIntact() {
++        render()
++        action("导入并合并").performClick()
++        topic(); restorer.emulateSavedInstanceStateRestore()
++        compose.runOnIdle { picker.deliver() }
++        awaitText("已导入并合并")
++        assertEquals(listOf("42", "43"), memory.data.value.blacklist.userBlackList)
++        assertEquals(listOf("Android"), memory.data.value.blacklist.topicBlackList)
++        val before = memory.data.value
++        action("导入并合并").performClick()
++        compose.runOnIdle { picker.deliver(null) }
++        assertEquals(1, documents.reads); assertEquals(before, memory.data.value)
++        documents.text = "{not json"
++        action("导入并合并").performClick()
++        compose.runOnIdle { picker.deliver() }
++        compose.waitUntil(30_000) { compose.onAllNodesWithText("操作未完成", substring = true).fetchSemanticsNodes().isNotEmpty() }
++        assertEquals(before, memory.data.value)
++    }
++    @Test fun retainedSameFramePickerClickCannotLaunchOrOverwriteASecondRequest() {
++        render()
++        val click = action("导出用户列表").fetchSemanticsNode().config[SemanticsActions.OnClick].action!!
++        compose.runOnIdle { click(); click() }
++        assertEquals(1, picker.launches.size)
++        compose.runOnIdle { picker.deliver(null) }
++        val importClick = action("导入并合并").fetchSemanticsNode().config[SemanticsActions.OnClick].action!!
++        compose.runOnIdle { importClick(); importClick() }
++        assertEquals(2, picker.launches.size)
++        compose.runOnIdle { picker.deliver(null) }
++        assertEquals(0, documents.reads); assertTrue(documents.writes.isEmpty())
++    }
++    @Test fun cancelledExportDoesNotWriteAndOversizedExportDoesNotOpenDestination() {
++        render()
++        action("导出用户列表").performClick()
++        compose.runOnIdle { picker.deliver(null) }
++        assertTrue(documents.writes.isEmpty())
++        compose.runOnIdle { memory.data.value = LocalState(blacklist = Blacklist(topicBlackList = (1..2000).map { "中".repeat(195) + it })) }
++        topic(); action("导出话题列表").performClick()
++        compose.runOnIdle { picker.deliver() }
++        compose.waitUntil(30_000) { compose.onAllNodesWithText("操作未完成", substring = true).fetchSemanticsNodes().isNotEmpty() }
++        assertTrue(documents.writes.isEmpty())
++    }
++    @Test fun leavingDuringDeferredMutationDoesNotReportSuccessOrReplayTheMutation() {
++        render()
++        memory.gate = CompletableDeferred()
++        compose.onNodeWithTag("blacklist-input").performTextInput("43")
++        action("添加").performClick()
++        compose.waitUntil(30_000) { memory.writes == 1 }
++        compose.onNodeWithText("返回").performClick()
++        compose.waitForIdle()
++        compose.runOnIdle { memory.gate!!.complete(Unit); shown.value = true }
++        awaitText("用户黑名单 · 1 条")
++        assertEquals(listOf("42"), memory.data.value.blacklist.userBlackList)
++        compose.onNodeWithText("已保存").assertDoesNotExist()
++        assertEquals(1, memory.writes)
++    }
++    @Test fun orphanPickerResultAfterScreenRemovalDoesNotWriteToANewScreen() {
++        render()
++        action("导入并合并").performClick()
++        compose.onNodeWithText("返回").performClick()
++        compose.waitForIdle()
++        compose.runOnIdle { picker.deliver(); shown.value = true }
++        awaitText("用户黑名单 · 1 条")
++        assertEquals(0, documents.reads)
++        assertEquals(0, memory.writes)
++        action("导入并合并").assertIsEnabled()
++    }
++    @Test fun navigationDoesNotUnblockAndDraftsSurviveStateRestoration() {
++        render()
++        compose.onNodeWithTag("blacklist-input").performTextInput("89")
++        action("42").performClick()
++        assertEquals(listOf("user:42"), navigations)
++        assertEquals(0, memory.writes)
++        topic(); compose.onNodeWithTag("blacklist-input").performTextInput("draft")
++        restorer.emulateSavedInstanceStateRestore()
++        compose.onNodeWithTag("blacklist-input").assertTextContains("draft")
++        user(); compose.onNodeWithTag("blacklist-input").assertTextContains("89")
++    }
++}
+diff --git a/app/src/androidTest/java/io/github/ktclat/c001apk/nativeapp/ui/EmulatorBlacklistRootTest.kt b/app/src/androidTest/java/io/github/ktclat/c001apk/nativeapp/ui/EmulatorBlacklistRootTest.kt
+new file mode 100644
+index 0000000..30e2538
+--- /dev/null
++++ b/app/src/androidTest/java/io/github/ktclat/c001apk/nativeapp/ui/EmulatorBlacklistRootTest.kt
+@@ -0,0 +1,266 @@
++// SPDX-License-Identifier: AGPL-3.0-only
++package io.github.ktclat.c001apk.nativeapp.ui
++
++import android.graphics.Bitmap
++import android.graphics.Canvas
++import android.view.View
++import androidx.activity.ComponentActivity
++import androidx.compose.material3.MaterialTheme
++import androidx.compose.runtime.*
++import androidx.compose.ui.platform.LocalDensity
++import androidx.compose.ui.semantics.SemanticsActions
++import androidx.compose.ui.semantics.SemanticsProperties
++import androidx.compose.ui.test.*
++import androidx.compose.ui.test.junit4.createAndroidComposeRule
++import androidx.compose.ui.text.TextLayoutResult
++import androidx.compose.ui.unit.Density
++import androidx.compose.ui.unit.dp
++import io.github.ktclat.c001apk.nativeapp.AppContainer
++import io.github.ktclat.c001apk.nativeapp.account.*
++import io.github.ktclat.c001apk.nativeapp.data.*
++import io.github.ktclat.c001apk.nativeapp.diagnostics.NativeBuildInfo
++import io.github.ktclat.c001apk.nativeapp.domain.*
++import io.github.ktclat.c001apk.nativeapp.local.*
++import io.github.ktclat.c001apk.nativeapp.settings.*
++import io.github.ktclat.c001apk.nativeapp.social.SocialRepository
++import kotlinx.coroutines.flow.MutableStateFlow
++import kotlinx.serialization.json.*
++import okhttp3.OkHttpClient
++import org.junit.*
++import org.junit.Assert.*
++import org.junit.runner.RunWith
++import androidx.test.ext.junit.runners.AndroidJUnit4
++import org.junit.rules.TestName
++import java.io.File
++import java.io.IOException
++import java.lang.reflect.Proxy
++import java.util.concurrent.atomic.AtomicInteger
++
++/** Real root routing; all account transport is fail-closed and all public data is synthetic. */
++@RunWith(AndroidJUnit4::class)
++class EmulatorBlacklistRootTest {
++    @get:Rule val compose = createAndroidComposeRule<ComponentActivity>()
++    @get:Rule val testName = TestName()
++    private lateinit var client: OkHttpClient
++    private val calls = AtomicInteger()
++    private var titleEvidence: JsonObject? = null
++    private val topicRequests = java.util.concurrent.CopyOnWriteArrayList<String>()
++    private val userRequests = java.util.concurrent.CopyOnWriteArrayList<String>()
++    private val specialTopic = "a/b #?% 中"
++    private val initial = LocalState(blacklist = Blacklist(userBlackList = (1..45).map(Int::toString),
++        topicBlackList = (1..40).map { "话题$it" } + specialTopic))
++    private val local = object : JsonStateStore<LocalState> {
++        override val data = MutableStateFlow(initial)
++        override suspend fun update(transform: (LocalState) -> LocalState) { data.value = LocalRepository.validateState(transform(data.value)) }
++    }
++    @After fun cleanup() {
++        runCatching { EmulatorEvidence.capture("blacklist-${testName.methodName}-terminal") }
++        compose.runOnUiThread { compose.activity.viewModelStore.clear() }
++        if (::client.isInitialized) { client.dispatcher.cancelAll(); client.connectionPool.evictAll(); client.dispatcher.executorService.shutdownNow() }
++        assertEquals("No real account, login, HTTP repository or social transport", 0, calls.get())
++    }
++    private fun render(systemScale: Float = 1f, appScale: Float = 1f, landscape: Boolean = false) {
++        EmulatorEvidence.configureWindow(compose.activity, systemScale > 1f)
++        val store = AccountStore(object : CredentialPersistence {
++            override fun read(): ByteArray? = null
++            override fun write(bytes: ByteArray) = Unit
++            override fun reset() = Unit
++        })
++        client = OkHttpClient.Builder().addInterceptor { calls.incrementAndGet(); throw IOException("No networking in fixture") }.build()
++        val login = HttpLoginTransport(client)
++        val constructor = AccountRuntime::class.java.getDeclaredConstructor(AccountStore::class.java,
++            HttpLoginTransport::class.java, LoginCoordinator::class.java, HttpCoolapkRepository::class.java, SocialRepository::class.java).apply { isAccessible = true }
++        val accounts = constructor.newInstance(store, login, LoginCoordinator(store, login, "synthetic"),
++            HttpCoolapkRepository(client), SocialRepository(store) { CoolapkHttpTransport(client) })
++        val repository = Proxy.newProxyInstance(CoolapkRepository::class.java.classLoader, arrayOf(CoolapkRepository::class.java)) { _, method, args ->
++            when (method.name) {
++                "userProfile" -> { val uid = args!![0] as String; userRequests += uid; ApiResult.Success(ContentItem(uid, "user", userId = uid, userName = "合成用户 $uid", userProfile = UserSpaceProfile())) }
++                "topicDetail" -> { val tag = args!![0] as String; topicRequests += tag; ApiResult.Success(ContentItem("synthetic-topic", "topic", title = tag)) }
++                "home", "userFeed" -> ApiResult.Success(Page(emptyList<ContentItem>(), null))
++                else -> throw AssertionError("Unexpected synthetic read ${method.name}")
++            }
++        } as CoolapkRepository
++        val model = BrowseViewModel(repository)
++        val container = AppContainer(compose.activity.application).also { it.nativeUpdates.enabled = false }
++        AppContainer::class.java.getDeclaredField("local").apply { isAccessible = true }.set(container, LocalRepository(local))
++        compose.setContent {
++            val accountState by store.state.collectAsState()
++            val density = LocalDensity.current
++            CompositionLocalProvider(LocalDensity provides Density(density.density, systemScale * appScale)) {
++                MaterialTheme(colorScheme = fixedColorScheme(0, systemScale > 1f), typography = appTypography(FontChoice.NOTO_SANS)) {
++                    NativeApp(model, container, AppSettings(dynamicColor = false, fontScale = appScale), accounts, accountState, initialRoute = "settings")
++                }
++            }
++        }
++        compose.onNodeWithTag("settings-category-list").performScrollToNode(hasText("浏览与隐私"))
++        compose.onNodeWithText("浏览与隐私").performClick()
++        compose.onNodeWithText("用户与话题黑名单").performClick()
++        compose.waitUntil(30_000) { compose.onAllNodesWithTag("blacklist-list").fetchSemanticsNodes().isNotEmpty() }
++    }
++    private fun await(text: String) { compose.waitUntil(30_000) { compose.onAllNodesWithText(text).fetchSemanticsNodes().isNotEmpty() } }
++    private fun scroll(tag: String) { compose.onNodeWithTag("blacklist-list").performScrollToNode(hasTestTag(tag)) }
++    private fun action(text: String): SemanticsNodeInteraction {
++        compose.onNodeWithTag("blacklist-list").performScrollToNode(hasText(text))
++        return compose.onNodeWithText(text)
++    }
++    private fun back() { compose.runOnUiThread { compose.activity.onBackPressedDispatcher.onBackPressed() }; compose.waitForIdle() }
++    private fun scrollValue() = compose.onNodeWithTag("blacklist-list").fetchSemanticsNode().config[SemanticsProperties.VerticalScrollAxisRange].value()
++
++    @Test fun actualUserAndSpecialTopicChildrenReturnToSameScrolledListAndDraftWithoutUnblocking() {
++        render()
++        compose.onNodeWithTag("blacklist-input").performTextInput("876")
++        scroll("blacklist-open:30")
++        val beforeUser = compose.onNodeWithTag("blacklist-open:30").getUnclippedBoundsInRoot().top.value
++        val beforeUserScroll = scrollValue()
++        assertTrue(beforeUserScroll > 0f)
++        capture("user-scrolled")
++        compose.onNodeWithTag("blacklist-open:30").performClick()
++        await("用户主页")
++        compose.waitUntil(30_000) { userRequests.contains("30") }
++        capture("blocked-user-child")
++        back()
++        compose.onNodeWithTag("blacklist-open:30").assertIsDisplayed()
++        assertEquals(beforeUser, compose.onNodeWithTag("blacklist-open:30").getUnclippedBoundsInRoot().top.value, .1f)
++        assertEquals(beforeUserScroll, scrollValue(), .001f)
++        capture("user-return")
++        compose.onNodeWithTag("blacklist-list").performScrollToIndex(0)
++        compose.onNodeWithTag("blacklist-input").assertTextContains("876")
++        action("话题关键词").performClick()
++        compose.onNodeWithTag("blacklist-input").performTextInput("新话题草稿")
++        scroll("blacklist-open:$specialTopic")
++        val beforeTopic = compose.onNodeWithTag("blacklist-open:$specialTopic").getUnclippedBoundsInRoot().top.value
++        val beforeTopicScroll = scrollValue()
++        capture("topic-scrolled")
++        compose.onNodeWithTag("blacklist-open:$specialTopic").performClick()
++        compose.waitUntil(30_000) { topicRequests.contains(specialTopic) }
++        capture("special-topic-child")
++        back()
++        compose.onNodeWithTag("blacklist-open:$specialTopic").assertIsDisplayed()
++        assertEquals(beforeTopic, compose.onNodeWithTag("blacklist-open:$specialTopic").getUnclippedBoundsInRoot().top.value, .1f)
++        assertEquals(beforeTopicScroll, scrollValue(), .001f)
++        compose.onNodeWithTag("blacklist-list").performScrollToIndex(0)
++        compose.onNodeWithTag("blacklist-input").assertTextContains("新话题草稿")
++        assertEquals(initial, local.data.value)
++        back(); compose.onNodeWithText("浏览与隐私").assertExists()
++    }
++
++    @Test fun largeSystemAndAppFontActionsAndClearDialogKeepEffectiveDensity() {
++        render(systemScale = 2f, appScale = 1.2f)
++        assertTitleFits()
++        capture("portrait-dark-font240-initial-top")
++        action("导出用户列表").assertIsDisplayed().assertHeightIsAtLeast(48.dp)
++        capture("portrait-dark-font240-actions")
++        action("完整备份").assertIsDisplayed().assertHeightIsAtLeast(48.dp)
++        action("清空用户列表").performClick()
++        val results = mutableListOf<TextLayoutResult>()
++        compose.onNodeWithText("清空用户黑名单？").performSemanticsAction(SemanticsActions.GetTextLayoutResult) { it(results) }
++        assertEquals(2.4f, results.single().layoutInput.density.fontScale, .001f)
++        compose.onNodeWithText("取消").assertIsDisplayed().assertHeightIsAtLeast(48.dp)
++        compose.onNodeWithText("确认清空").assertIsDisplayed().assertHeightIsAtLeast(48.dp)
++        captureDialog("portrait-dark-font240-clear")
++        compose.onNodeWithText("取消").performClick()
++        assertEquals(initial, local.data.value)
++    }
++
++    @Test
++    fun shortLandscapeLargeFontActionsAndClearDialogRemainReachable() {
++        org.junit.Assume.assumeTrue("Run this scenario on an actual landscape emulator display", compose.activity.resources.configuration.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE)
++        render(systemScale = 2f, appScale = 1.2f, landscape = true)
++        assertTitleFits()
++        capture("landscape-dark-font240-initial-top")
++        action("导出用户列表").assertIsDisplayed().assertHeightIsAtLeast(48.dp)
++        capture("landscape-dark-font240-actions")
++        action("清空用户列表").performClick()
++        compose.onNodeWithText("取消").assertIsDisplayed().assertHeightIsAtLeast(48.dp)
++        compose.onNodeWithText("确认清空").assertIsDisplayed().assertHeightIsAtLeast(48.dp)
++        captureDialog("landscape-dark-font240-clear")
++        val viewport = compose.onNodeWithTag("blacklist-clear-viewport", useUnmergedTree = true)
++        val range = viewport.fetchSemanticsNode().config[SemanticsProperties.VerticalScrollAxisRange]
++        if (range.maxValue() > 0f) {
++            viewport.performSemanticsAction(SemanticsActions.ScrollBy) { it(0f, 10_000f) }
++            compose.waitForIdle()
++            assertTrue(range.value() > 0f)
++        }
++        captureDialog("landscape-dark-font240-clear-tail")
++        compose.onNodeWithText("取消").performClick()
++        assertEquals(initial, local.data.value)
++    }
++
++    private fun assertTitleFits() {
++        val title = compose.onNodeWithTag("blacklist-title")
++        val results = mutableListOf<TextLayoutResult>()
++        title.performSemanticsAction(SemanticsActions.GetTextLayoutResult) { it(results) }
++        val result = results.single()
++        val bounds = title.getUnclippedBoundsInRoot()
++        val bar = compose.onNodeWithTag("blacklist-topbar").getUnclippedBoundsInRoot()
++        // Compose may retain the paragraph's allocated max width while shrink-wrapping
++        // this Text node. didOverflowWidth then compares allocation, not rendered glyphs.
++        // Validate actual line/character bounds and ellipsis, not that aggregate flag.
++        assertFalse("The title must not overflow vertically", result.didOverflowHeight)
++        assertTrue(result.multiParagraph.height <= result.size.height + 1f)
++        for (line in 0 until result.lineCount) {
++            assertFalse(result.isLineEllipsized(line))
++            assertTrue(result.getLineLeft(line) >= -1f)
++            assertTrue(result.getLineRight(line) <= result.size.width + 1f)
++            assertTrue(result.getLineTop(line) >= -1f)
++            assertTrue(result.getLineBottom(line) <= result.size.height + 1f)
++        }
++        val boxes = (0 until result.layoutInput.text.length).map(result::getBoundingBox)
++        boxes.forEach { box ->
++            assertTrue(box.left >= -1f && box.right <= result.size.width + 1f)
++            assertTrue(box.top >= -1f && box.bottom <= result.size.height + 1f)
++        }
++        assertTrue("Title must remain below the top app-bar edge", bounds.top >= bar.top)
++        assertTrue("Title must remain above the app-bar/list clip", bounds.bottom <= bar.bottom)
++        titleEvidence = buildJsonObject {
++            put("textWidthPx", result.size.width); put("textHeightPx", result.size.height)
++            put("allocatedParagraphWidthPx", result.multiParagraph.width)
++            put("reportedWidthOverflow", result.didOverflowWidth); put("heightOverflow", result.didOverflowHeight)
++            put("characterBoxes", JsonArray(boxes.map { box -> buildJsonObject {
++                put("left", box.left); put("top", box.top); put("right", box.right); put("bottom", box.bottom)
++            } }))
++            put("titleTopDp", bounds.top.value); put("titleBottomDp", bounds.bottom.value)
++            put("appBarTopDp", bar.top.value); put("appBarBottomDp", bar.bottom.value)
++            put("effectiveFontScale", result.layoutInput.density.fontScale)
++        }
++    }
++    private fun capture(name: String) {
++        compose.waitForIdle()
++        titleEvidence?.let { EmulatorEvidence.text("blacklist-${testName.methodName}-title-layout.json", it.toString()) }
++        EmulatorEvidence.capture("blacklist-${testName.methodName}-$name", compose.onAllNodes(isRoot(),useUnmergedTree=true).printToString())
++        EmulatorEvidence.text("blacklist-${testName.methodName}-requests.txt", "Production NativeApp with synthetic public repository and deny-all account transport.\nUser requests=$userRequests\nTopic requests=$topicRequests\nAccount calls=${calls.get()}")
++    }
++    private fun captureDialog(name: String) {
++        // Save original pixels before assertions so a rejected viewport is still reviewable.
++        capture(name)
++        val body = compose.onNodeWithTag("blacklist-clear-body", useUnmergedTree = true)
++        val viewport = compose.onNodeWithTag("blacklist-clear-viewport", useUnmergedTree = true)
++            .fetchSemanticsNode().boundsInWindow
++        val layouts = mutableListOf<TextLayoutResult>()
++        body.performSemanticsAction(SemanticsActions.GetTextLayoutResult) { it(layouts) }
++        val layout = layouts.single()
++        val origin = body.fetchSemanticsNode().positionInWindow
++        val phrase = if (name.endsWith("-tail")) "可先导出备份。" else "仅清空用户名单，无法撤销。"
++        val start = layout.layoutInput.text.text.indexOf(phrase)
++        assertTrue("Required destructive consequence/backup text must exist", start >= 0)
++        val boxes = (start until start + phrase.length).map { layout.getBoundingBox(it).translate(origin) }
++        val line = layout.getLineForOffset(start)
++        val lineHeight = layout.getLineBottom(line) - layout.getLineTop(line)
++        val evidence = buildJsonObject {
++            put("requiredPhrase", phrase); put("effectiveFontScale", layout.layoutInput.density.fontScale)
++            put("clippedViewport", viewport.toString()); put("textOriginInWindow", origin.toString())
++            put("renderedLineHeightPx", lineHeight)
++            put("glyphBoxesInWindow", JsonArray(boxes.map { JsonPrimitive(it.toString()) }))
++        }
++        EmulatorEvidence.text("blacklist-${testName.methodName}-$name-body-layout.json", evidence.toString())
++        assertEquals(2.4f, layout.layoutInput.density.fontScale, .01f)
++        assertTrue("Body viewport must fit a complete rendered line", viewport.height + 1f >= lineHeight)
++        boxes.forEach { box ->
++            assertTrue("Complete required text glyph must be visible: $box within $viewport",
++                box.left >= viewport.left - 1f && box.right <= viewport.right + 1f &&
++                    box.top >= viewport.top - 1f && box.bottom <= viewport.bottom + 1f)
++        }
++        compose.onNodeWithText("取消").assertIsDisplayed().assertHeightIsAtLeast(48.dp)
++        compose.onNodeWithText("确认清空").assertIsDisplayed().assertHeightIsAtLeast(48.dp)
++    }
++}
+diff --git a/app/src/androidTest/java/io/github/ktclat/c001apk/nativeapp/ui/EmulatorEvidence.kt b/app/src/androidTest/java/io/github/ktclat/c001apk/nativeapp/ui/EmulatorEvidence.kt
+new file mode 100644
+index 0000000..88659d9
+--- /dev/null
++++ b/app/src/androidTest/java/io/github/ktclat/c001apk/nativeapp/ui/EmulatorEvidence.kt
+@@ -0,0 +1,135 @@
++// SPDX-License-Identifier: AGPL-3.0-only
++package io.github.ktclat.c001apk.nativeapp.ui
++
++import android.content.Context
++import androidx.activity.ComponentActivity
++import androidx.activity.enableEdgeToEdge
++import io.github.ktclat.c001apk.nativeapp.applyNativeSystemBarAppearance
++import android.graphics.Bitmap
++import android.graphics.BitmapFactory
++import android.graphics.drawable.BitmapDrawable
++import androidx.test.platform.app.InstrumentationRegistry
++import coil.ImageLoader
++import coil.decode.DataSource
++import coil.intercept.Interceptor
++import coil.request.*
++import java.io.File
++import java.util.concurrent.ConcurrentHashMap
++import org.junit.Assert.assertTrue
++
++/** Original compositor pixels from running Android, never a Canvas/Robolectric render. */
++internal object EmulatorEvidence {
++    private val instrumentation get() = InstrumentationRegistry.getInstrumentation()
++    private val directory get() = File(instrumentation.targetContext.getExternalFilesDir(null), "independent-emulator-qa").apply { mkdirs() }
++    fun configureWindow(activity: ComponentActivity, dark: Boolean) {
++        instrumentation.runOnMainSync {
++            activity.enableEdgeToEdge()
++            // Match MainActivity's manifest policy so IME insets reach the fixture host.
++            activity.window.setSoftInputMode(android.view.WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE)
++            applyNativeSystemBarAppearance(activity.window, dark)
++        }
++    }
++    fun capture(name: String, semantics: String = "", expectedText: String? = null,
++        expectedPackage: String = "io.github.ktclat.c001apk.nativeapp") {
++        instrumentation.waitForIdleSync()
++        val automation = instrumentation.uiAutomation
++        val started = android.os.SystemClock.uptimeMillis()
++        val trace = StringBuilder("Capture gate: expectedPackage=$expectedPackage expectedText=$expectedText; minimum post-transition interval1500ms; three unchanged full compositor frames100ms apart, excluding ONLY top-right system clock for stability comparison. Saved PNG is ORIGINAL, unmodified full screenshot.\n")
++        var previous: IntArray? = null
++        var previousWidth = 0
++        var stable = 0
++        var checkpoint = ""
++        var last: Bitmap? = null
++        while (android.os.SystemClock.uptimeMillis() - started < 35_000) {
++            val root = automation.rootInActiveWindow
++            val lines = mutableListOf<String>()
++            fun collect(node: android.view.accessibility.AccessibilityNodeInfo?, depth: Int = 0) {
++                if (node == null || depth > 30 || lines.size >= 2000) return
++                val bounds = android.graphics.Rect(); node.getBoundsInScreen(bounds)
++                lines += "${node.packageName} ${node.className} text=${node.text} desc=${node.contentDescription} bounds=$bounds"
++                for (i in 0 until node.childCount) collect(node.getChild(i), depth+1)
++            }
++            collect(root)
++            checkpoint = lines.joinToString("\n")
++            // API26 can leave its accessibility active-root cache empty after a Compose
++            // dialog is dismissed. Never accept null by itself. Only synthetic hosts with
++            // no accessibility-text checkpoint may use the independently queried current
++            // WindowManager focus, and it must name the exact production ComponentActivity.
++            // Non-null wrong-package roots (including Android ANR dialogs) still fail.
++            val focus = if (root == null && expectedText == null &&
++                expectedPackage == "io.github.ktclat.c001apk.nativeapp") {
++                val windows = android.os.ParcelFileDescriptor.AutoCloseInputStream(
++                    automation.executeShellCommand("dumpsys window windows")
++                ).bufferedReader().use { it.readText() }
++                val focusLine = windows.lineSequence().firstOrNull { it.trimStart().startsWith("mCurrentFocus=") }.orEmpty()
++                checkpoint += "\nAccessibility root NULL; independently observed WindowManager:\n$windows"
++                focusLine
++            } else ""
++            val exactFixtureFocus = Regex("mCurrentFocus=Window\\{[^\\n]* u[0-9]+ io\\.github\\.ktclat\\.c001apk\\.nativeapp/androidx\\.activity\\.ComponentActivity\\}")
++                .containsMatchIn(focus)
++            val expectedWindow = if (root == null) exactFixtureFocus else
++                root.packageName?.toString() == expectedPackage && (expectedText == null || checkpoint.contains(expectedText))
++            val bitmap = requireNotNull(automation.takeScreenshot()) { "Android UiAutomation screenshot unavailable" }
++            val pixels = IntArray(bitmap.width * bitmap.height)
++            bitmap.getPixels(pixels,0,bitmap.width,0,0,bitmap.width,bitmap.height)
++            val prior = previous
++            var changed = 0
++            if (prior != null && prior.size == pixels.size && previousWidth == bitmap.width) {
++                // Observed API26 clock bounds at720px were[635,0][704,48]; right-aligned at other test widths.
++                // Ignore only that clock rectangle, not app content, system icons or cursors.
++                for (y in 0 until bitmap.height) for (x in 0 until bitmap.width) {
++                    if (y < 48 && x in (bitmap.width - 85) until (bitmap.width - 16)) continue
++                    val index = y*bitmap.width+x
++                    if (prior[index] != pixels[index]) changed++
++                }
++                stable = if (changed == 0 && expectedWindow) stable + 1 else 0
++            } else stable = 0
++            val elapsed = android.os.SystemClock.uptimeMillis()-started
++            trace.append("elapsedMs=$elapsed expectedWindow=$expectedWindow rootNull=${root == null} exactFixtureWindowFocus=$exactFixtureFocus changedOutsideClock=$changed stableComparisons=$stable focus=$focus\n")
++            last?.recycle(); last = bitmap
++            if (expectedWindow && elapsed >= 1500 && stable >= 2) break
++            previous = pixels; previousWidth = bitmap.width
++            android.os.SystemClock.sleep(100)
++        }
++        text("$name-capture-trace.txt", trace.toString()+"\nForeground accessibility checkpoint:\n"+checkpoint)
++        val bitmap = requireNotNull(last)
++        try {
++            val accepted = stable >= 2 && android.os.SystemClock.uptimeMillis()-started >= 1500
++            val fileName = if (accepted) "$name.png" else "$name-diagnostic-failed.png"
++            File(directory, fileName).outputStream().use { check(bitmap.compress(Bitmap.CompressFormat.PNG, 100, it)) }
++            check(accepted) { "Compositor/checkpoint did not settle; inspect capture trace and diagnostic-failed original for $name" }
++        } finally { bitmap.recycle() }
++        text("$name.txt", "Actual API${android.os.Build.VERSION.SDK_INT} original emulator compositor screenshot. Fixture/production scope per test; not live-service acceptance.\n" + semantics)
++    }
++    /** Targeted system-bar evidence only; unrelated content captures need not pay this cost. */
++    fun windowDump(name: String): String {
++        val dump = android.os.ParcelFileDescriptor.AutoCloseInputStream(
++            instrumentation.uiAutomation.executeShellCommand("dumpsys window windows")
++        ).bufferedReader().use { it.readText() }
++        text("$name-windowmanager.txt", dump)
++        return dump
++    }
++    fun text(name: String, value: String) { File(directory, name).writeText(value) }
++    fun asset(name: String): ByteArray = instrumentation.context.assets.open(name).use { it.readBytes() }
++}
++
++/** Every requested image is intercepted locally, and no chain.proceed exists. */
++internal class EmulatorFixtureImages(context: Context) : AutoCloseable {
++    val loaded = ConcurrentHashMap.newKeySet<String>()
++    val unexpected = ConcurrentHashMap.newKeySet<String>()
++    val loader = ImageLoader.Builder(context).components { add(object : Interceptor {
++        override suspend fun intercept(chain: Interceptor.Chain): ImageResult {
++            val url = chain.request.data.toString()
++            val name = url.removePrefix("https://fixture.invalid/")
++            if (!url.startsWith("https://fixture.invalid/") || !Regex("icon-([1-9]|10)\\.png").matches(name)) {
++                unexpected += url
++                return ErrorResult(null, chain.request, IllegalArgumentException("Image network denied"))
++            }
++            val bytes = EmulatorEvidence.asset("icon-grid/$name")
++            val bitmap = requireNotNull(BitmapFactory.decodeByteArray(bytes, 0, bytes.size))
++            loaded += url
++            return SuccessResult(BitmapDrawable(context.resources, bitmap), chain.request, DataSource.MEMORY_CACHE)
++        }
++    }) }.build()
++    override fun close() { loader.shutdown(); assertTrue("No unallowlisted images: $unexpected", unexpected.isEmpty()) }
++}
+diff --git a/app/src/androidTest/java/io/github/ktclat/c001apk/nativeapp/ui/EmulatorGraphicRetryTest.kt b/app/src/androidTest/java/io/github/ktclat/c001apk/nativeapp/ui/EmulatorGraphicRetryTest.kt
+new file mode 100644
+index 0000000..a94b8fc
+--- /dev/null
++++ b/app/src/androidTest/java/io/github/ktclat/c001apk/nativeapp/ui/EmulatorGraphicRetryTest.kt
+@@ -0,0 +1,240 @@
++// SPDX-License-Identifier: AGPL-3.0-only
++package io.github.ktclat.c001apk.nativeapp.ui
++
++import android.graphics.Bitmap
++import android.graphics.Canvas
++import android.graphics.Color
++import android.graphics.Paint
++import androidx.activity.ComponentActivity
++import androidx.compose.material3.MaterialTheme
++import androidx.compose.runtime.*
++import androidx.compose.ui.semantics.SemanticsActions
++import androidx.compose.ui.test.*
++import androidx.compose.ui.test.junit4.createAndroidComposeRule
++import androidx.test.ext.junit.runners.AndroidJUnit4
++import io.github.ktclat.c001apk.nativeapp.AppContainer
++import io.github.ktclat.c001apk.nativeapp.account.*
++import io.github.ktclat.c001apk.nativeapp.data.*
++import io.github.ktclat.c001apk.nativeapp.feature.media.LocalMediaImageLoader
++import io.github.ktclat.c001apk.nativeapp.local.*
++import io.github.ktclat.c001apk.nativeapp.settings.*
++import io.github.ktclat.c001apk.nativeapp.social.SocialRepository
++import kotlinx.coroutines.flow.MutableStateFlow
++import okhttp3.*
++import okhttp3.MediaType.Companion.toMediaType
++import okhttp3.ResponseBody.Companion.toResponseBody
++import okio.Buffer
++import org.junit.*
++import org.junit.Assert.*
++import org.junit.rules.TestName
++import org.junit.runner.RunWith
++import java.io.ByteArrayOutputStream
++import java.io.IOException
++import java.util.concurrent.CopyOnWriteArrayList
++import java.util.concurrent.atomic.AtomicBoolean
++
++/** UI-driven synthetic graphic verification, NOT a real CAPTCHA/provider/service claim. */
++@RunWith(AndroidJUnit4::class)
++class EmulatorGraphicRetryTest {
++    @get:Rule val compose = createAndroidComposeRule<ComponentActivity>()
++    @get:Rule val testName = TestName()
++    private val requests = CopyOnWriteArrayList<Request>()
++    private val denied = CopyOnWriteArrayList<String>()
++    private val responses = CopyOnWriteArrayList<String>()
++    private val imageReads = java.util.concurrent.atomic.AtomicInteger()
++    private val validationReads = java.util.concurrent.atomic.AtomicInteger()
++    private val verified = AtomicBoolean(false)
++    private lateinit var client: OkHttpClient
++    private lateinit var images: EmulatorFixtureImages
++    private lateinit var store: AccountStore
++    private var target = "/v6/user/followList"
++    private class MemoryLocal : JsonStateStore<LocalState> {
++        override val data = MutableStateFlow(LocalState())
++        override suspend fun update(transform: (LocalState) -> LocalState) { data.value = transform(data.value) }
++    }
++    @After fun close() {
++        runCatching { EmulatorEvidence.capture("retry-${testName.methodName}-terminal") }
++        if (::images.isInitialized) images.close()
++        if (::client.isInitialized) { client.dispatcher.cancelAll(); client.connectionPool.evictAll(); client.dispatcher.executorService.shutdownNow() }
++        EmulatorEvidence.text("retry-${testName.methodName}-requests.txt", requests.joinToString("\n") { "${it.method} ${it.url}" } + "\nResponses=${responses.joinToString("\n")}\nDenied=$denied\nValidation POSTs=${validationReads.get()} image GETs=${imageReads.get()}")
++        assertTrue("Unexpected network paths denied before sockets: $denied", denied.isEmpty())
++    }
++    @Test fun initialGraphicGenericRetryConsumesProofOnceAndCannotReplayStaleClick() = exercise(more = false, counts = false)
++    @Test fun failedMoreGraphicGenericRetryPreservesRowsAndExactCursor() = exercise(more = true, counts = false)
++    @Test fun countsGraphicGenericRetryDoesNotReloadProfile() = exercise(more = false, counts = true)
++    @Test fun cancelledGraphicThenExplicitRefreshCreatesFreshChallenge() {
++        show(more = false, counts = false)
++        awaitTag("personal-human-verify"); clickTag("personal-human-verify")
++        awaitText("完成图形验证"); capture("graphic-before-cancel")
++        compose.onNodeWithText("取消", substring = false).performClick()
++        awaitText("验证已关闭或失效，可重新加载内容。")
++        assertEquals(1, reads()); assertEquals(0, validationReads.get())
++        clickText("刷新"); awaitTag("personal-human-verify"); assertEquals(2, reads())
++        verify("personal"); assertEquals(2, reads())
++        clickText("刷新"); awaitTag("personal-human-verify")
++        assertEquals(3, reads()); compose.onNodeWithTag("personal-verified-retry").assertDoesNotExist()
++        capture("explicit-refresh-discards-proof")
++    }
++    private fun exercise(more: Boolean, counts: Boolean) {
++        show(more, counts)
++        val prefix = if (counts) "counts" else "personal"
++        val retry = if (counts) "重试未读数量" else "重试"
++        if (more) { awaitText("旧联系人"); clickText("加载更多") }
++        awaitTag("$prefix-human-verify"); capture("challenge")
++        val oldClick = compose.onNodeWithText(retry).fetchSemanticsNode().config[SemanticsActions.OnClick].action!!
++        val before = reads()
++        verify(prefix)
++        assertEquals("Verification does not replay read", before, reads())
++        capture("verified-awaiting-explicit-retry")
++        // The visible generic retry is primary. The retained semantics wrapper only probes
++        // duplicate UI-node replay, not immutable old Kotlin callback replacement ownership.
++        clickText(retry)
++        if (counts) awaitTag("my-notice-badge-MENTIONS") else awaitText("新联系人")
++        assertEquals(before + 1, reads())
++        compose.runOnIdle { oldClick(); oldClick() }
++        compose.waitForIdle(); assertEquals("Stale pre-verification click cannot replay", before + 1, reads())
++        assertEquals(1, validationReads.get())
++        val accountCookie = store.captureRequestSession().cookieFor(requests.first { it.url.encodedPath == target }.url).orEmpty()
++        assertFalse("Challenge cookies must never reach account persistence", accountCookie.contains("emulator-verified") || accountCookie.contains("emulator-challenge"))
++        if (more) {
++            compose.onNodeWithText("旧联系人").assertExists()
++            val targetReads = requests.filter { it.url.encodedPath == target }
++            assertEquals(listOf("1", "2", "2"), targetReads.map { it.url.queryParameter("page") })
++            assertEquals(targetReads[1].url, targetReads[2].url)
++            assertEquals("101", targetReads[2].url.queryParameter("firstItem"))
++            assertEquals("101", targetReads[2].url.queryParameter("lastItem"))
++        }
++        if (counts) assertEquals(1, requests.count { it.url.encodedPath == "/v6/user/profile" })
++        capture("generic-retry-success")
++    }
++    private fun verify(prefix: String) {
++        clickTag("$prefix-human-verify")
++        awaitText("完成图形验证")
++        compose.waitUntil(20_000) { compose.onAllNodesWithContentDescription("待输入的图形验证码").fetchSemanticsNodes().isNotEmpty() }
++        capture("visible-synthetic-graphic")
++        compose.onNode(hasSetTextAction()).performTextInput("AB12")
++        val device = androidx.test.uiautomator.UiDevice.getInstance(androidx.test.platform.app.InstrumentationRegistry.getInstrumentation())
++        compose.waitUntil(20_000) { imeWindowVisible() }
++        capture("visible-code-entered")
++        graphicWindowReceipt("code-entered")
++        // Normal user Back dismisses only the positively observed IME, not this challenge.
++        device.pressBack()
++        compose.waitUntil(20_000) { !imeWindowVisible() }
++        compose.onNodeWithText("完成图形验证").assertExists()
++        assertEquals("AB12", compose.onNode(hasSetTextAction()).fetchSemanticsNode().config[androidx.compose.ui.semantics.SemanticsProperties.EditableText].text)
++        compose.onNodeWithText("提交验证").performScrollTo().assertIsDisplayed().assertIsEnabled()
++        compose.onNodeWithText("取消", substring = false).performScrollTo().assertIsDisplayed()
++        compose.onNodeWithText("提交验证").assertIsDisplayed().assertIsEnabled()
++        assertEquals("AB12", compose.onNode(hasSetTextAction()).fetchSemanticsNode().config[androidx.compose.ui.semantics.SemanticsProperties.EditableText].text)
++        capture("visible-submit-reachable")
++        graphicWindowReceipt("submit-reachable")
++        compose.onNodeWithText("提交验证").assertIsDisplayed().performTouchInput { click() }
++        awaitTag("$prefix-verified-retry")
++    }
++    private fun imeWindowVisible(): Boolean =
++        androidx.test.platform.app.InstrumentationRegistry.getInstrumentation().uiAutomation.windows.any {
++            it.type == android.view.accessibility.AccessibilityWindowInfo.TYPE_INPUT_METHOD
++        }
++    private fun graphicWindowReceipt(stage: String) {
++        val name = "retry-${testName.methodName}-$stage"
++        EmulatorEvidence.windowDump(name)
++        val host = compose.runOnUiThread {
++            val decor = compose.activity.window.decorView
++            val frame = android.graphics.Rect().also(decor::getWindowVisibleDisplayFrame)
++            val insets = androidx.core.view.ViewCompat.getRootWindowInsets(decor)
++            "hostSoftInputMode=0x${compose.activity.window.attributes.softInputMode.toString(16)} " +
++                "hostVisibleFrame=$frame hostImeVisible=${insets?.isVisible(androidx.core.view.WindowInsetsCompat.Type.ime())} " +
++                "hostImeInsets=${insets?.getInsets(androidx.core.view.WindowInsetsCompat.Type.ime())}"
++        }
++        val submit = compose.onNodeWithText("提交验证").fetchSemanticsNode().boundsInWindow
++        val cancel = compose.onNodeWithText("取消", substring = false).fetchSemanticsNode().boundsInWindow
++        EmulatorEvidence.text("$name-geometry.txt", "$host\nActual accessibility IME window visible=${imeWindowVisible()}\nSubmit window bounds=$submit\nCancel window bounds=$cancel\nSee full focused dialog/IME window dump; host alone is not the active dialog proof.")
++    }
++    private fun show(more: Boolean, counts: Boolean) {
++        EmulatorEvidence.configureWindow(compose.activity, false)
++        target = if (counts) "/v6/notification/checkCount" else "/v6/user/followList"
++        images = EmulatorFixtureImages(compose.activity)
++        store = AccountStore(object : CredentialPersistence {
++            override fun read(): ByteArray? = null
++            override fun write(bytes: ByteArray) = Unit
++            override fun reset() = Unit
++        }, "synthetic-emulator-graphic")
++        val cookie = Cookie.Builder().name("token").value("synthetic-emulator-only").domain("coolapk.com").path("/").secure().expiresAt(System.currentTimeMillis()+3_600_000).build()
++        check(store.saveAuthenticated("123", "合成账号", "synthetic-emulator-graphic", listOf(cookie), store.snapshot()))
++        val png = graphic()
++        client = OkHttpClient.Builder().addInterceptor { chain ->
++            val req = chain.request(); requests += req
++            fun reject(): Nothing { denied += "${req.method} ${req.url}"; throw IOException("Fixture denied before sockets") }
++            if (req.url.host !in setOf("api.coolapk.com", "api2.coolapk.com") || req.url.scheme != "https") reject()
++            val path = req.url.encodedPath
++            var contentType = "application/json"
++            var sessionCookie: String? = null
++            val bytes: ByteArray = if (path == "/v6/account/requestValidate") {
++                if (req.method != "POST") reject()
++                val form = req.body as? MultipartBody ?: reject()
++                if (form.parts.size != 2) reject()
++                val fields = form.parts.associate { part ->
++                    val key = Regex("name=\"([^\"]+)\"").find(part.headers?.get("Content-Disposition").orEmpty())?.groupValues?.get(1) ?: reject()
++                    val buffer = Buffer(); part.body.writeTo(buffer); key to buffer.readUtf8()
++                }
++                if (fields != mapOf("type" to "err_request_captcha", "code" to "AB12")) reject()
++                validationReads.incrementAndGet(); verified.set(true)
++                sessionCookie = "SESSID=emulator-verified; Path=/; Secure"
++                """{"data":"验证通过"}""".toByteArray()
++            } else {
++                if (req.method != "GET") reject()
++                when (path) {
++                    "/v6/account/captchaImage" -> {
++                        check(req.url.queryParameterNames == setOf("_", "w", "h"))
++                        check(req.url.queryParameter("w") == "270" && req.url.queryParameter("h") == "113")
++                        imageReads.incrementAndGet(); contentType = "image/png"; png
++                    }
++                    target -> {
++                        val success = req.header("Cookie").orEmpty().contains("SESSID=emulator-verified") && verified.getAndSet(false)
++                        val body = if (more && req.url.queryParameter("page") == "1") contacts("101", "旧联系人", false)
++                        else if (success) if (counts) """{"data":{"atme":7,"atcommentme":0,"feedlike":0,"contacts_follow":0,"message":0,"notification":0}}""" else contacts("102", "新联系人", true)
++                        else """{"messageStatus":"err_request_captcha"}"""
++                        if (body.contains("err_request_captcha")) sessionCookie = "SESSID=emulator-challenge; Path=/; Secure"
++                        body.toByteArray()
++                    }
++                    "/v6/user/profile" -> """{"data":{"uid":"123","username":"合成账号","feed":0,"follow":0,"fans":0}}""".toByteArray()
++                    "/v6/main/indexV8" -> """{"data":[]}""".toByteArray()
++                    else -> reject()
++                }
++            }
++            responses += "${req.method} $path contentType=$contentType cookie=$sessionCookie body=${if (contentType == "image/png") "LOCAL_PNG" else bytes.toString(Charsets.UTF_8)}"
++            Response.Builder().request(req).protocol(Protocol.HTTP_1_1).code(200).message("LOCAL SYNTHETIC FIXTURE").apply { sessionCookie?.let { addHeader("Set-Cookie", it) } }.body(bytes.toResponseBody(contentType.toMediaType())).build()
++        }.build()
++        val repository = HttpCoolapkRepository(client = client, requestSession = { store.captureRequestSession() })
++        val login = HttpLoginTransport(client)
++        val social = SocialRepository(store) { snapshot -> CoolapkHttpTransport(client = client, requestSession = { store.requestSessionFor(snapshot) }) }
++        val ctor = AccountRuntime::class.java.getDeclaredConstructor(AccountStore::class.java, HttpLoginTransport::class.java, LoginCoordinator::class.java, HttpCoolapkRepository::class.java, SocialRepository::class.java).apply { isAccessible = true }
++        val accounts = ctor.newInstance(store, login, LoginCoordinator(store, login, "synthetic-emulator-graphic"), repository, social)
++        val container = AppContainer(compose.activity.application).also { it.nativeUpdates.enabled = false }
++        AppContainer::class.java.getDeclaredField("local").apply { isAccessible = true }.set(container, LocalRepository(MemoryLocal()))
++        val model = BrowseViewModel(repository)
++        compose.setContent {
++            val state by store.state.collectAsState()
++            CompositionLocalProvider(LocalMediaImageLoader provides images.loader, LocalReadingStyles provides readingStyles(ReadingPreset.COMFORTABLE, FontChoice.NOTO_SANS)) {
++                MaterialTheme(colorScheme = fixedColorScheme(0, false), typography = appTypography(FontChoice.NOTO_SANS)) {
++                    NativeApp(model, container, AppSettings(floatingNavigation = false, dynamicColor = false), accounts, state, initialRoute = if (counts) null else "mylist:FOLLOW")
++                }
++            }
++        }
++        if (counts) { awaitTag("standard-navigation"); compose.onNodeWithText("我的").assertIsDisplayed().performClick() }
++    }
++    private fun contacts(id: String, name: String, terminal: Boolean): String = """{"data":[{"id":"$id","entityType":"contacts","fUserInfo":{"uid":"$id","username":"$name","userAvatar":"https://fixture.invalid/icon-5.png","follow":120,"fans":980}}${if (terminal) ",{\"id\":\"999\",\"entityType\":\"card\",\"entityTemplate\":\"noMoreDataCard\"}" else ""}]}"""
++    private fun graphic(): ByteArray {
++        val bitmap = Bitmap.createBitmap(270,113,Bitmap.Config.ARGB_8888)
++        val canvas = Canvas(bitmap); canvas.drawColor(Color.WHITE)
++        val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.BLACK; textSize = 52f; typeface = android.graphics.Typeface.MONOSPACE }
++        canvas.drawText("AB12", 55f, 75f, paint)
++        return ByteArrayOutputStream().use { bitmap.compress(Bitmap.CompressFormat.PNG,100,it); bitmap.recycle(); it.toByteArray() }
++    }
++    private fun reads() = requests.count { it.url.encodedPath == target }
++    private fun awaitTag(tag: String) = compose.waitUntil(30_000) { compose.onAllNodesWithTag(tag, useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty() }
++    private fun awaitText(text: String) = compose.waitUntil(30_000) { compose.onAllNodesWithText(text).fetchSemanticsNodes().isNotEmpty() }
++    private fun clickTag(tag: String) { compose.onNodeWithTag(tag).performScrollTo().performClick() }
++    private fun clickText(text: String) { compose.onNodeWithText(text, substring = false).performScrollTo().performClick() }
++    private fun capture(name: String) { compose.waitForIdle(); EmulatorEvidence.capture("retry-${testName.methodName}-$name", compose.onAllNodes(isRoot(),useUnmergedTree=true).printToString()) }
++}
+diff --git a/app/src/androidTest/java/io/github/ktclat/c001apk/nativeapp/ui/EmulatorPersonalRichCardsTest.kt b/app/src/androidTest/java/io/github/ktclat/c001apk/nativeapp/ui/EmulatorPersonalRichCardsTest.kt
+new file mode 100644
+index 0000000..f3594e1
+--- /dev/null
++++ b/app/src/androidTest/java/io/github/ktclat/c001apk/nativeapp/ui/EmulatorPersonalRichCardsTest.kt
+@@ -0,0 +1,225 @@
++// SPDX-License-Identifier: AGPL-3.0-only
++// Real NativeApp + personal repository/decoder; every API/image response is synthetic/offline.
++package io.github.ktclat.c001apk.nativeapp.ui
++
++import android.graphics.Bitmap
++import android.graphics.Canvas
++import android.view.View
++import androidx.activity.ComponentActivity
++import androidx.compose.material3.MaterialTheme
++import androidx.compose.runtime.*
++import androidx.compose.ui.platform.LocalDensity
++import androidx.compose.ui.test.*
++import androidx.compose.ui.test.junit4.createAndroidComposeRule
++import androidx.compose.ui.unit.Density
++import io.github.ktclat.c001apk.nativeapp.AppContainer
++import io.github.ktclat.c001apk.nativeapp.account.*
++import io.github.ktclat.c001apk.nativeapp.data.*
++import io.github.ktclat.c001apk.nativeapp.feature.media.LocalMediaImageLoader
++import io.github.ktclat.c001apk.nativeapp.local.*
++import io.github.ktclat.c001apk.nativeapp.settings.*
++import io.github.ktclat.c001apk.nativeapp.social.SocialRepository
++import kotlinx.coroutines.flow.MutableStateFlow
++import okhttp3.*
++import okhttp3.ResponseBody.Companion.toResponseBody
++import org.junit.*
++import org.junit.Assert.*
++import org.junit.runner.RunWith
++import androidx.test.ext.junit.runners.AndroidJUnit4
++import androidx.test.platform.app.InstrumentationRegistry
++import org.junit.rules.TestName
++import java.io.File
++import java.io.IOException
++import java.util.concurrent.CopyOnWriteArrayList
++
++@RunWith(AndroidJUnit4::class)
++class EmulatorPersonalRichCardsTest {
++    @get:Rule val testName = TestName()
++    @get:Rule val compose = createAndroidComposeRule<ComponentActivity>()
++    private val requests = CopyOnWriteArrayList<Request>()
++    private val unexpected = CopyOnWriteArrayList<String>()
++    private lateinit var client: OkHttpClient
++    private lateinit var images: EmulatorFixtureImages
++    private lateinit var store: AccountStore
++    private lateinit var browse: BrowseViewModel
++    private val owner = SessionViewModelStore()
++    private class MemoryLocal : JsonStateStore<LocalState> {
++        override val data = MutableStateFlow(LocalState())
++        override suspend fun update(transform: (LocalState) -> LocalState) { data.value = transform(data.value) }
++    }
++    private val feed = """{"id":"9101","entityType":"feed","uid":"7","username":"合成作者","userAvatar":"https://fixture.invalid/icon-4.png","message_title":"我的完整卡片","message":"正文与图片一起展示","device_title":"合成设备","likenum":0,"replynum":2,"userAction":{"like":1},"picArr":["https://fixture.invalid/icon-1.png","https://fixture.invalid/icon-2.png"],"forwardSourceType":"feed","forwardSourceFeed":{"id":"9201","uid":"8","username":"转发作者","message":"转发正文仍然可读"},"replyRows":[{"id":"9301","entityType":"feed_reply","uid":"9","username":"热评作者","message":"热评没有丢失"}],"extra_title":"原生链接卡片","extra_url":"/feed/9202","relationRows":[{"id":"44","entityType":"topic","title":"关联话题","url":"/t/fixture-topic"}]}"""
++    private val reply = """{"id":"9302","entityType":"feed_reply","uid":"7","username":"回复作者","message":"我的回复包含图片","url":"/feed/9501","likenum":0,"replynum":1,"userAction":{"like":1},"picArr":["https://fixture.invalid/icon-3.png"],"replyRows":[{"id":"9303","entityType":"feed_reply","username":"嵌套作者","message":"楼中楼仍然展示"}]}"""
++    private val end = """{"id":"9999","entityType":"card","entityTemplate":"noMoreDataCard","title":"没有更多"}"""
++    private val templates = """{"id":"9601","entityType":"card","entityTemplate":"messageCard","description":"账号列表也支持消息卡片"},{"id":"9602","entityType":"card","entityTemplate":"iconLinkGridCard","entities":[{"id":"9603","title":"打开关联动态","pic":"https://fixture.invalid/icon-5.png","url":"/feed/9603"}]}"""
++    @After fun close() {
++        runCatching { EmulatorEvidence.capture("rich-${testName.methodName}-terminal") }
++        owner.viewModelStore.clear()
++        if (::images.isInitialized) images.close()
++        if (::client.isInitialized) { client.dispatcher.cancelAll(); client.connectionPool.evictAll(); client.dispatcher.executorService.shutdownNow() }
++        assertTrue("No unexpected API/write $unexpected", unexpected.isEmpty())
++        assertTrue(requests.all { it.method == "GET" })
++    }
++    @Test fun myFeedsMainGalleryForwardAuthorAndBack() {
++        showMy(); openMy("动态"); awaitTag("feed:9101")
++        assertReadOnlyFeed(); awaitImages(1, 2, 4); capture("feed-initial")
++        compose.onNodeWithTag("media-cell-0").performClick(); awaitTag("media-gallery")
++        compose.onNodeWithTag("media-page-count").assertTextEquals("1/2")
++        capture("feed-gallery", dialog = true)
++        compose.onNodeWithTag("media-back").performClick(); compose.onNodeWithTag("media-gallery").assertDoesNotExist()
++        compose.onNodeWithTag("feed-body:9101").performScrollTo().performClick(); awaitDetail("9101")
++        capture("feed-open-detail"); back(); awaitTag("feed:9101")
++        // Baseline is a fresh account-bound first-page read on Back, not scroll retention.
++        assertEquals(2, calls("/v6/user/feedList", "uid", "123"))
++        compose.onNodeWithText("@转发作者：转发正文仍然可读").performScrollTo().performClick()
++        awaitDetail("9201"); capture("feed-open-forward"); back(); awaitTag("feed:9101")
++        compose.onNodeWithContentDescription("查看合成作者的主页").performScrollTo().performClick()
++        awaitTag("user-name:7"); capture("feed-open-author"); back(); awaitTag("feed:9101")
++        compose.onNodeWithText("热评作者：热评没有丢失").performScrollTo().assertIsDisplayed()
++        compose.onNodeWithText("关联话题").performScrollTo().assertIsDisplayed(); capture("feed-reference-and-relations")
++        assertEquals(listOf("9101", "9201"), requests.filter { it.url.encodedPath == "/v6/feed/detail" }.map { it.url.queryParameter("id") })
++        assertEquals("7", requests.single { it.url.encodedPath == "/v6/user/space" }.url.queryParameter("uid"))
++    }
++    @Test fun myLikesKeepsLikeAuthorAndKnownTemplateChildren() {
++        showMy(); openMy("我的赞"); awaitTag("feed:9101")
++        compose.onNodeWithText("喜欢者赞了这条内容").assertIsDisplayed(); assertReadOnlyFeed()
++        awaitImages(1, 2, 4); capture("likes-rich-feed")
++        compose.onNodeWithTag("personal-list").performScrollToNode(hasTagOrText("账号列表也支持消息卡片"))
++        compose.onNodeWithText("账号列表也支持消息卡片").assertIsDisplayed()
++        compose.onNodeWithTag("personal-list").performScrollToNode(hasTestTag("icon-link-entry-0"))
++        awaitImages(5); capture("likes-known-templates")
++        compose.onNodeWithText("此卡片的模板或嵌套内容暂不支持").assertDoesNotExist()
++        compose.onNodeWithText("加载更多").assertDoesNotExist()
++        compose.onNodeWithTag("icon-link-entry-0").performClick(); awaitDetail("9603")
++        back(); awaitTag("feed:9101"); assertReadOnlyFeed()
++    }
++    @Test fun myRepliesAndReceivedRepliesUseExplicitFeedUrlNotReplyId() {
++        showMy(); openMy("我的回复"); awaitTag("personal-reply-open:9302")
++        awaitImages(3); awaitText("楼中楼仍然展示"); compose.onNodeWithText("楼中楼仍然展示").performScrollTo().assertIsDisplayed()
++        compose.onNodeWithTag("reply-like:9302").assertIsNotEnabled()
++        compose.onNodeWithText("回复", substring = false).assertDoesNotExist(); capture("reply-rich-row")
++        compose.onNodeWithTag("personal-reply-open:9302").performClick(); awaitDetail("9501")
++        back(); awaitTag("personal-reply-open:9302")
++        compose.onNodeWithText("我收到的回复").performClick(); awaitTag("personal-reply-open:9302")
++        assertEquals(1, calls("/v6/user/replyToMeList")); capture("received-reply")
++        assertEquals(listOf("9501"), requests.filter { it.url.encodedPath == "/v6/feed/detail" }.map { it.url.queryParameter("id") })
++        assertFalse(requests.any { it.url.encodedPath == "/v6/feed/replyList" && it.url.queryParameter("feedType") == "feed_reply" })
++    }
++    @Test fun nullableCountsAndUnsupportedTemplateRemainExplicit() {
++        showMy(edgeRows = true); openMy("我的回复"); awaitTag("personal-reply-open:9400")
++        awaitText("查看回复")
++        compose.onNodeWithText("0条回复").assertDoesNotExist()
++        compose.onNodeWithContentDescription("赞 数量未知").assertIsNotEnabled()
++        capture("reply-unknown-counts")
++        back(); openMy("我的赞"); awaitTag("feed:9402")
++        compose.onNodeWithContentDescription("赞 数量未知").assertIsNotEnabled()
++        compose.onNodeWithContentDescription("评论 数量未知").assertIsEnabled()
++        capture("feed-unknown-counts")
++        compose.onNodeWithTag("personal-list").performScrollToNode(hasText("此卡片的模板或嵌套内容暂不支持"))
++        compose.onNodeWithText("此卡片的模板或嵌套内容暂不支持").assertIsDisplayed()
++        compose.onNodeWithText("暂不支持打开此内容").assertIsDisplayed()
++        capture("unsupported-template-explicit")
++    }
++    @Test fun collectionRowsStayOnAccountScopedCollectionRouteAndCanOpenFeed() {
++        showMy(); openMy("我的收藏"); awaitTag("entity-card:collection:88")
++        compose.onNodeWithTag("entity-card:collection:88").performClick(); awaitTag("feed:9101")
++        val items = requests.single { it.url.encodedPath == "/v6/collection/itemList" }
++        assertEquals("88", items.url.queryParameter("id")); assertEquals("123", items.url.queryParameter("uid"))
++        assertReadOnlyFeed(); awaitImages(1, 2, 4); capture("collection-items-rich-feed")
++        compose.onNodeWithTag("feed-body:9101").performClick(); awaitDetail("9101")
++        back(); awaitTag("feed:9101"); back(); awaitTag("entity-card:collection:88")
++        capture("collection-back")
++    }
++    @Test fun darkLargeFontCanReachImagesTemplatesAndBack() {
++        showMy(dark = true, scale = 2f); openMy("我的赞"); awaitTag("feed:9101")
++        capture("likes-dark-large-font-top")
++        compose.onNodeWithTag("personal-list").performScrollToNode(hasTestTag("icon-link-entry-0"))
++        compose.onNodeWithTag("icon-link-entry-0").assertIsDisplayed(); awaitImages(5)
++        capture("likes-dark-large-font-template")
++        compose.onNodeWithTag("icon-link-entry-0").performClick(); awaitDetail("9603")
++        back(); awaitTag("feed:9101"); compose.onNodeWithTag("feed-more:9101").assertDoesNotExist()
++    }
++    private fun showMy(dark: Boolean = false, scale: Float = 1f, edgeRows: Boolean = false) {
++        EmulatorEvidence.configureWindow(compose.activity, dark)
++        images = EmulatorFixtureImages(compose.activity)
++        store = AccountStore(object : CredentialPersistence {
++            override fun read(): ByteArray? = null
++            override fun write(bytes: ByteArray) = Unit
++            override fun reset() = Unit
++        }, "synthetic-personal-device")
++        val cookie = Cookie.Builder().name("token").value("synthetic-personal-owner").domain("coolapk.com")
++            .path("/").secure().expiresAt(System.currentTimeMillis() + 3_600_000).build()
++        check(store.saveAuthenticated("123", "合成账号", "synthetic-personal-device", listOf(cookie), store.snapshot()))
++        client = OkHttpClient.Builder().addInterceptor { chain ->
++            val request = chain.request(); requests += request
++            if (request.method != "GET" || request.url.host !in setOf("api.coolapk.com", "api2.coolapk.com")) {
++                unexpected += "${request.method} ${request.url.encodedPath}"; throw IOException("No sockets")
++            }
++            val path = request.url.encodedPath
++            val body = when (path) {
++                "/v6/main/indexV8", "/v6/feed/replyList" -> """{"data":[]}"""
++                "/v6/user/profile" -> """{"data":{"uid":"123","username":"合成账号","feed":3,"follow":2,"fans":1}}"""
++                "/v6/notification/checkCount" -> """{"data":{"atme":0,"atcommentme":0,"feedlike":0,"contacts_follow":0,"message":0,"notification":0}}"""
++                "/v6/user/space" -> """{"data":{"uid":"7","username":"合成作者","follow":2,"fans":1}}"""
++                "/v6/user/feedList" -> if (request.url.queryParameter("uid") == "7") """{"data":[]}""" else """{"data":[$feed,$end]}"""
++                "/v6/user/likeList" -> if (edgeRows) """{"data":[{"id":"9402","entityType":"feed","uid":"7","username":"未知计数作者","message":"缺失计数不可伪造零"},{"id":"9403","entityType":"card","entityTemplate":"futureCard","title":"未知模板应显示明确说明"},$end]}""" else """{"data":[${feed.dropLast(1)},"likeUserInfo":{"username":"喜欢者"}},$templates,$end]}"""
++                "/v6/user/replyList", "/v6/user/replyToMeList" -> if (edgeRows) """{"data":[{"id":"9400","entityType":"feed_reply","uid":"7","username":"未知计数回复作者","message":"缺失计数不可伪造零","url":"/feed/9501","replyRows":[{"id":"9401","entityType":"feed_reply","message":"嵌套回复仍可读"}]},$end]}""" else """{"data":[$reply,$end]}"""
++                "/v6/collection/list" -> """{"data":[{"id":"88","entityType":"collection","title":"合成收藏夹","item_num":1},$end]}"""
++                "/v6/collection/itemList" -> """{"data":[$feed,$end]}"""
++                "/v6/feed/detail" -> """{"data":{"id":"${request.url.queryParameter("id")}","entityType":"feed","uid":"7","username":"合成作者","replynum":0,"message":"已打开详情 ${request.url.queryParameter("id")}"}}"""
++                else -> { unexpected += path; throw IOException("Unexpected offline request") }
++            }
++            if (path in setOf("/v6/user/likeList", "/v6/user/replyList", "/v6/user/replyToMeList", "/v6/collection/list", "/v6/collection/itemList") || path == "/v6/user/feedList" && request.url.queryParameter("uid") == "123") {
++                check(request.header("Cookie").orEmpty().contains("token=synthetic-personal-owner"))
++                check(request.url.queryParameter("page") == "1")
++            }
++            Response.Builder().request(request).protocol(Protocol.HTTP_1_1).code(200).message("synthetic")
++                .body(body.toResponseBody()).build() // NEVER chain.proceed; no live service/CAPTCHA/write.
++        }.build()
++        val repository = HttpCoolapkRepository(client = client, requestSession = { store.captureRequestSession() })
++        val login = HttpLoginTransport(client)
++        val social = SocialRepository(store) { snapshot -> CoolapkHttpTransport(client = client, requestSession = { store.requestSessionFor(snapshot) }) }
++        val ctor = AccountRuntime::class.java.getDeclaredConstructor(AccountStore::class.java, HttpLoginTransport::class.java,
++            LoginCoordinator::class.java, HttpCoolapkRepository::class.java, SocialRepository::class.java).apply { isAccessible = true }
++        val accounts = ctor.newInstance(store, login, LoginCoordinator(store, login, "synthetic-personal-device"), repository, social)
++        val container = AppContainer(compose.activity.application).also { it.nativeUpdates.enabled = false }
++        AppContainer::class.java.getDeclaredField("local").apply { isAccessible = true }.set(container, LocalRepository(MemoryLocal()))
++        val model = BrowseViewModel(repository)
++        browse = model
++        owner.viewModelStore.put("personal-cards", model)
++        compose.setContent {
++            val state by store.state.collectAsState()
++            CompositionLocalProvider(LocalMediaImageLoader provides images.loader,
++                LocalDensity provides Density(LocalDensity.current.density, scale),
++                LocalReadingStyles provides readingStyles(ReadingPreset.COMFORTABLE, FontChoice.NOTO_SANS)) {
++                MaterialTheme(colorScheme = fixedColorScheme(0, dark), typography = appTypography(FontChoice.NOTO_SANS)) {
++                    NativeApp(model, container, AppSettings(floatingNavigation = false, dynamicColor = false), accounts, state)
++                }
++            }
++        }
++        awaitTag("standard-navigation"); compose.onNodeWithText("我的").performClick(); awaitTag("my-root-list")
++        awaitText("合成账号")
++    }
++    private fun openMy(label: String) {
++        compose.onNode(hasText(label) and hasClickAction() and hasAnyAncestor(hasTestTag("my-root-list"))).performScrollTo().performClick()
++    }
++    private fun awaitDetail(id: String) {
++        awaitText("已打开详情 $id")
++        compose.waitUntil(30_000) { browse.states.value["ordered:$id:RECENT_REPLY:false"]?.let { it.loaded && !it.loading && it.error == null } == true }
++        compose.waitForIdle()
++    }
++    private fun assertReadOnlyFeed() {
++        compose.onNodeWithTag("feed-like:9101").assertIsNotEnabled()
++        compose.onNodeWithTag("feed-more:9101").assertDoesNotExist()
++    }
++    private fun hasTagOrText(text: String) = hasText(text)
++    private fun awaitTag(tag: String) = compose.waitUntil(30_000) { compose.onAllNodesWithTag(tag).fetchSemanticsNodes().isNotEmpty() }
++    private fun awaitText(text: String) = compose.waitUntil(30_000) { compose.onAllNodesWithText(text).fetchSemanticsNodes().isNotEmpty() }
++    private fun awaitImages(vararg ids: Int) = compose.waitUntil(30_000) { compose.onRoot().fetchSemanticsNode(); ids.all { "https://fixture.invalid/icon-$it.png" in images.loaded } }
++    private fun calls(path: String, key: String? = null, value: String? = null) = requests.count { it.url.encodedPath == path && (key == null || it.url.queryParameter(key) == value) }
++    private fun back() { compose.runOnUiThread { compose.activity.onBackPressedDispatcher.onBackPressed() } }
++    private fun capture(name: String, dialog: Boolean = false) {
++        compose.waitForIdle()
++        EmulatorEvidence.capture("rich-${testName.methodName}-$name", compose.onAllNodes(isRoot(), useUnmergedTree = true).printToString())
++        EmulatorEvidence.text("rich-${testName.methodName}-requests.txt", requests.joinToString("\n") { "${it.method} ${it.url}" } + "\nUnexpected=$unexpected\nImages=${images.loaded.sorted()}")
++    }
++}
+diff --git a/app/src/androidTest/java/io/github/ktclat/c001apk/nativeapp/ui/EmulatorProductionLaunchTest.kt b/app/src/androidTest/java/io/github/ktclat/c001apk/nativeapp/ui/EmulatorProductionLaunchTest.kt
+new file mode 100644
+index 0000000..58548c9
+--- /dev/null
++++ b/app/src/androidTest/java/io/github/ktclat/c001apk/nativeapp/ui/EmulatorProductionLaunchTest.kt
+@@ -0,0 +1,255 @@
++// SPDX-License-Identifier: AGPL-3.0-only
++package io.github.ktclat.c001apk.nativeapp.ui
++
++import androidx.compose.ui.test.*
++import androidx.compose.ui.test.junit4.createAndroidComposeRule
++import androidx.test.ext.junit.runners.AndroidJUnit4
++import androidx.test.platform.app.InstrumentationRegistry
++import androidx.test.uiautomator.By
++import androidx.test.uiautomator.UiDevice
++import androidx.test.uiautomator.Until
++import io.github.ktclat.c001apk.nativeapp.MainActivity
++import io.github.ktclat.c001apk.nativeapp.NativeApplication
++import io.github.ktclat.c001apk.nativeapp.settings.ThemeMode
++import kotlinx.coroutines.flow.first
++import kotlinx.coroutines.runBlocking
++import org.junit.Rule
++import org.junit.Test
++import org.junit.Assert.*
++import org.junit.runner.RunWith
++
++/** UNMODIFIED production MainActivity/runtime. Guest public GETs may run/fail normally. No network security policy is changed. */
++@RunWith(AndroidJUnit4::class)
++class EmulatorProductionLaunchTest {
++    @get:Rule val compose = createAndroidComposeRule<MainActivity>()
++    private val device get() = UiDevice.getInstance(InstrumentationRegistry.getInstrumentation())
++    @Test fun actualSettingsThemeNavigationContrastDialogReturnAndRecreation() {
++        val settings = (compose.activity.application as NativeApplication).container.settings
++        val original = runBlocking { settings.settings.first() }
++        fun openAppearance() {
++            awaitText("我的"); compose.onNodeWithText("我的").assertIsDisplayed().performClick()
++            openSettings(); awaitText("外观与字体")
++            compose.onNodeWithText("外观与字体").assertIsDisplayed().performClick()
++            awaitText("深色")
++        }
++        fun checkBars(name: String, dark: Boolean, text: String = "外观与字体") {
++            compose.waitUntil(30_000) {
++                compose.runOnUiThread {
++                    val window = compose.activity.window
++                    val controller = androidx.core.view.WindowCompat.getInsetsController(window, window.decorView)
++                    !controller.isAppearanceLightNavigationBars == dark && !controller.isAppearanceLightStatusBars == dark &&
++                        (android.os.Build.VERSION.SDK_INT !in 26..28 || window.navigationBarColor ==
++                            if (dark) android.graphics.Color.argb(128,27,27,27) else android.graphics.Color.argb(230,255,255,255))
++                }
++            }
++            val values = compose.runOnUiThread {
++                "navigationBarColor=${Integer.toHexString(compose.activity.window.navigationBarColor)} systemUiVisibility=${compose.activity.window.decorView.systemUiVisibility} dark=$dark"
++            }
++            EmulatorEvidence.text("production-theme-$name-window.txt", values)
++            EmulatorEvidence.capture("production-theme-$name", expectedText = text)
++            assertFocusedWindowBars("production-theme-$name", dark, dialog = false)
++        }
++        fun select(label: String, dark: Boolean, name: String) {
++            compose.onNodeWithText(label, substring = false).assertIsDisplayed().performClick()
++            compose.waitUntil(30_000) { runBlocking { settings.settings.first().theme } ==
++                when(label) { "深色" -> ThemeMode.DARK; "浅色" -> ThemeMode.LIGHT; else -> ThemeMode.SYSTEM } }
++            compose.onNodeWithText(label, substring = false).assertIsSelected()
++            checkBars(name, dark)
++        }
++        try {
++            openAppearance()
++            val systemDark = compose.activity.resources.configuration.uiMode and android.content.res.Configuration.UI_MODE_NIGHT_MASK == android.content.res.Configuration.UI_MODE_NIGHT_YES
++            select("系统", systemDark, "01-system")
++            select("深色", true, "02-dark")
++            select("浅色", false, "03-light")
++            select("深色", true, "04-dark-again")
++            select("深色", true, "05-dark-idempotent")
++            compose.onNodeWithText("界面字体").performScrollTo().assertIsDisplayed().performClick()
++            compose.waitUntil(30_000) { compose.onAllNodesWithTag("appearance-detail").fetchSemanticsNodes().isNotEmpty() }
++            EmulatorEvidence.capture("production-theme-06-font-dialog", expectedText = "界面字体")
++            assertFocusedWindowBars("production-theme-06-font-dialog", true, dialog = true)
++            device.pressBack()
++            compose.waitUntil(30_000) { compose.onAllNodesWithTag("appearance-detail").fetchSemanticsNodes().isEmpty() }
++            checkBars("07-after-dialog-back", true)
++            compose.onNodeWithText("界面字体").performScrollTo().performClick()
++            compose.onNodeWithContentDescription("关闭界面字体").assertIsDisplayed().performClick()
++            compose.waitUntil(30_000) { compose.onAllNodesWithTag("appearance-detail").fetchSemanticsNodes().isEmpty() }
++            checkBars("08-after-dialog-close", true)
++            back(); back(); openSettings()
++            compose.onNodeWithText("外观与字体").performClick()
++            checkBars("09-settings-reentry", true)
++            compose.activityRule.scenario.moveToState(androidx.lifecycle.Lifecycle.State.CREATED)
++            compose.activityRule.scenario.moveToState(androidx.lifecycle.Lifecycle.State.RESUMED)
++            checkBars("10-background-return", true)
++            compose.activityRule.scenario.recreate()
++            // NativeApp route and the selected Settings category are saveable state.
++            // Recreation must restore Appearance, not be mistaken for a fresh Home launch.
++            awaitText("深色")
++            assertEquals(ThemeMode.DARK, runBlocking { settings.settings.first().theme })
++            checkBars("11-persisted-dark-recreation", true)
++            select("系统", systemDark, "12-restored-system")
++        } finally {
++            // Cleanup only on this disposable task AVD; no user device or account is involved.
++            runBlocking { settings.update { original } }
++        }
++    }
++    @Test fun actualActiveFontReadingAndScaleSheetBarsInLightDarkAndRecreation() {
++        val settings = (compose.activity.application as NativeApplication).container.settings
++        val original = runBlocking { settings.settings.first() }
++        fun awaitSheet() = compose.waitUntil(30_000) {
++            compose.onAllNodesWithTag("appearance-detail").fetchSemanticsNodes().isNotEmpty()
++        }
++        fun awaitDismissed() = compose.waitUntil(30_000) {
++            compose.onAllNodesWithTag("appearance-detail").fetchSemanticsNodes().isEmpty()
++        }
++        fun capture(name: String, dark: Boolean, dialog: Boolean, text: String) {
++            EmulatorEvidence.capture("production-modal-$name", expectedText = text)
++            assertFocusedWindowBars("production-modal-$name", dark, dialog)
++        }
++        try {
++            awaitText("我的"); compose.onNodeWithText("我的").assertIsDisplayed().performClick()
++            openSettings(); compose.onNodeWithText("外观与字体").assertIsDisplayed().performClick()
++            for ((label, dark) in listOf("深色" to true, "浅色" to false)) {
++                compose.onNodeWithTag("settings-detail-list").performScrollToNode(hasText(label, substring = false))
++                compose.onNodeWithText(label, substring = false).assertIsDisplayed().performClick()
++                compose.waitUntil(30_000) { runBlocking { settings.settings.first().theme } == if (dark) ThemeMode.DARK else ThemeMode.LIGHT }
++                for ((index, title) in listOf("界面字体", "正文排版", "应用字号").withIndex()) {
++                    val stem = "${if (dark) "dark" else "light"}-$index"
++                    compose.onNodeWithTag("settings-detail-list").performScrollToNode(hasText(title, substring = false))
++                    compose.onNodeWithText(title, substring = false).assertIsDisplayed().performClick()
++                    awaitSheet(); capture("$stem-active", dark, true, title)
++                    when {
++                        title == "应用字号" -> compose.onNodeWithText("取消", substring = false).performScrollTo().assertIsDisplayed().performClick()
++                        (dark && index == 0) || (!dark && index == 1) -> device.pressBack()
++                        else -> compose.onNodeWithContentDescription("关闭$title").assertIsDisplayed().performClick()
++                    }
++                    awaitDismissed(); capture("$stem-dismissed", dark, false, "外观与字体")
++                }
++            }
++            compose.onNodeWithTag("settings-detail-list").performScrollToNode(hasText("深色", substring = false))
++            compose.onNodeWithText("深色", substring = false).performClick()
++            compose.waitUntil(30_000) { runBlocking { settings.settings.first().theme } == ThemeMode.DARK }
++            compose.onNodeWithTag("settings-detail-list").performScrollToNode(hasText("界面字体", substring = false))
++            compose.onNodeWithText("界面字体", substring = false).performClick(); awaitSheet()
++            compose.activityRule.scenario.recreate(); awaitSheet()
++            capture("dark-font-open-sheet-recreation", true, true, "界面字体")
++            compose.onNodeWithContentDescription("关闭界面字体").assertIsDisplayed().performClick(); awaitDismissed()
++            capture("dark-font-recreated-dismissed", true, false, "外观与字体")
++            assertEquals(original.fontScale, runBlocking { settings.settings.first().fontScale }, .001f)
++            assertEquals(original.font, runBlocking { settings.settings.first().font })
++            assertEquals(original.readingPreset, runBlocking { settings.settings.first().readingPreset })
++        } finally { runBlocking { settings.update { original } } }
++    }
++    @Test fun guestMainActivityLoginGateSettingsAndBlacklistBack() {
++        awaitText("我的")
++        EmulatorEvidence.capture("production-01-main-launch", expectedText = "首页")
++        compose.onNodeWithText("我的").performClick()
++        awaitText("点击登录")
++        EmulatorEvidence.capture("production-02-guest-my", expectedText = "点击登录")
++        compose.onNodeWithText("我的收藏").performScrollTo().performClick()
++        awaitText("登录")
++        compose.onNodeWithText("手机号 / 邮箱 / 用户名").assertExists()
++        EmulatorEvidence.capture("production-03-login-gate-no-credentials", expectedText = "手机号 / 邮箱 / 用户名")
++        back()
++        openSettings()
++        awaitText("浏览与隐私")
++        compose.onNodeWithText("浏览与隐私").performClick()
++        compose.onNodeWithText("用户与话题黑名单").performClick()
++        awaitText("黑名单")
++        EmulatorEvidence.capture("production-04-blacklist", expectedText = "黑名单")
++        back(); awaitText("浏览与隐私")
++        EmulatorEvidence.capture("production-05-settings-return", expectedText = "浏览与隐私")
++    }
++    @Test fun actualSafCategoryExportCancelAndSafeTemporaryDestination() {
++        // Local synthetic record in this dedicated throwaway AVD only; no user store/device touched.
++        val container = (compose.activity.application as NativeApplication).container
++        runBlocking { container.local.addBlockedUser("42424242") }
++        awaitText("我的")
++        compose.onNodeWithText("我的").performClick()
++        openSettings()
++        awaitText("浏览与隐私"); compose.onNodeWithText("浏览与隐私").performClick()
++        compose.onNodeWithText("用户与话题黑名单").performClick()
++        awaitText("黑名单")
++        action("导出用户列表").performClick()
++        assertTrue("Actual OS document picker opened", device.wait(Until.hasObject(By.pkg("com.android.documentsui")),30_000))
++        EmulatorEvidence.capture("production-saf-01-create-document", expectedText = "Downloads", expectedPackage = "com.android.documentsui")
++        val hierarchy = java.io.ByteArrayOutputStream()
++        device.dumpWindowHierarchy(hierarchy)
++        EmulatorEvidence.text("production-saf-01-picker-hierarchy.xml", hierarchy.toString("UTF-8"))
++        device.pressBack()
++        compose.waitForIdle(); action("导出用户列表").assertIsEnabled()
++        EmulatorEvidence.capture("production-saf-02-cancel-return", expectedText = "导出用户列表")
++        action("导出用户列表").performClick()
++        assertTrue(device.wait(Until.hasObject(By.pkg("com.android.documentsui")),30_000))
++        // The prior task-run exports are preserved. Choose a fresh task-only name through
++        // the actual observed API26 DocumentsUI filename field, never overwrite old evidence.
++        val filename = "native-qa-users-${System.currentTimeMillis()}.json"
++        val title = device.wait(Until.findObject(By.res("android", "title").clazz("android.widget.EditText")),10_000)
++        checkNotNull(title) { "Observed DocumentsUI filename field is missing" }
++        title.text = filename
++        assertEquals(filename, title.text)
++        EmulatorEvidence.capture("production-saf-03-create-unique-document", expectedText = filename, expectedPackage = "com.android.documentsui")
++        val saveHierarchy = java.io.ByteArrayOutputStream()
++        device.dumpWindowHierarchy(saveHierarchy)
++        EmulatorEvidence.text("production-saf-observed-save-hierarchy.xml", saveHierarchy.toString("UTF-8"))
++        EmulatorEvidence.text("production-saf-observed-filename.txt", title.text)
++        // API26's actual DocumentsUI save toolbar uses this stable android resource id.
++        val save = device.wait(Until.findObject(By.res("com.android.documentsui", "button1")),10_000)
++            ?: device.findObject(By.text("SAVE")) ?: device.findObject(By.text("Save"))
++        checkNotNull(save) { "Inspect actual DocumentsUI screenshot; no guessed coordinate click" }
++        assertTrue("Picker permits safe task-only output", save.isEnabled)
++        save.click()
++        awaitText("已导出")
++        compose.waitUntil(30_000) {
++            InstrumentationRegistry.getInstrumentation().uiAutomation.rootInActiveWindow
++                ?.packageName?.toString() == "io.github.ktclat.c001apk.nativeapp"
++        }
++        // DocumentsUI may restore an IME asynchronously after returning. Establish one
++        // explicit visible-field focus through a normal touch, positively observe the IME,
++        // then use normal Back. Never treat an initial false visibility as final or press
++        // Back blindly (which could leave Blacklist). No draft text is entered or changed.
++        compose.onNodeWithTag("blacklist-list").performScrollToIndex(0)
++        compose.onNodeWithTag("blacklist-input").assertIsDisplayed().performTouchInput { click() }
++        compose.waitUntil(20_000) { imeVisible() }
++        EmulatorEvidence.text("production-saf-ime-before-back.txt", "Positive native root WindowInsets IME visibility=true after visible input touch; no draft mutation.\n")
++        device.pressBack()
++        compose.waitUntil(20_000) { !imeVisible() }
++        compose.onNodeWithTag("blacklist-list").assertExists()
++        action("已导出").assertIsDisplayed()
++        EmulatorEvidence.text("production-saf-ime-after-back.txt", "Native root WindowInsets IME visibility=false; Blacklist still present; actual lazy-list scroll shows 已导出.\n")
++        EmulatorEvidence.capture("production-saf-04-export-completed", expectedText = "已导出")
++        EmulatorEvidence.text("production-saf-scope.txt", "Actual unmodified MainActivity, actual Android DocumentsUI CreateDocument, Cancel then confirmed synthetic category export. Output contains only task-owned synthetic ID42424242. No user device, credentials or external provider.\n")
++        runBlocking { container.local.removeBlockedUser("42424242") }
++    }
++    private fun imeVisible() = compose.runOnUiThread {
++        androidx.core.view.ViewCompat.getRootWindowInsets(compose.activity.window.decorView)
++            ?.isVisible(androidx.core.view.WindowInsetsCompat.Type.ime()) == true
++    }
++    private fun assertFocusedWindowBars(name: String, dark: Boolean, dialog: Boolean) {
++        val dump = EmulatorEvidence.windowDump(name)
++        val id = Regex("mCurrentFocus=Window\\{([0-9a-fA-F]+) ").find(dump)?.groupValues?.get(1)
++            ?: error("No positive focused WindowManager window in $name")
++        val block = dump.split(Regex("(?m)^  Window #")).firstOrNull {
++            it.lineSequence().firstOrNull().orEmpty().contains("Window{$id ")
++        } ?: error("Focused window section missing for $name")
++        assertTrue("Focused window belongs to production package", block.contains("package=io.github.ktclat.c001apk.nativeapp"))
++        val type = Regex("\\bty=([0-9]+)\\b").find(block)?.groupValues?.get(1)?.toInt()
++        assertEquals("Inspect the active dialog, not only MainActivity.window", if (dialog) 2 else 1, type)
++        val flags = Regex("mSystemUiVisibility=0x([0-9a-fA-F]+)").find(block)?.groupValues?.get(1)?.toInt(16)
++            ?: error("Focused window system-ui flags missing for $name")
++        EmulatorEvidence.text("$name-focused-window.txt", "focusId=$id type=$type flags=0x${flags.toString(16)} expectedDark=$dark\n$block")
++        assertEquals("Active window status icon appearance", !dark, flags and android.view.View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR != 0)
++        assertEquals("Active window navigation icon appearance", !dark, flags and android.view.View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR != 0)
++    }
++    private fun openSettings() {
++        val button = compose.onNodeWithContentDescription("设置")
++        if (runCatching { button.assertIsDisplayed() }.isFailure) button.performScrollTo()
++        button.performClick()
++    }
++    private fun action(text: String): SemanticsNodeInteraction {
++        compose.onNodeWithTag("blacklist-list").performScrollToNode(hasText(text))
++        return compose.onNodeWithText(text)
++    }
++    private fun awaitText(text: String) = compose.waitUntil(30_000) { compose.onAllNodesWithText(text).fetchSemanticsNodes().isNotEmpty() }
++    private fun back() { compose.runOnUiThread { compose.activity.onBackPressedDispatcher.onBackPressed() }; compose.waitForIdle() }
++}
+diff --git a/qa/README.md b/qa/README.md
+new file mode 100644
+index 0000000..9c39503
+--- /dev/null
++++ b/qa/README.md
+@@ -0,0 +1,51 @@
++# Independent actual-emulator QA harness
++
++Test-only instrumentation for the native personal-card/verified-retry/blacklist increment.
++Nothing from `app/src/androidTest` is included in the production application. The application
++installed for acceptance must be the separately built exact final production APK, **not** an
++APK assembled in this test-dependency-modified worktree.
++
++## Safety and provenance
++
++* Dedicated disposable AOSP API26 emulator; no connected user device, no real credentials.
++* Production MainActivity tests use the unmodified application and real Android storage/picker.
++  Guest public GETs are authorized and may fail normally; this is NOT an offline-boot claim.
++  Do not use adb root or change any host/user/emulator network security policy. Only local test-owned blacklist ID
++  `42424242` may be written/exported by the actual SAF exercise.
++* Authenticated tests instantiate production `NativeApp`, transport, decoder, account runtime
++  with memory-only fake credentials and local state. Network interceptors either return exact
++  allowlisted local fixtures or throw before any `chain.proceed`; images are local PNG assets.
++* The only allowed synthetic POST is the production graphic-verification request with precisely
++  `type=err_request_captcha`, `code=AB12`; it never reaches a service. Tests type into the actual
++  graphic UI. This is not real CAPTCHA/provider acceptance and does not bypass security.
++* Blacklist boundary tests use a synthetic ActivityResultRegistry/document adapter and are
++  labelled as such. They establish category freeze, duplicate/cancel behavior and JSON validation,
++  **not** Android SAF provider integration. Production launch tests separately open actual SAF.
++* Images are untouched compositor screenshots (`UiAutomation.takeScreenshot`) from Android,
++  not Compose render/Canvas/Robolectric output. Original PNGs are collected with request logs.
++
++## Preparation and execution
++
++1. Rebase/cherry-pick to final accepted production code, keeping test files/dependencies isolated.
++2. Verify `git diff FINAL_COMMIT -- app/src/main` is empty (also compare production buildSrc and
++   root build configuration). Record final commit/tree/source fingerprint and final APK SHA256.
++3. Acquire shared `heavy-gates.lock`, source task-local toolchain, build
++   `:app:assembleDebugAndroidTest` with max-workers1/in-process Kotlin. Release lock afterward.
++4. Start the sole emulator through `native-toolchain/open-emulator.sh` in a persistent shell with
++   the ordinary unprivileged helper mode, exact final production APK path, evidence directory. Keep all subsequent
++   adb in that same shell. Helper retains heavy lock until stopped.
++5. Install test APK, verify package path→pull→cmp of production APK, record both APK hashes.
++6. Run `adb -s emulator-5580 shell am instrument -w -r
++   io.github.ktclat.c001apk.nativeapp.test/androidx.test.runner.AndroidJUnitRunner`.
++7. Pull `/sdcard/Android/data/io.github.ktclat.c001apk.nativeapp/files/independent-emulator-qa`.
++   Save instrumentation log, logcat/crash buffer, Android build/display/network policy and
++   test manifest. Record guest network observations separately from fixture requests. Use wm size640x1200/320dpi for dedicated narrow dark/large-font methods; reset.
++8. Independently inspect original PNGs. Failures are not passes; fix/rebuild/re-run final source.
++   Stop the sole emulator using the stop helper after collecting all evidence.
++
++## Explicitly outside acceptance
++
++No live authenticated Coolapk reads, social writes, actual account login, CAPTCHA provider SDK, device performance,
++physical device, TalkBack, persistent user-account migration or complete Flutter parity claim.
++Personal route Back refetches first page; only blacklist child Back is tested for scroll/draft
++retention. Rich cards restore already-decoded source fields; no new linked `data.feed` model.
+diff --git a/qa/collect-source-binding.sh b/qa/collect-source-binding.sh
+new file mode 100755
+index 0000000..76e90f5
+--- /dev/null
++++ b/qa/collect-source-binding.sh
+@@ -0,0 +1,23 @@
++#!/usr/bin/env bash
++set -euo pipefail
++final=${1:?final production commit}; apk=${2:?final production APK}; testapk=${3:?test APK}; out=${4:?evidence directory}
++cd "$(dirname "$0")/.."
++mkdir -p "$out"
++git diff --exit-code "$final" -- app/src/main buildSrc/src build.gradle.kts settings.gradle.kts gradle gradle.properties
++{
++ printf 'production_commit=%s\n' "$(git rev-parse "$final")"
++ printf 'production_tree=%s\n' "$(git rev-parse "$final^{tree}")"
++ printf 'harness_commit=%s\n' "$(git rev-parse HEAD)"
++ printf 'harness_tree=%s\n' "$(git rev-parse HEAD^{tree})"
++ printf 'No production sources/buildSrc/root toolchain differences against final commit.\n'
++ printf 'Only app build.gradle AndroidTest dependencies/test sources/qa are harness-specific.\n'
++ git status --short
++} > "$out/source-binding.txt"
++git diff "$final" -- app/build.gradle.kts > "$out/test-only-gradle-diff.patch"
++sha256sum "$apk" "$testapk" > "$out/apks.sha256"
++find app/src/main app/src/androidTest -type f -print0 | sort -z | xargs -0 sha256sum > "$out/source-and-harness-files.sha256"
++unzip -l "$apk" > "$out/production-apk-contents.txt"
++unzip -l "$testapk" > "$out/test-apk-contents.txt"
++if unzip -l "$apk" | grep -Eq '(androidTest|icon-grid/icon-[0-9]|EmulatorGraphicRetry|independent-emulator-qa)'; then
++ echo 'Unexpected instrumentation fixtures in production APK' >&2; exit 1
++fi
+diff --git a/qa/run-instrumentation-session.sh b/qa/run-instrumentation-session.sh
+new file mode 100755
+index 0000000..91da15f
+--- /dev/null
++++ b/qa/run-instrumentation-session.sh
+@@ -0,0 +1,57 @@
++#!/usr/bin/env bash
++# SOURCE in the SAME persistent shell owning the already-started task emulator.
++# Uses ordinary adb only. No adb root, firewall changes or user-device operations.
++_native_run_instrumentation() {
++ local testapk="${1:?test APK required}" out="${NATIVE_EMU_OUT:?open-emulator helper must run first}"
++ test "${NATIVE_EMU_SERIAL:-}" = emulator-5580 || { echo 'Only task emulator serial allowed'; return 2; }
++ test -f "$testapk" || return 2
++ sha256sum "$testapk" > "$out/test-apk.sha256"
++ adb -s "$NATIVE_EMU_SERIAL" install -r "$testapk" | tee "$out/install-test.txt"
++ grep -q '^Success' "$out/install-test.txt" || return 1
++ adb -s "$NATIVE_EMU_SERIAL" shell getprop > "$out/emulator-properties.txt"
++ adb -s "$NATIVE_EMU_SERIAL" shell wm size > "$out/display-default.txt"
++ adb -s "$NATIVE_EMU_SERIAL" shell wm density >> "$out/display-default.txt"
++ adb -s "$NATIVE_EMU_SERIAL" shell dumpsys connectivity > "$out/guest-connectivity-observed.txt"
++ adb -s "$NATIVE_EMU_SERIAL" shell am instrument -w -r -e timeout_msec 180000 io.github.ktclat.c001apk.nativeapp.test/androidx.test.runner.AndroidJUnitRunner 2>&1 | tee "$out/instrumentation-default.log"
++ adb -s "$NATIVE_EMU_SERIAL" pull /sdcard/Android/data/io.github.ktclat.c001apk.nativeapp/files/independent-emulator-qa "$out/default-evidence"
++ # Actual narrow display; do not emulate geometry by relabelling a portrait Canvas screenshot.
++ adb -s "$NATIVE_EMU_SERIAL" shell wm size 640x1200
++ adb -s "$NATIVE_EMU_SERIAL" shell wm density 320
++ adb -s "$NATIVE_EMU_SERIAL" shell wm size > "$out/display-narrow.txt"
++ adb -s "$NATIVE_EMU_SERIAL" shell am instrument -w -r -e class 'io.github.ktclat.c001apk.nativeapp.ui.EmulatorPersonalRichCardsTest#darkLargeFontCanReachImagesTemplatesAndBack,io.github.ktclat.c001apk.nativeapp.ui.EmulatorBlacklistRootTest#largeSystemAndAppFontActionsAndClearDialogKeepEffectiveDensity' io.github.ktclat.c001apk.nativeapp.test/androidx.test.runner.AndroidJUnitRunner 2>&1 | tee "$out/instrumentation-narrow.log"
++ adb -s "$NATIVE_EMU_SERIAL" pull /sdcard/Android/data/io.github.ktclat.c001apk.nativeapp/files/independent-emulator-qa "$out/narrow-evidence"
++ # Rotate the actual disposable display; a size swap alone letterboxes API26 and can
++ # make UiAutomation screenshots unavailable. Preserve/restore ordinary user settings.
++ local old_accel old_rotation
++ old_accel="$(adb -s "$NATIVE_EMU_SERIAL" shell settings get system accelerometer_rotation | tr -d '\r\n')"
++ old_rotation="$(adb -s "$NATIVE_EMU_SERIAL" shell settings get system user_rotation | tr -d '\r\n')"
++ [[ "$old_accel" =~ ^(null|0|1)$ && "$old_rotation" =~ ^(null|[0-3])$ ]] || { echo 'Unexpected rotation settings; no rotation attempted'; return 1; }
++ printf 'accelerometer_rotation=%s\nuser_rotation=%s\n' "$old_accel" "$old_rotation" > "$out/rotation-before.txt"
++ adb -s "$NATIVE_EMU_SERIAL" shell wm size reset
++ adb -s "$NATIVE_EMU_SERIAL" shell settings put system accelerometer_rotation 0
++ adb -s "$NATIVE_EMU_SERIAL" shell settings put system user_rotation 1
++ # Launcher may lock portrait. Use the unchanged MainActivity for actual rotation preflight.
++ adb -s "$NATIVE_EMU_SERIAL" shell am start -W -n io.github.ktclat.c001apk.nativeapp/.MainActivity
++ sleep 3
++ adb -s "$NATIVE_EMU_SERIAL" shell dumpsys display > "$out/display-landscape.txt"
++ adb -s "$NATIVE_EMU_SERIAL" exec-out screencap -p > "$out/landscape-preflight.png"
++ if grep -q 'mCurrentOrientation=1' "$out/display-landscape.txt" && python3 - "$out/landscape-preflight.png" <<'PY'
++import pathlib, struct, sys
++data = pathlib.Path(sys.argv[1]).read_bytes()
++assert data[:8] == b'\x89PNG\r\n\x1a\n'
++assert struct.unpack('>II', data[16:24]) == (1280, 720)
++PY
++ then
++  adb -s "$NATIVE_EMU_SERIAL" shell am instrument -w -r -e class 'io.github.ktclat.c001apk.nativeapp.ui.EmulatorBlacklistRootTest#shortLandscapeLargeFontActionsAndClearDialogRemainReachable' io.github.ktclat.c001apk.nativeapp.test/androidx.test.runner.AndroidJUnitRunner 2>&1 | tee "$out/instrumentation-landscape.log"
++  adb -s "$NATIVE_EMU_SERIAL" pull /sdcard/Android/data/io.github.ktclat.c001apk.nativeapp/files/independent-emulator-qa "$out/landscape-evidence"
++ else
++  echo 'Actual landscape preflight failed; do not count a landscape pass.' | tee "$out/landscape-preflight-failed.txt"
++ fi
++ if test "$old_accel" = null; then adb -s "$NATIVE_EMU_SERIAL" shell settings delete system accelerometer_rotation; else adb -s "$NATIVE_EMU_SERIAL" shell settings put system accelerometer_rotation "$old_accel"; fi
++ if test "$old_rotation" = null; then adb -s "$NATIVE_EMU_SERIAL" shell settings delete system user_rotation; else adb -s "$NATIVE_EMU_SERIAL" shell settings put system user_rotation "$old_rotation"; fi
++ adb -s "$NATIVE_EMU_SERIAL" shell wm size reset
++ adb -s "$NATIVE_EMU_SERIAL" shell wm density reset
++ adb -s "$NATIVE_EMU_SERIAL" logcat -d > "$out/emulator-logcat.txt"
++ echo 'Inspect all logs/screenshots; script completion is NOT an assertion of acceptance.'
++}
++_native_run_instrumentation "$@"

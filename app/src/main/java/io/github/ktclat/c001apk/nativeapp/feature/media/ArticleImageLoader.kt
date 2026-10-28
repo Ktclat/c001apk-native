@@ -60,7 +60,7 @@ internal class ArticleProxyRequestGuard(private val selector: ArticleProxySelect
         return chain.proceed(chain.request())
     }
 }
-internal fun articleImageClient(selector: ArticleProxySelector = ArticleProxySelector()): OkHttpClient = OkHttpClient.Builder()
+internal fun articleImageClient(selector: ArticleProxySelector = ArticleProxySelector()): OkHttpClient = anonymousMediaClientBuilder()
     .dns(ArticlePublicDns()).proxySelector(selector).addNetworkInterceptor(ArticleProxyRequestGuard(selector))
     .cookieJar(CookieJar.NO_COOKIES).authenticator(Authenticator.NONE).proxyAuthenticator(Authenticator.NONE)
     .followRedirects(false).followSslRedirects(false).retryOnConnectionFailure(false)

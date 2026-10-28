@@ -15,6 +15,9 @@ internal class MediaImageState {
     var phase by mutableStateOf(MediaImagePhase.Loading)
         private set
 
+    var failure by mutableStateOf<ImageLoadFailure?>(null)
+        private set
+
     var bypassCache by mutableStateOf(false)
         private set
 
@@ -23,17 +26,22 @@ internal class MediaImageState {
         if (phase == MediaImagePhase.Error) return // Failed pages stay failed until the user's tap.
         attempt++
         bypassCache = false
+        failure = null
         phase = MediaImagePhase.Loading
     }
 
-    fun finish(ownerAttempt: Int, result: MediaImagePhase) {
-        if (ownerAttempt == attempt && phase == MediaImagePhase.Loading && result != MediaImagePhase.Loading) phase = result
+    fun finish(ownerAttempt: Int, result: MediaImagePhase, error: ImageLoadFailure? = null) {
+        if (ownerAttempt == attempt && phase == MediaImagePhase.Loading && result != MediaImagePhase.Loading) {
+            failure = if (result == MediaImagePhase.Error) error ?: ImageLoadFailure(ImageLoadFailureKind.UNKNOWN) else null
+            phase = result
+        }
     }
 
     fun retry() {
         if (phase != MediaImagePhase.Error) return
         attempt++
         bypassCache = true
+        failure = null
         phase = MediaImagePhase.Loading
     }
 }

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 package io.github.ktclat.c001apk.nativeapp.local
 
+import io.github.ktclat.c001apk.nativeapp.ui.NativeTokenText
 import io.github.ktclat.c001apk.nativeapp.ui.floatingDockRecovery
 import io.github.ktclat.c001apk.nativeapp.ui.LocalFloatingDockReveal
 import androidx.compose.foundation.clickable
@@ -68,8 +69,8 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
                 Card(Modifier.fillMaxWidth().testTag("local-follow-card:${item.id}").padding(horizontal = 12.dp, vertical = 6.dp).clickable { onOpenFeed(item.id) }) {
                     Column(Modifier.padding(16.dp)) {
                         TextButton(onClick = { onOpenUser(item.userId) }) { Text(item.userName.ifBlank { item.userId }) }
-                        if (item.title.isNotBlank()) Text(item.title, style = MaterialTheme.typography.titleMedium)
-                        Text(item.message, maxLines = 8, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+                        if (item.title.isNotBlank()) NativeTokenText(item.title, style = MaterialTheme.typography.titleMedium)
+                        NativeTokenText(item.message, maxLines = 8, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
                         if (item.imageUrls.isNotEmpty()) Text("${item.imageUrls.size} 张图片 · 打开详情查看", style = MaterialTheme.typography.labelMedium)
                     }
                 }

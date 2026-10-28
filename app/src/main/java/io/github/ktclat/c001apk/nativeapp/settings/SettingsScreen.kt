@@ -98,7 +98,7 @@ enum class SettingsSection(val title: String, val description: String) {
                                 if (isLoggedIn) item { FollowContentChoices(settings, onFollowSelection) }
                                 else item { Text("本地关注", style = MaterialTheme.typography.titleMedium); Text("游客可在用户主页直接关注，并在底栏“关注”查看内容。名单仅保存在本机。") }
                                 item { NavigationSetting("管理本地关注", "查看本机关注名单、进入用户主页或取消关注", ProfileIcons.PersonAddOutlined, onClick = onOpenFollows) }
-                                item { Text("表情图片显示尚未接入，当前保留内容中的表情文字标记。", style = MaterialTheme.typography.bodySmall) }
+                                item { SettingSwitch("显示表情图片", settings.showEmoji, "使用内置表情图片；关闭后保留原文字标记") { onSettingsEdit { current -> current.copy(showEmoji = it) } } }
                             }
                             SettingsSection.PRIVACY -> {
                                 item { NavigationSetting("用户与话题黑名单", "管理屏蔽的用户、话题与关键词", FlutterMaterialIcons.Block, onClick = onOpenBlacklist) }

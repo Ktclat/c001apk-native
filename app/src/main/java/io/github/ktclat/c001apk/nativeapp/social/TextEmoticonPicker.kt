@@ -8,6 +8,8 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.AnnotatedString
+import io.github.ktclat.c001apk.nativeapp.ui.NativeRichText
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.contentDescription
@@ -44,7 +46,7 @@ internal fun TextEmoticonPicker(enabled: Boolean, onInsert: (String) -> Unit, on
                     // consume the remaining viewport at 200% font scale in landscape.
                     Column(Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState())
                         .testTag("composer-emoticon-scroll"), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Text("插入文字标记，不含表情图片；不会发送。", style = MaterialTheme.typography.bodyMedium)
+                        Text("插入原文字标记；显示跟随表情图片设置，不会发送。", style = MaterialTheme.typography.bodyMedium)
                         FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             TextEmoticons.groups.forEachIndexed { index, group ->
                                 FilterChip(selected = groupIndex == index, onClick = { groupIndex = index },
@@ -60,7 +62,7 @@ internal fun TextEmoticonPicker(enabled: Boolean, onInsert: (String) -> Unit, on
                                         modifier = Modifier.heightIn(min = 48.dp).testTag("composer-emoticon-$token")
                                             .semantics { contentDescription = "插入$token" },
                                         contentPadding = PaddingValues(horizontal = 12.dp, vertical = 10.dp)) {
-                                        Text(token, style = MaterialTheme.typography.bodyMedium)
+                                        NativeRichText(AnnotatedString(token), style = MaterialTheme.typography.bodyMedium)
                                     }
                                 }
                             }

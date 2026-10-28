@@ -50,9 +50,10 @@ class ArticleImageLoaderTest {
         assertNull(client.cache)
         assertTrue(client.proxySelector is ArticleProxySelector)
         assertTrue(client.dns is ArticlePublicDns)
-        assertTrue(client.interceptors.isEmpty())
-        assertEquals(1, client.networkInterceptors.size)
-        assertTrue(client.networkInterceptors.single() is ArticleProxyRequestGuard)
+        assertEquals(listOf(AnonymousMediaHeaders), client.interceptors)
+        assertEquals(2, client.networkInterceptors.size)
+        assertTrue(client.networkInterceptors.any { it is ArticleProxyRequestGuard })
+        assertTrue(client.networkInterceptors.any { it is PublicMediaRequestPolicy })
     }
 
     @Test fun boundedStaticSuccessHasOnlyAnonymousHeadersAndSamplesBeforeAllocation() = runBlocking {
@@ -280,7 +281,7 @@ class ArticleImageLoaderTest {
         var current = directSelector()
         val selector = ArticleProxySelector { current }
         val client = articleImageClient(selector)
-        val guard = client.networkInterceptors.single()
+        val guard = client.networkInterceptors.filterIsInstance<ArticleProxyRequestGuard>().single()
         val request = Request.Builder().url(url).build()
         val headerWrites = AtomicInteger()
         // Reuse one synthetic chain/connection boundary; never open a socket or resolve a host.

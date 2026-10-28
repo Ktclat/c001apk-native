@@ -1,0 +1,60 @@
+[
+  {
+    "algorithm": "sha256",
+    "bytes": 193594705,
+    "digest": "8b9b611d917e3dfd8419d3566b5949226f69b052fed7e109c1368add1dfe8711",
+    "filename": "OpenJDK17U-jdk_x64_linux_hotspot_17.0.21_9.tar.gz",
+    "metadata": "https://api.adoptium.net/v3/assets/version/17.0.21%2B9?architecture=x64&heap_size=normal&image_type=jdk&jvm_impl=hotspot&os=linux&vendor=eclipse",
+    "sha256": "8b9b611d917e3dfd8419d3566b5949226f69b052fed7e109c1368add1dfe8711",
+    "url": "https://github.com/adoptium/temurin17-binaries/releases/download/jdk-17.0.21%2B9/OpenJDK17U-jdk_x64_linux_hotspot_17.0.21_9.tar.gz"
+  },
+  {
+    "algorithm": "sha256",
+    "bytes": 136983045,
+    "digest": "20f1b1176237254a6fc204d8434196fa11a4cfb387567519c61556e8710aed78",
+    "filename": "gradle-8.13-bin.zip",
+    "metadata": "Repository gradle/wrapper/gradle-wrapper.properties distributionSha256Sum",
+    "sha256": "20f1b1176237254a6fc204d8434196fa11a4cfb387567519c61556e8710aed78",
+    "url": "https://services.gradle.org/distributions/gradle-8.13-bin.zip"
+  },
+  {
+    "algorithm": "sha1",
+    "bytes": 65878410,
+    "digest": "2c1a80dd4d9f7d0e6dd336ec603d9b5c55a6f576",
+    "filename": "platform-36_r02.zip",
+    "metadata": "https://dl.google.com/android/repository/repository2-1.xml",
+    "sdkPackage": "platforms;android-36",
+    "sha256": "37607369a28c5b640b3a7998868d45898ebcb777565a0e85f9acf36f29631d2e",
+    "url": "https://dl.google.com/android/repository/platform-36_r02.zip"
+  },
+  {
+    "algorithm": "sha1",
+    "bytes": 63737259,
+    "digest": "b0b6376977657e8ad9b969bacf4093601da2c6fb",
+    "filename": "build-tools_r36_linux.zip",
+    "metadata": "https://dl.google.com/android/repository/repository2-1.xml",
+    "sdkPackage": "build-tools;36.0.0",
+    "sha256": "5d9ac77fb6ff43d9da518a337b4fcf8f9097113df531d99ccefe80ef7ce8250b",
+    "url": "https://dl.google.com/android/repository/build-tools_r36_linux.zip"
+  },
+  {
+    "algorithm": "sha1",
+    "bytes": 164760899,
+    "digest": "5fdcc763663eefb86a5b8879697aa6088b041e70",
+    "filename": "commandlinetools-linux-13114758_latest.zip",
+    "metadata": "https://dl.google.com/android/repository/repository2-1.xml",
+    "sdkPackage": "cmdline-tools;19.0",
+    "sha256": "7ec965280a073311c339e571cd5de778b9975026cfcbe79f2b1cdcb1e15317ee",
+    "url": "https://dl.google.com/android/repository/commandlinetools-linux-13114758_latest.zip"
+  },
+  {
+    "algorithm": "sha1",
+    "bytes": 9054187,
+    "digest": "477254aa5f903c15cf51001717bdf347fb6b53e0",
+    "filename": "platform-tools_r37.0.1-linux.zip",
+    "metadata": "https://dl.google.com/android/repository/repository2-1.xml",
+    "sdkPackage": "platform-tools",
+    "sha256": "d230f13842f60f782a8645f9c813f8f845bf36089ea7289f28c48f17979313f1",
+    "url": "https://dl.google.com/android/repository/platform-tools_r37.0.1-linux.zip"
+  }
+]

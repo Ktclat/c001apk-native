@@ -4,12 +4,14 @@ package io.github.ktclat.c001apk.nativeapp.ui
 
 import android.graphics.Typeface
 import android.text.Html
+import android.text.style.TypefaceSpan
 import android.text.style.StyleSpan
 import android.text.style.StrikethroughSpan
 import android.text.style.UnderlineSpan
 import android.text.style.URLSpan
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
@@ -37,7 +39,7 @@ private class ArticleBudget(val active: () -> Unit) {
 
 /** Strict small inline vocabulary. Admitted styles are preserved, never silently flattened. */
 private fun articleMarkupPreflight(html: String, budget: ArticleBudget) {
-    val allowed = setOf("a", "b", "strong", "i", "em", "u", "del", "s", "strike", "p", "div", "br")
+    val allowed = setOf("a", "b", "strong", "i", "em", "u", "del", "s", "strike", "p", "div", "br", "tt")
     val stack = ArrayList<String>()
     val anchorAttributes = Regex("(?is)^\\s*(?:href\\s*=\\s*(?:\"[^\"]*\"|'[^']*'|[^\\s\"'=<>`]+)\\s*)?/?\\s*$")
     var at = 0
@@ -90,7 +92,7 @@ private fun articleMarkupPreflight(html: String, budget: ArticleBudget) {
 private fun richArticleText(raw: String, role: ArticleTextRole, sourceIndex: Int, budget: ArticleBudget): ArticleFragment.RichText {
     budget.active()
     if (raw.length > FullPostBodyBounds.MAX_HTML_UNITS) throw ArticleLimit(FullPostBodyLimit.BODY_TOO_LARGE, raw.length)
-    val normalized = normalizePostMarkup(raw)
+    val normalized = normalizePostMarkup(normalizeLocalInlineImages(raw))
     // Normalization can expand line breaks/Markdown, but input and tag count remain bounded.
     if (normalized.length > FullPostBodyBounds.MAX_HTML_UNITS * 5) throw ArticleLimit(FullPostBodyLimit.MARKUP_COMPLEXITY)
     articleMarkupPreflight(normalized, budget)
@@ -108,6 +110,8 @@ private fun richArticleText(raw: String, role: ArticleTextRole, sourceIndex: Int
         val start = spanned.getSpanStart(span); val end = spanned.getSpanEnd(span)
         if (start < 0 || end <= start || end > text.length) throw ArticleLimit(FullPostBodyLimit.UNSUPPORTED_MARKUP)
         when (span) {
+            is TypefaceSpan -> if (span.family == "monospace") builder.addStyle(SpanStyle(fontFamily = FontFamily.Monospace), start, end)
+                else throw ArticleLimit(FullPostBodyLimit.UNSUPPORTED_MARKUP)
             is StyleSpan -> builder.addStyle(SpanStyle(
                 fontWeight = if (span.style and Typeface.BOLD != 0) FontWeight.Medium else null,
                 fontStyle = if (span.style and Typeface.ITALIC != 0) FontStyle.Italic else null), start, end)
@@ -122,7 +126,7 @@ private fun richArticleText(raw: String, role: ArticleTextRole, sourceIndex: Int
             else -> throw ArticleLimit(FullPostBodyLimit.UNSUPPORTED_MARKUP)
         }
     }
-    return ArticleFragment.RichText(builder.toAnnotatedString(), links, role, sourceIndex)
+    return ArticleFragment.RichText(withEmoticonLiteralContext(builder.toAnnotatedString()), links, role, sourceIndex)
 }
 
 /** Bounded source-order packing; only text is split, and only at surrogate-safe boundaries. */
@@ -167,8 +171,7 @@ internal fun prepareArticle(body: FullPostBody.Structured, checkActive: () -> Un
                     checkActive()
                     // Prefer remaining space so a short article has one natural ordered surface.
                     if (fragments.size >= ArticleBodyBounds.MAX_FRAGMENTS_PER_SEGMENT || textUnits >= FullPostBodyBounds.PAGE_UNITS) flush()
-                    var end = (start + FullPostBodyBounds.PAGE_UNITS - textUnits).coerceAtMost(rich.value.length)
-                    if (end > start && end < rich.value.length && rich.value[end - 1].isHighSurrogate() && rich.value[end].isLowSurrogate()) end--
+                    val end = richTextBoundary(rich.value, start, (start + FullPostBodyBounds.PAGE_UNITS - textUnits).coerceAtMost(rich.value.length))
                     if (end == start && start < rich.value.length) { flush(); continue }
                     val links = rich.links.filter { it.start < end && it.end > start }.map {
                         it.copy(start = (it.start - start).coerceAtLeast(0), end = (it.end - start).coerceAtMost(end - start))

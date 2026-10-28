@@ -196,7 +196,7 @@ private class MarkdownProjector(val role: ArticleTextRole, val sourceIndex: Int,
         active()
         units += text.length
         if (units > FullPostBodyBounds.MAX_HTML_UNITS || fragments.size >= 1_024) throw MarkdownLimit()
-        fragments.add(ArticleFragment.RichText(text, links, role, sourceIndex, style))
+        fragments.add(ArticleFragment.RichText(withEmoticonLiteralContext(text), links, role, sourceIndex, style))
     }
     fun blocks(parent: Node, quote: Int, listDepth: Int) {
         var node = parent.firstChild
@@ -306,8 +306,7 @@ internal fun packMarkdownFragments(fragments: List<ArticleFragment.RichText>, ac
         do {
             active()
             if (units == FullPostBodyBounds.PAGE_UNITS || parts.size == ArticleBodyBounds.MAX_FRAGMENTS_PER_SEGMENT) flush()
-            var end = minOf(fragment.value.length, start + FullPostBodyBounds.PAGE_UNITS - units)
-            if (end > start && end < fragment.value.length && fragment.value[end - 1].isHighSurrogate() && fragment.value[end].isLowSurrogate()) end--
+            val end = richTextBoundary(fragment.value, start, minOf(fragment.value.length, start + FullPostBodyBounds.PAGE_UNITS - units))
             if (end == start && start < fragment.value.length) { flush(); continue }
             val links = fragment.links.filter { it.start < end && it.end > start }.map {
                 it.copy(start = (it.start - start).coerceAtLeast(0), end = (it.end - start).coerceAtMost(end - start))
@@ -330,5 +329,5 @@ internal fun rawDetailPages(body: FullPostBody, active: () -> Unit): List<FullPo
             body.cover?.let { "原始封面地址（仅文本）" to it }, "原始结构化正文（JSON）" to body.rawOutput)
         is FullPostBody.Unavailable -> emptyList()
     }
-    return fields.flatMap { (label, source) -> fullPostPages(source, emptyList(), active).map { it.copy(sourceLabel = label) } }
+    return fields.flatMap { (label, source) -> fullPostPages(source, emptyList(), active).map { it.copy(sourceLabel = label, renderInline = false) } }
 }

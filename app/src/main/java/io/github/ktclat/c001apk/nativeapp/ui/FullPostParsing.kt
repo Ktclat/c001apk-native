@@ -3,13 +3,15 @@ package io.github.ktclat.c001apk.nativeapp.ui
 
 import android.text.Html
 import android.text.style.URLSpan
+import androidx.compose.ui.text.AnnotatedString
 import io.github.ktclat.c001apk.nativeapp.domain.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
 
-internal data class FullPostPage(val text: String, val links: List<PostLink>, val sourceLabel: String? = null)
+internal data class FullPostPage(val text: String, val links: List<PostLink>, val sourceLabel: String? = null,
+    val richText: AnnotatedString = withEmoticonLiteralContext(AnnotatedString(text)), val renderInline: Boolean = true)
 internal sealed interface PreparedFullPost {
     data class Ready(val pages: List<FullPostPage>) : PreparedFullPost
     data class Article(val pages: List<ArticlePage>, val images: List<String?>,
@@ -80,7 +82,7 @@ internal fun prepareFullPost(body: FullPostBody, checkActive: () -> Unit = {}): 
         return PreparedFullPost.Article(packMarkdownFragments(markdown.fragments, checkActive), emptyList(),
             sourcePages = rawDetailPages(body, checkActive), ordinaryTypography = true)
     }
-    val normalized = normalizePostMarkup(html)
+    val normalized = normalizePostMarkup(normalizeLocalInlineImages(html))
     fullPostMarkupLimit(normalized, checkActive)?.let { return PreparedFullPost.Unavailable(it) }
     checkActive()
     // Framework parsing is non-cooperative but bounded by source length, tag count and depth.
@@ -99,20 +101,25 @@ internal fun prepareFullPost(body: FullPostBody, checkActive: () -> Unit = {}): 
             return PreparedFullPost.Unavailable(FullPostBodyLimit.LINK_COMPLEXITY)
         links.add(PostLink(start, end, text.substring(start, end).take(80), span.url))
     }
-    return PreparedFullPost.Ready(fullPostPages(text, links, checkActive))
+    return PreparedFullPost.Ready(fullPostPages(text, links, checkActive, postAnnotatedText(spanned)))
 }
 
 /** Slice after HTML decoding, so links/tags spanning a page boundary remain intact and usable. */
-internal fun fullPostPages(text: String, links: List<PostLink>, checkActive: () -> Unit = {}): List<FullPostPage> {
+internal fun fullPostPages(text: String, links: List<PostLink>, checkActive: () -> Unit = {}): List<FullPostPage> =
+    fullPostPages(text, links, checkActive, withEmoticonLiteralContext(AnnotatedString(text)))
+
+internal fun fullPostPages(text: String, links: List<PostLink>, checkActive: () -> Unit,
+    richText: AnnotatedString, renderInline: Boolean = true): List<FullPostPage> {
     require(text.length <= FullPostBodyBounds.MAX_HTML_UNITS)
     require(links.size <= FullPostBodyBounds.MAX_LINKS)
+    require(richText.text == text)
     val pages = ArrayList<FullPostPage>()
     var start = 0
     do {
         checkActive()
-        var end = (start + FullPostBodyBounds.PAGE_UNITS).coerceAtMost(text.length)
-        if (end > start && end < text.length && text[end - 1].isHighSurrogate() && text[end].isLowSurrogate()) end--
-        pages.add(FullPostPage(text.substring(start, end), links.filter { it.start < end && it.end > start }.distinctBy { it.url }))
+        val end = richTextBoundary(richText, start, (start + FullPostBodyBounds.PAGE_UNITS).coerceAtMost(text.length))
+        pages.add(FullPostPage(text.substring(start, end), links.within(start, end),
+            richText = richText.subSequence(start, end), renderInline = renderInline))
         start = end
     } while (start < text.length)
     return pages

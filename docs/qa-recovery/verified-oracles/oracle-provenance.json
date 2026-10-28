@@ -1,0 +1,21 @@
+{
+  "sourceFile": "native-recovery/original-fragments/app/src/test/java/io/github/ktclat/c001apk/nativeapp/ui/InlineSelectionCopyRegressionTest.kt",
+  "sourceSha256": "45b3e318579c8484c83b4697e2eb5a3be8fab5f4015f5c320f25d11a656578d3",
+  "literalExtraction": "Three JSON-compatible Kotlin string literals concatenated exactly; no trailing newline added",
+  "oracles": [
+    {
+      "name": "COPY_EXPECTED",
+      "file": "copy_expected.txt",
+      "utf16Units": 97,
+      "sha256": "a9ad7ccd576cb2959cda8141b71276b608f90a45b8007e90e4451b1aa0cd385c",
+      "scope": "Exact recovered independent test literal only; not a clipboard result or execution evidence"
+    },
+    {
+      "name": "COPY_SOURCE",
+      "file": "copy_source.txt",
+      "utf16Units": 117,
+      "sha256": "fc14b342f4089d5c62306d31546267f2a1dfeb932815cc3ff6cd10f3df1884f8",
+      "scope": "Exact recovered independent test literal only; not a clipboard result or execution evidence"
+    }
+  ]
+}

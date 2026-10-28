@@ -16,6 +16,7 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import io.github.ktclat.c001apk.nativeapp.ui.NativeTokenText
 import androidx.compose.ui.unit.dp
 import io.github.ktclat.c001apk.nativeapp.domain.*
 import kotlinx.coroutines.launch
@@ -113,7 +114,7 @@ private fun SocialRowsScreen(conversationList: Boolean = false, load: suspend (P
             itemsIndexed(rows, key = { index, row -> if (conversationList) row.conversationKey ?: row.id else row.id }) { _, row ->
                 Card(Modifier.fillMaxWidth()) { Column(Modifier.padding(12.dp)) {
                     Text(row.userName.ifBlank { "通知" }, style = MaterialTheme.typography.titleSmall)
-                    Text(row.message)
+                    NativeTokenText(row.message)
                     if (row.imageUrl != null) Text("图片消息")
                     if (conversationList) row.conversationKey?.let { TextButton(onClick = { onClick(row) }) { Text(if (row.pinned) "置顶会话 · 打开" else "打开会话") } }
                     actions(row) { scope.launch { fetch(true) } }

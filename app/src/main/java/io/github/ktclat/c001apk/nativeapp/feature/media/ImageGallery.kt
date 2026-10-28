@@ -62,13 +62,10 @@ internal fun buildPublicMediaImageLoader(
     calls: okhttp3.Call.Factory = publicImageClient(),
 ): ImageLoader = ImageLoader.Builder(context.applicationContext).callFactory(calls).components {
     if (android.os.Build.VERSION.SDK_INT >= 28) add(ImageDecoderDecoder.Factory()) else add(GifDecoder.Factory())
-}.build()
+}.eventListenerFactory(io.github.ktclat.c001apk.nativeapp.diagnostics.PublicImageEventListenerFactory()).build()
 
 /** No API/session cookies, credentials, identity headers, or HTTPS-to-cleartext redirects. */
-internal fun publicImageClient(): okhttp3.OkHttpClient = okhttp3.OkHttpClient.Builder()
-    .cookieJar(okhttp3.CookieJar.NO_COOKIES)
-    .authenticator(okhttp3.Authenticator.NONE).proxyAuthenticator(okhttp3.Authenticator.NONE)
-    .followSslRedirects(false).build()
+internal fun publicImageClient(): okhttp3.OkHttpClient = anonymousMediaClientBuilder().build()
 
 /** Share the existing public-media loader with cache management; never create another disk cache. */
 internal fun publicMediaImageLoader(context: Context): ImageLoader = MediaImageLoader.get(context)
@@ -265,7 +262,7 @@ private fun MediaImage(url: String, index: Int, loader: ImageLoader, state: Medi
         if (phase != MediaImagePhase.Error) key(state, attempt) {
             AsyncImage(request, if (compact) null else "图片 ${index + 1}，双指缩放", imageLoader = loader,
                 onSuccess = { state.finish(attempt, MediaImagePhase.Success) },
-                onError = { state.finish(attempt, MediaImagePhase.Error) },
+                onError = { state.finish(attempt, MediaImagePhase.Error, imageLoadFailure(it.result.throwable)) },
                 contentScale = contentScale, modifier = modifier.fillMaxSize().testTag("media-$surface-content-$index"))
         }
         when (phase) {
@@ -277,7 +274,8 @@ private fun MediaImage(url: String, index: Int, loader: ImageLoader, state: Medi
                     style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
                     textAlign = androidx.compose.ui.text.style.TextAlign.Center)
             } else Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Text("图片加载失败", style = MaterialTheme.typography.bodyMedium)
+                Text(state.failure?.displayText() ?: "图片加载失败", style = MaterialTheme.typography.bodyMedium,
+                    modifier = Modifier.testTag("media-viewer-failure-reason-$index"))
                 TextButton(onClick = state::retry, modifier = Modifier.heightIn(min = 48.dp).widthIn(min = 48.dp)
                     .testTag("media-viewer-retry-$index").semantics { contentDescription = "重试图片 ${index + 1}" }) {
                     Text("重试本图")

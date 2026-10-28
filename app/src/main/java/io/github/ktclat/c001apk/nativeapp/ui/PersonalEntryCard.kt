@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.unit.dp
 import io.github.ktclat.c001apk.nativeapp.domain.*
 import io.github.ktclat.c001apk.nativeapp.feature.feed.*
@@ -67,7 +68,7 @@ import io.github.ktclat.c001apk.nativeapp.local.validUid
             homeCardTemplate(item) != null -> HomeTemplateCard(item, requireNotNull(homeCardTemplate(item)), openLink, refresh)
             else -> Card(Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(12.dp)) {
-                    Text(entry.label, style = MaterialTheme.typography.titleMedium)
+                    NativeRichText(AnnotatedString(entry.label), style = MaterialTheme.typography.titleMedium)
                     if (entry.detail.isNotBlank()) PagedPostText(entry.detail, item.bodyTruncated, openLink)
                     if (item.imageUrls.isNotEmpty()) MediaGrid(item.imageUrls)
                     if (item.kind == "card" || item.children.isNotEmpty() || item.childrenIncomplete)

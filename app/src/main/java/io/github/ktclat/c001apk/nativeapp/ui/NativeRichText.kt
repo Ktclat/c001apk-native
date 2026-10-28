@@ -31,6 +31,7 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import io.github.ktclat.c001apk.nativeapp.platform.AppLink
@@ -110,7 +111,7 @@ private class RichTextLinkOwner { var active = true }
 @Composable
 internal fun NativeRichText(text: AnnotatedString, modifier: Modifier = Modifier, style: TextStyle,
     links: List<PostLink> = emptyList(), openLink: (String) -> Unit = {},
-    expandEmoticons: Boolean = true) {
+    expandEmoticons: Boolean = true, maxLines: Int = Int.MAX_VALUE, overflow: TextOverflow = TextOverflow.Clip) {
     val show = LocalShowEmoticons.current && expandEmoticons
     val rich = remember(text, show) { inlineRichContent(text, show) }
     val currentOpen by rememberUpdatedState(openLink)
@@ -143,5 +144,5 @@ internal fun NativeRichText(text: AnnotatedString, modifier: Modifier = Modifier
             }
         }
     }
-    Text(linked, modifier, style = style, inlineContent = inline)
+    Text(linked, modifier, style = style, inlineContent = inline, maxLines = maxLines, overflow = overflow)
 }

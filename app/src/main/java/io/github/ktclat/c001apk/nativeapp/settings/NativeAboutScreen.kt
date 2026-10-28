@@ -53,6 +53,7 @@ internal val bundledNativeNotices = listOf(
     BundledNotice("NotoSansCJK-OFL.txt", "Noto Sans CJK · SIL OFL 1.1"),
     BundledNotice("PiliPlus-GPL-3.0.txt", "PiliPlus 配色来源 · GPL-3.0"),
     BundledNotice("TextEmoticons-NOTICE.txt", "文字表情来源声明"),
+    BundledNotice("InlineEmoticons-NOTICE.txt", "表情图片来源与权利声明"),
 )
 internal const val BUNDLED_NOTICE_SCOPE = "这里只展示本项目已打包的 9 份许可与来源声明，不代表完整依赖许可审计。项目源码的 AGPL-3.0 与第三方材料各自的许可并不相互替代。"
 

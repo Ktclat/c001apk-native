@@ -1,0 +1,128 @@
+{
+  "status": "NEW_RECONSTRUCTION_SOURCE_ONLY_NOT_BUILT_NOT_RUN_NOT_APPROVED",
+  "appCases": [
+    {
+      "selector": "io.github.ktclat.c001apk.nativeapp.ui.EmulatorInlineEmoticonsTest#actualFeedTitleBodyAndHotReplyUseBundledArt",
+      "status": "NOT_RUN"
+    },
+    {
+      "selector": "io.github.ktclat.c001apk.nativeapp.ui.EmulatorInlineEmoticonsTest#darkLargeFontHtmlLocalImageOccurrenceRemainsVisible",
+      "status": "NOT_RUN"
+    },
+    {
+      "selector": "io.github.ktclat.c001apk.nativeapp.ui.EmulatorInlineEmoticonsTest#darkLargeFontFeedAndDetailRemainReadable",
+      "status": "NOT_RUN"
+    },
+    {
+      "selector": "io.github.ktclat.c001apk.nativeapp.ui.EmulatorInlineEmoticonsTest#directPointerOnLinkedEmoteDoesNotActivateParentFeedCard",
+      "status": "NOT_RUN"
+    },
+    {
+      "selector": "io.github.ktclat.c001apk.nativeapp.ui.EmulatorInlineEmoticonsTest#actualSettingsOffOnChangesRenderingWithoutChangingFeedSource",
+      "status": "NOT_RUN"
+    },
+    {
+      "selector": "io.github.ktclat.c001apk.nativeapp.ui.EmulatorInlineEmoticonsTest#fullReaderRawAndActualCopyPreserveOriginalTokensAndCode",
+      "status": "NOT_RUN"
+    },
+    {
+      "selector": "io.github.ktclat.c001apk.nativeapp.ui.EmulatorProductionLaunchTest#actualEmotePreferenceToggleSurvivesReentryAndRecreation",
+      "status": "NOT_RUN"
+    },
+    {
+      "selector": "io.github.ktclat.c001apk.nativeapp.ui.EmulatorArticleAnchorTest#actualReply500AnchorSurvivesCachedPrependWhileChild43IsOpen",
+      "status": "NOT_RUN"
+    },
+    {
+      "selector": "io.github.ktclat.c001apk.nativeapp.ui.EmulatorNotificationNavigationTest#actualSystemDropdownOpens501Feed502AndBackRetainsUnsupportedRowPolicy",
+      "status": "NOT_RUN"
+    },
+    {
+      "selector": "io.github.ktclat.c001apk.nativeapp.ui.EmulatorPublicImageReplayTest#actualCarouselManualRetryDoesNotOpenItsParentAndDiagnosticsAreBounded",
+      "status": "NOT_RUN"
+    },
+    {
+      "selector": "io.github.ktclat.c001apk.nativeapp.ui.EmulatorPublicImageReplayTest#blockedBannerStopsAfterOneRetryAndGallery404StaysExplicit",
+      "status": "NOT_RUN"
+    },
+    {
+      "selector": "io.github.ktclat.c001apk.nativeapp.ui.EmulatorPublicImageReplayTest#darkLargeFontRetryIsOnlyShownWhenGlyphAndTouchBoundsFit",
+      "status": "NOT_RUN"
+    },
+    {
+      "selector": "io.github.ktclat.c001apk.nativeapp.ui.EmulatorPublicImageReplayTest#productionGifDecoderAnimatesOriginalWhileGridUsesStaticThumbnail",
+      "status": "NOT_RUN"
+    },
+    {
+      "selector": "io.github.ktclat.c001apk.nativeapp.ui.EmulatorLiteralSummaryTest#fourLiteralSummaryPathsKeepArtOverflowParentRoutesAndReadOnlyMessages",
+      "status": "NOT_RUN"
+    }
+  ],
+  "narrowRepeats": [
+    {
+      "selector": "io.github.ktclat.c001apk.nativeapp.ui.EmulatorInlineEmoticonsTest#darkLargeFontHtmlLocalImageOccurrenceRemainsVisible",
+      "status": "NOT_RUN"
+    },
+    {
+      "selector": "io.github.ktclat.c001apk.nativeapp.ui.EmulatorInlineEmoticonsTest#darkLargeFontFeedAndDetailRemainReadable",
+      "status": "NOT_RUN"
+    },
+    {
+      "selector": "io.github.ktclat.c001apk.nativeapp.ui.EmulatorPublicImageReplayTest#darkLargeFontRetryIsOnlyShownWhenGlyphAndTouchBoundsFit",
+      "status": "NOT_RUN"
+    }
+  ],
+  "measurementControls": [
+    {
+      "selector": "io.github.ktclat.c001apk.nativeapp.ui.EmulatorAnimationEvidenceWindowTest#staticImageInitialFadeNeverQualifiesAfterSettling",
+      "status": "NOT_RUN"
+    },
+    {
+      "selector": "io.github.ktclat.c001apk.nativeapp.ui.EmulatorAnimationEvidenceWindowTest#delayedLoadedImageFadeCannotBorrowTimeFromEarlierLoading",
+      "status": "NOT_RUN"
+    },
+    {
+      "selector": "io.github.ktclat.c001apk.nativeapp.ui.EmulatorAnimationEvidenceWindowTest#actualPostSettleAnimationRequiresThreeStableFrames",
+      "status": "NOT_RUN"
+    },
+    {
+      "selector": "io.github.ktclat.c001apk.nativeapp.ui.EmulatorAnimationEvidenceWindowTest#foregroundBoundsOrOutsideMotionResetTheWindow",
+      "status": "NOT_RUN"
+    },
+    {
+      "selector": "io.github.ktclat.c001apk.nativeapp.ui.EmulatorAnimationEvidenceWindowTest#bulkPixelDigestsMatchNaiveRowOrderAndClockExclusion",
+      "status": "NOT_RUN"
+    },
+    {
+      "selector": "io.github.ktclat.c001apk.nativeapp.ui.EmulatorAnimationEvidenceWindowTest#bulkDigestsDistinguishArtworkOutsideMutationAndDimensions",
+      "status": "NOT_RUN"
+    }
+  ],
+  "targetCounts": {
+    "appUnique": 14,
+    "appInvocationsIncludingNarrow": 17,
+    "measurementControlsSeparate": 6
+  },
+  "scope": "The 14th summary case is newly requested additional scope, not covered by historical 13-case approval. No historical result is reused.",
+  "runOrder": [
+    "fullReaderRawAndActualCopyPreserveOriginalTokensAndCode",
+    "six measurement controls",
+    "productionGifDecoderAnimatesOriginalWhileGridUsesStaticThumbnail",
+    "remaining app cases",
+    "three narrow repeats"
+  ],
+  "gates": [
+    "root frozen production and formal green gate",
+    "reviewed test source",
+    "serialized AndroidTest build with fresh signer/hash/DEX binding",
+    "sole new AVD readiness + exact installed pullhash",
+    "independent original pixel review",
+    "task settings restored + exact final hash + owned clean stop"
+  ],
+  "excluded": [
+    "live avatar retry",
+    "restricted image CDN probe",
+    "real accounts or writes",
+    "APK/key/user-upload publication"
+  ]
+}

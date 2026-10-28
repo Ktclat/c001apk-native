@@ -1,0 +1,230 @@
+{
+  "status": "SOURCE RECOVERY / PLAN ONLY; no new compilation, AVD or runtime approval",
+  "recordedUtc": "2026-10-28T04:51:58.911629+00:00",
+  "persistedBaseCommit": "fdb177a89064e9f353665e3f6eacc18e3b128776",
+  "originalFinalQaCommitLabel": "c45da00f677fb36795bad51a54b52f7c84090b1d",
+  "originalFinalOverlaySha256Label": "730ae6a521fc9e3aff2a7a347b9e804b7e6b5e5ece5e275043434a629fac9c39",
+  "originalFinalOverlayPresent": false,
+  "originalFinalApksAndEvidencePresent": false,
+  "originalSigningKeyPresent": false,
+  "historicalLabelsAreNotNewResults": true,
+  "exactTools": {
+    "check-dex-binding.py": "Complete persisted docs/qa file; identical historical hash.",
+    "summarize-instrumentation.py": "Complete prior tool output in conversation; reconstructed verbatim and identical historical hash."
+  },
+  "olderPatchSource": "base-checkout/docs/qa/instrumentation-harness-c4f1430.patch, unchanged SHA a1b02c50afd0cbfa027074ad52454d94596f24dd40fb17e09d4d4d76db2ebad8; only added androidTest files extracted into isolated directory, production not modified",
+  "noFabricatedArtifacts": [
+    "No PNG/XML recreated",
+    "No PASS/approval receipt recreated",
+    "No original APK/signature/source manifest assumed",
+    "No source publication or network request"
+  ],
+  "targetCountsNotResults": {
+    "appUnique": 14,
+    "appInvocationsIncludingNarrowRepeats": 17,
+    "measurementControls": 6
+  },
+  "files": [
+    {
+      "path": "README.md",
+      "sha256": "59ed339efed9baf772f03a822fa7651a5930bb1598b7806a643177af46579e14",
+      "bytes": 801,
+      "classification": "NEW_RECONSTRUCTION_NOT_ORIGINAL_NOT_EXECUTED"
+    },
+    {
+      "path": "archive-policy/README.md",
+      "sha256": "67364995c39f5fbb85d37c8ae34976a6d1b1ee5e90277658260ee94251c50c9c",
+      "bytes": 3681,
+      "classification": "NEW_RECONSTRUCTION_NOT_ORIGINAL_NOT_EXECUTED"
+    },
+    {
+      "path": "archive-policy/candidate-manifest-template.json",
+      "sha256": "df0add7475be3b86986457a736c7fa122f55c28461b1234162e09fcfccedef0a",
+      "bytes": 711,
+      "classification": "NEW_RECONSTRUCTION_NOT_ORIGINAL_NOT_EXECUTED"
+    },
+    {
+      "path": "new-plan/ACCEPTANCE-PLAN.md",
+      "sha256": "95d3e684caae204a24acf32809e94ffb590752b443866a5f57fb425fe63dcec5",
+      "bytes": 10721,
+      "classification": "NEW_RECONSTRUCTION_NOT_ORIGINAL_NOT_EXECUTED"
+    },
+    {
+      "path": "new-plan/case-plan.json",
+      "sha256": "03b82f0a690481f2029b465e5fb2d49f9f7c985b4182cbc992dba3e3171a4909",
+      "bytes": 5393,
+      "classification": "NEW_RECONSTRUCTION_NOT_ORIGINAL_NOT_EXECUTED"
+    },
+    {
+      "path": "prior-28-case/app/src/androidTest/assets/icon-grid/icon-1.png",
+      "sha256": "e02089adcae51bc065efff38aac93ef5d74be0ab91fcf3b85ed89c277336e027",
+      "bytes": 502,
+      "classification": "PERSISTED_OLDER_PUBLISHED_SOURCE_NOT_NEW13_CASE"
+    },
+    {
+      "path": "prior-28-case/app/src/androidTest/assets/icon-grid/icon-10.png",
+      "sha256": "65cbf603c19ba919425fa9c41b78b375d43edf3c5e1b3634d9428bdde3ab0302",
+      "bytes": 685,
+      "classification": "PERSISTED_OLDER_PUBLISHED_SOURCE_NOT_NEW13_CASE"
+    },
+    {
+      "path": "prior-28-case/app/src/androidTest/assets/icon-grid/icon-2.png",
+      "sha256": "d4db26ce990fff0f8e2c74f5b586914ee4efc0da22bd8785944f4c1db3c00cb1",
+      "bytes": 642,
+      "classification": "PERSISTED_OLDER_PUBLISHED_SOURCE_NOT_NEW13_CASE"
+    },
+    {
+      "path": "prior-28-case/app/src/androidTest/assets/icon-grid/icon-3.png",
+      "sha256": "54fb3635567396a4f0deb00680ab6ea9a42100bb050c59ec318e8208aa8de2e2",
+      "bytes": 681,
+      "classification": "PERSISTED_OLDER_PUBLISHED_SOURCE_NOT_NEW13_CASE"
+    },
+    {
+      "path": "prior-28-case/app/src/androidTest/assets/icon-grid/icon-4.png",
+      "sha256": "2ea045fe616cd41c2abbe2c4aab2a1521d4abb38da52e077a0507b2bafa27ef3",
+      "bytes": 598,
+      "classification": "PERSISTED_OLDER_PUBLISHED_SOURCE_NOT_NEW13_CASE"
+    },
+    {
+      "path": "prior-28-case/app/src/androidTest/assets/icon-grid/icon-5.png",
+      "sha256": "84b70fcb3e2d6729a03244f3d2c0b397adfe71394f6ebf43dfc54a6bc8071958",
+      "bytes": 648,
+      "classification": "PERSISTED_OLDER_PUBLISHED_SOURCE_NOT_NEW13_CASE"
+    },
+    {
+      "path": "prior-28-case/app/src/androidTest/assets/icon-grid/icon-6.png",
+      "sha256": "6cba6f06331a80556d868d5046149cc82be18615227255cf5aa2dc743819e9b2",
+      "bytes": 649,
+      "classification": "PERSISTED_OLDER_PUBLISHED_SOURCE_NOT_NEW13_CASE"
+    },
+    {
+      "path": "prior-28-case/app/src/androidTest/assets/icon-grid/icon-7.png",
+      "sha256": "080eaaec259dfec64c6d43ec836468b9443bb94a02e4371ea14c9c33551afb28",
+      "bytes": 590,
+      "classification": "PERSISTED_OLDER_PUBLISHED_SOURCE_NOT_NEW13_CASE"
+    },
+    {
+      "path": "prior-28-case/app/src/androidTest/assets/icon-grid/icon-8.png",
+      "sha256": "4045c043b1fbad72bf2fa8935f0ab0498e2eebf08d804972654ebd1acfcc6cd2",
+      "bytes": 683,
+      "classification": "PERSISTED_OLDER_PUBLISHED_SOURCE_NOT_NEW13_CASE"
+    },
+    {
+      "path": "prior-28-case/app/src/androidTest/assets/icon-grid/icon-9.png",
+      "sha256": "da1cd95881234bebe03e0c6f41247d4fcaee4a38bb2b246cb2dee1ae126f842d",
+      "bytes": 682,
+      "classification": "PERSISTED_OLDER_PUBLISHED_SOURCE_NOT_NEW13_CASE"
+    },
+    {
+      "path": "prior-28-case/app/src/androidTest/java/io/github/ktclat/c001apk/nativeapp/ui/EmulatorBlacklistDocumentBoundaryTest.kt",
+      "sha256": "05e3a04a9c7e76d1e728f1b131b954d2978679dce896f8b73080a7306b7de767",
+      "bytes": 15824,
+      "classification": "PERSISTED_OLDER_PUBLISHED_SOURCE_NOT_NEW13_CASE"
+    },
+    {
+      "path": "prior-28-case/app/src/androidTest/java/io/github/ktclat/c001apk/nativeapp/ui/EmulatorBlacklistRootTest.kt",
+      "sha256": "6754a38ef73cbdf077decd4552a13bb42d08f16dcd1a351cd653497d0f01fbcb",
+      "bytes": 17128,
+      "classification": "PERSISTED_OLDER_PUBLISHED_SOURCE_NOT_NEW13_CASE"
+    },
+    {
+      "path": "prior-28-case/app/src/androidTest/java/io/github/ktclat/c001apk/nativeapp/ui/EmulatorEvidence.kt",
+      "sha256": "3379bbf0c2fde73774c96d7b01288432fb705b2740925189bb171c27c02ab505",
+      "bytes": 8784,
+      "classification": "PERSISTED_OLDER_PUBLISHED_SOURCE_NOT_NEW13_CASE"
+    },
+    {
+      "path": "prior-28-case/app/src/androidTest/java/io/github/ktclat/c001apk/nativeapp/ui/EmulatorGraphicRetryTest.kt",
+      "sha256": "fec02660552ddd9980f20711d9b9b095c2729dd006316409365fa2f59430f6e1",
+      "bytes": 17331,
+      "classification": "PERSISTED_OLDER_PUBLISHED_SOURCE_NOT_NEW13_CASE"
+    },
+    {
+      "path": "prior-28-case/app/src/androidTest/java/io/github/ktclat/c001apk/nativeapp/ui/EmulatorPersonalRichCardsTest.kt",
+      "sha256": "2e49ad7667bb9decc043eebb9acb79c548a08aef10ebd84ac9fc3af6d9b528e3",
+      "bytes": 18125,
+      "classification": "PERSISTED_OLDER_PUBLISHED_SOURCE_NOT_NEW13_CASE"
+    },
+    {
+      "path": "prior-28-case/app/src/androidTest/java/io/github/ktclat/c001apk/nativeapp/ui/EmulatorProductionLaunchTest.kt",
+      "sha256": "42933482f8cbef8cb6f8db36147f4eb3642647e1d3c661f8cdffe933eb213e93",
+      "bytes": 18113,
+      "classification": "PERSISTED_OLDER_PUBLISHED_SOURCE_NOT_NEW13_CASE"
+    },
+    {
+      "path": "prior-28-case/instrumentation-harness-c4f1430.patch",
+      "sha256": "a1b02c50afd0cbfa027074ad52454d94596f24dd40fb17e09d4d4d76db2ebad8",
+      "bytes": 121104,
+      "classification": "PERSISTED_OLDER_PUBLISHED_SOURCE_NOT_NEW13_CASE"
+    },
+    {
+      "path": "tools/generate-synthetic-media.py",
+      "sha256": "22e8ad46b5f8f5f1f742852839a089b52b53a265341f1c755fdf0a1873e8fb8c",
+      "bytes": 1557,
+      "classification": "NEW_RECONSTRUCTION_NOT_ORIGINAL_NOT_EXECUTED"
+    },
+    {
+      "path": "verified-oracles/InlineSelectionCopyRegressionTest.kt",
+      "sha256": "45b3e318579c8484c83b4697e2eb5a3be8fab5f4015f5c320f25d11a656578d3",
+      "bytes": 7486,
+      "classification": "RECOVERED_LITERAL_OR_SOURCE_WITH_VERIFIED_HASH_NOT_EXECUTION"
+    },
+    {
+      "path": "verified-oracles/copy_expected.txt",
+      "sha256": "a9ad7ccd576cb2959cda8141b71276b608f90a45b8007e90e4451b1aa0cd385c",
+      "bytes": 233,
+      "classification": "RECOVERED_LITERAL_OR_SOURCE_WITH_VERIFIED_HASH_NOT_EXECUTION"
+    },
+    {
+      "path": "verified-oracles/copy_source.txt",
+      "sha256": "fc14b342f4089d5c62306d31546267f2a1dfeb932815cc3ff6cd10f3df1884f8",
+      "bytes": 253,
+      "classification": "RECOVERED_LITERAL_OR_SOURCE_WITH_VERIFIED_HASH_NOT_EXECUTION"
+    },
+    {
+      "path": "verified-oracles/oracle-provenance.json",
+      "sha256": "ac23d30c22f3e4459384671cc133516bf33dcb5536c51eaeb858cc18d29a238b",
+      "bytes": 963,
+      "classification": "NEW_RECONSTRUCTION_NOT_ORIGINAL_NOT_EXECUTED"
+    },
+    {
+      "path": "verified-tools/check-dex-binding.py",
+      "sha256": "31ffd2515ed0c692c2df2e6760795ef30fac03e68b62cad40c64858f4f83e627",
+      "bytes": 3034,
+      "classification": "EXACT_BYTES_MATCH_HISTORICAL_HASH"
+    },
+    {
+      "path": "verified-tools/summarize-instrumentation.py",
+      "sha256": "d8483daf9a25c6e7557b2c70aaffca9fcfe88a43c658ddf54226dd56742d44b0",
+      "bytes": 2605,
+      "classification": "EXACT_BYTES_MATCH_HISTORICAL_HASH"
+    }
+  ],
+  "verifiedCopyOracles": [
+    {
+      "name": "COPY_EXPECTED",
+      "file": "copy_expected.txt",
+      "utf16Units": 97,
+      "sha256": "a9ad7ccd576cb2959cda8141b71276b608f90a45b8007e90e4451b1aa0cd385c",
+      "scope": "Exact recovered independent test literal only; not a clipboard result or execution evidence"
+    },
+    {
+      "name": "COPY_SOURCE",
+      "file": "copy_source.txt",
+      "utf16Units": 117,
+      "sha256": "fc14b342f4089d5c62306d31546267f2a1dfeb932815cc3ff6cd10f3df1884f8",
+      "scope": "Exact recovered independent test literal only; not a clipboard result or execution evidence"
+    }
+  ],
+  "originalFilesNotRecovered": [
+    "EmulatorInlineEmoticonsTest.kt",
+    "EmulatorPublicImageReplayTest.kt",
+    "EmulatorAnimatedEvidence.kt",
+    "EmulatorAnimationEvidenceWindowTest.kt",
+    "EmulatorArticleAnchorTest.kt",
+    "EmulatorNotificationNavigationTest.kt",
+    "new production showEmoji method and unique run-directory changes",
+    "final synthetic GIF/static media-replay asset bytes and provenance"
+  ],
+  "newTestSourceState": "Fourteen reconstructed app cases and six measurement controls now exist in app/src/androidTest; NOT_BUILT/NOT_RUN, independent source review pending. Not original lost bytes."
+}

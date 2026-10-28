@@ -77,7 +77,8 @@ class NativeAboutTest {
 
     @Test fun bundledNoticeAllowlistExactlyMatchesPackagedAssetsAndDoesNotClaimFullAudit() {
         val context = RuntimeEnvironment.getApplication()
-        assertEquals(9, bundledNativeNotices.size)
+        assertEquals(10, bundledNativeNotices.size)
+        assertTrue(bundledNativeNotices.any { it.file == "InlineEmoticons-NOTICE.txt" })
         assertEquals(context.assets.list("licenses")!!.toSet(), bundledNativeNotices.map { it.file }.toSet())
         bundledNativeNotices.forEach { assertTrue(context.assets.open("licenses/${it.file}").bufferedReader().use { reader -> reader.readText() }.isNotBlank()) }
         assertTrue(BUNDLED_NOTICE_SCOPE.contains("不代表完整依赖许可审计"))

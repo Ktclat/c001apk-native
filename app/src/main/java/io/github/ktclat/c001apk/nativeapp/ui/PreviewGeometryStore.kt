@@ -25,6 +25,7 @@ internal data class PreviewGeometryKey(
     val expanded: Boolean,
     val page: Int,
     val sourceIncomplete: Boolean,
+    val showEmoticons: Boolean = true,
 )
 
 /** Full raw UTF-16 identity, bounded before hashing. Oversize direct inputs never use a prefix key. */

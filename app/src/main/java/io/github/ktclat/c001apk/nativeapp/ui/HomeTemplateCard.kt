@@ -70,7 +70,7 @@ internal fun HomeTemplateCard(item: ContentItem, template: HomeCardTemplate, ope
         Column(Modifier.padding(vertical = 6.dp)) {
             when (template) {
                 HomeCardTemplate.TITLE -> HomeCardTitle(item, openLink)
-                HomeCardTemplate.MESSAGE -> Text(item.cardFields?.description.orEmpty().ifBlank { "暂无消息内容" },
+                HomeCardTemplate.MESSAGE -> NativeTokenText(item.cardFields?.description.orEmpty().ifBlank { "暂无消息内容" },
                     Modifier.fillMaxWidth().padding(12.dp), color = MaterialTheme.colorScheme.onSecondaryContainer)
                 HomeCardTemplate.END -> Text(item.title.ifBlank { "没有更多内容了" }, Modifier.fillMaxWidth().heightIn(min = 64.dp).padding(12.dp),
                     textAlign = TextAlign.Center, color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -148,10 +148,10 @@ private fun HomeMiniEntry(id: String, entry: HomeCardEntry, openLink: (String) -
 }
 
 @Composable
-private fun HomeImageEntry(id: String, entry: HomeCardEntry, template: HomeCardTemplate, openLink: (String) -> Unit, modifier: Modifier) {
+private fun HomeImageEntry(id: String, entry: HomeCardEntry, template: HomeCardTemplate, openLink: (String) -> Unit, modifier: Modifier, allowImageRetry: Boolean = false) {
     Column(modifier.homeEntry(id, entry, openLink).padding(bottom = 6.dp), horizontalAlignment = Alignment.CenterHorizontally) {
         HomeCardImage(entry.image, Modifier.fillMaxWidth().aspectRatio(if (template == HomeCardTemplate.IMAGE_TEXT_SCROLL) 2.22f else 1f),
-            circle = template == HomeCardTemplate.AVATAR_SCROLL)
+            circle = template == HomeCardTemplate.AVATAR_SCROLL, allowRetry = allowImageRetry)
         Text(entry.label, Modifier.padding(horizontal = 4.dp, vertical = 5.dp), fontSize = 14.sp,
             maxLines = 3, overflow = TextOverflow.Ellipsis, textAlign = if (template == HomeCardTemplate.IMAGE_TEXT_SCROLL) TextAlign.Start else TextAlign.Center)
         if (!entry.supported) Text("暂不支持此入口", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -163,7 +163,7 @@ private fun HomeCarousel(id: String, entries: List<HomeCardEntry>, openLink: (St
     val pager = rememberPagerState(pageCount = { entries.size })
     val scope = rememberCoroutineScope()
     HorizontalPager(state = pager, modifier = Modifier.fillMaxWidth().testTag("home-carousel:$id"), verticalAlignment = Alignment.Top) { page ->
-        HomeImageEntry(id, entries[page], HomeCardTemplate.IMAGE_TEXT_SCROLL, openLink, Modifier.fillMaxWidth().padding(horizontal = 10.dp))
+        HomeImageEntry(id, entries[page], HomeCardTemplate.IMAGE_TEXT_SCROLL, openLink, Modifier.fillMaxWidth().padding(horizontal = 10.dp), allowImageRetry = true)
     }
     if (entries.size > 1) Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
         TextButton(onClick = { scope.launch { pager.animateScrollToPage(pager.currentPage - 1) } }, enabled = pager.currentPage > 0,
@@ -175,6 +175,6 @@ private fun HomeCarousel(id: String, entries: List<HomeCardEntry>, openLink: (St
 }
 
 @Composable
-private fun HomeCardImage(url: String?, modifier: Modifier, circle: Boolean = false) {
-    PublicImage(url, modifier = modifier.clip(if (circle) CircleShape else RoundedCornerShape(10.dp)), avatar = circle)
+private fun HomeCardImage(url: String?, modifier: Modifier, circle: Boolean = false, allowRetry: Boolean = false) {
+    PublicImage(url, modifier = modifier.clip(if (circle) CircleShape else RoundedCornerShape(10.dp)), avatar = circle, allowRetry = allowRetry)
 }

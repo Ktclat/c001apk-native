@@ -1,0 +1,32 @@
+{
+  "scope": "New programmatic synthetic geometric fixtures; not original lost bytes, CDN art, user upload, runtime output or restoration proof",
+  "generator": "generate-synthetic-media.py",
+  "pillow": "12.3.0",
+  "files": [
+    {
+      "file": "static.png",
+      "sha256": "35f7f7b61cacb5c66fed0e0f5b8d55b3e553b32c1ca0015b95e1d2557343ebdf",
+      "bytes": 842,
+      "width": 360,
+      "height": 240,
+      "frameCount": 1,
+      "durationsMs": [
+        0
+      ],
+      "format": "PNG"
+    },
+    {
+      "file": "animated.gif",
+      "sha256": "8f61a2895c3a289255ec55795241ebb87d4dfc45638586451aae62676b67b1ea",
+      "bytes": 1724,
+      "width": 360,
+      "height": 240,
+      "frameCount": 2,
+      "durationsMs": [
+        400,
+        400
+      ],
+      "format": "GIF"
+    }
+  ]
+}
