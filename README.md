@@ -1,8 +1,20 @@
 # c001apk Native
 
+## Recovery test branch — 2026-10-28: not accepted for release
+
+This work-in-progress branch preserves recovered source fragments and newly
+reconstructed media/emoji changes. It is **not** the missing previously reviewed
+source tree or APK, and does not inherit that artifact's acceptance or signature.
+New CI results are separate from actual Android UI acceptance; the reconstructed
+14-scenario UI plan is not approved merely because its test sources compile.
+Remote Coolapk image recovery remains unverified. The source-only CI retains
+verification reports, not APKs or signing material. Only newly qualified changes
+may be integrated into main; earlier dated reports below apply solely to the
+exact source/artifact identities they name.
+
 ## Current development scope — 2026-10-27
 
-The native client remains **in development, not full Flutter parity**. The historical checkpoints below retain their original evidence and are not the current feature list.
+The native client remains **in development, not full Flutter parity**. The historical checkpoints below retain dated descriptions and existing published references, not a guarantee that original local runtime archives remain available. The missing local runtime archives are not restored by this reconstruction; the historical sections are not the current feature list.
 
 **This bounded increment received independent actual-UI approval on 2026-10-27.** The frozen runtime passed 1,454 unit tests and 28 distinct API26 emulator scenarios (30 passing invocations including two narrow repeats). [Independent review](docs/INDEPENDENT_UI_REVIEW_20261027.md) records exact APK/source hashes, actual screenshots and limits; [opt-in reproduction](docs/qa/REPRODUCE.md) provides a test-only overlay. This publication adds documentation/QA material only after the tested runtime freeze; the portable runtime manifest verifies source equivalence. Remote CI for the published snapshot is separate from this local acceptance record. Subsequent [test-only gate corrections](docs/CI58_TEST_COMPLETION.md) preserve the accepted runtime and passed a combined 1,457-test local gate; their fresh remote CI remains separate.
 
