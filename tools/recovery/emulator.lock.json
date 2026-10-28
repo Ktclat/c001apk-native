@@ -1,0 +1,20 @@
+[
+  {
+    "algorithm": "sha1",
+    "bytes": 349654171,
+    "digest": "cd7362ea55dfb86a418958138dc396e74165dd01",
+    "filename": "emulator-linux_x64-16428233.zip",
+    "metadata": "Official repository2-1.xml, stable emulator 37.2.12",
+    "sha256": "b08fc43d8608d2955f607f1b287beb525041e730086bdca3af152accac3af9c1",
+    "url": "https://dl.google.com/android/repository/emulator-linux_x64-16428233.zip"
+  },
+  {
+    "algorithm": "sha1",
+    "bytes": 474178332,
+    "digest": "432f149c048bffce7f9de526ec65b336daf7a0a3",
+    "filename": "x86_64-26_r01.zip",
+    "metadata": "Official android sys-img2-1.xml, API26 default x86_64 rev1",
+    "sha256": "78a79eb02751b19b6626b785f05d5b0ab3a283596fe9d29e54905090a36fe77d",
+    "url": "https://dl.google.com/android/repository/sys-img/android/x86_64-26_r01.zip"
+  }
+]

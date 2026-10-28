@@ -15,6 +15,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.semantics.getOrNull
 import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.unit.Density
@@ -89,7 +90,7 @@ class EmulatorPublicImageReplayTest {
         children = listOf(ContentItem("entry", "url", targetUrl = "/feed/9899", cardFields = HomeCardFields(picture = url, title = "合成轮播入口"))))
     private fun awaitTag(tag: String) = compose.waitUntil(30_000) { compose.onAllNodesWithTag(tag).fetchSemanticsNodes().size == 1 }
     private fun awaitState(tag: String, state: String) = compose.waitUntil(30_000) {
-        compose.onAllNodesWithTag(tag).fetchSemanticsNodes().singleOrNull()?.config?.getOrNull(SemanticsProperties.StateDescription) == state
+        compose.onAllNodesWithTag(tag, useUnmergedTree = true).fetchSemanticsNodes().singleOrNull()?.config?.getOrNull(SemanticsProperties.StateDescription) == state
     }
     private fun capture(stage: String) { compose.waitForIdle(); EmulatorEvidence.capture("media-${name.methodName}-$stage",
         compose.onAllNodes(isRoot(), useUnmergedTree = true).printToString()); ledger() }
@@ -115,7 +116,7 @@ class EmulatorPublicImageReplayTest {
         compose.onNodeWithTag("public-image-retry").assertIsDisplayed().performClick()
         compose.waitUntil(30_000) {
             requests.size == 2 && compose.onAllNodes(SemanticsMatcher.expectValue(SemanticsProperties.StateDescription, "图片已加载")
-                and hasAnyAncestor(hasTestTag("home-entry:fixture:0"))).fetchSemanticsNodes().size == 1
+                and hasAnyAncestor(hasTestTag("home-entry:fixture:0")), useUnmergedTree = true).fetchSemanticsNodes().size == 1
         }
         compose.onNodeWithTag("home-entry:fixture:0").assertIsDisplayed(); assertTrue(opened.isEmpty())
         capture("retry-loaded")
